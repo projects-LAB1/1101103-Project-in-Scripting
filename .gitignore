@@ -1,25 +1,36 @@
-# CakePHP 3
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-/vendor/*
-/config/app.php
+# dependencies
+node_modules/
 
-/tmp/cache/models/*
-!/tmp/cache/models/empty
-/tmp/cache/persistent/*
-!/tmp/cache/persistent/empty
-/tmp/cache/views/*
-!/tmp/cache/views/empty
-/tmp/sessions/*
-!/tmp/sessions/empty
-/tmp/tests/*
-!/tmp/tests/empty
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
 
-/logs/*
-!/logs/empty
+# Native
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
-# CakePHP 2
+# Metro
+.metro-health-check*
 
-/app/tmp/*
-/app/Config/core.php
-/app/Config/database.php
-/vendors/*
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
