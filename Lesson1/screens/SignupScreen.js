@@ -2,10 +2,38 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
+// เพิ่มการนำเข้า Firebase
+import { auth } from '../App';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+
 const SignupScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  const handleSignup = async () => {
+    // Validate password length
+    if (password.length < 6) {
+      alert('Password should be at least 6 characters');
+      return;
+    }
+    
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      console.log('Signed up:', userCredential.user);
+      // นำทางไปยังหน้าหลักหลังจากสมัครสมาชิกสำเร็จ
+      navigation.navigate('Home');
+    } catch (error) {
+      console.error('Signup error:', error);
+      
+      // Check for specific Firebase error codes
+      if (error.code === 'auth/email-already-in-use') {
+        alert('This email is already registered. Please use a different email or try logging in.');
+      } else {
+        alert('Signup failed: ' + error.message);
+      }
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -46,7 +74,7 @@ const SignupScreen = ({ navigation }) => {
           value={password}
           onChangeText={setPassword}
         />
-        <TouchableOpacity style={styles.signupButton}>
+        <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
           <Text style={styles.signupButtonText}>สมัครสมาชิก</Text>
         </TouchableOpacity>
       </View>
