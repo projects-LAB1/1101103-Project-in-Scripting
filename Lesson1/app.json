@@ -14,13 +14,15 @@
     },
     "scheme": "lesson01-61612",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.myapplication1"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.example.myapplication1"
     },
     "web": {
       "favicon": "./assets/favicon.png"

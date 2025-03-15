@@ -6,6 +6,8 @@ import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } 
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
+// Import Appwrite account
+import { account } from '../utils/appwrite';
 
 // ต้องเรียกเมธอดนี้เพื่อให้ WebBrowser ทำงานได้ถูกต้อง
 WebBrowser.maybeCompleteAuthSession();
@@ -21,16 +23,36 @@ const LoginScreen = ({ navigation }) => {
       useProxy: false 
     });
     console.log('Expo Redirect URI:', redirectUri);
+    // Also log the proxy redirect URI that will be used with Google
+    const proxyRedirectUri = AuthSession.makeRedirectUri({ 
+      native: 'lesson01-61612://',
+      useProxy: true 
+    });
+    console.log('Expo Proxy Redirect URI (for Google):', proxyRedirectUri);
   }, []);
   
   // สร้าง Google Auth Request โดยใช้ expo-auth-session
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: '988759265113-rvvtqnvs8kkfvjm3vgp2qj3d5kcl9iqg.apps.googleusercontent.com',
-    webClientId: '988759265113-m8ugf840vvun3pudd6i7imggb66vhjm5.apps.googleusercontent.com',
-    expoClientId: '988759265113-m8ugf840vvun3pudd6i7imggb66vhjm5.apps.googleusercontent.com',
-    redirectUri: AuthSession.makeRedirectUri({ useProxy: false }),
+    webClientId: '988759265113-re85jw9qqfm671qrmm22kmjav3ir.apps.googleusercontent.com',
+    expoClientId: '988759265113-re85jw9qqfm671qrmm22kmjav3ir.apps.googleusercontent.com',
+    // แก้ไข redirectUri ให้ใช้ URI ที่สร้างจาก AuthSession
+    redirectUri: AuthSession.makeRedirectUri({ 
+      native: 'lesson01-61612://',
+      useProxy: true
+    }),
     scopes: ['profile', 'email'],
   });
+  
+  // แสดง URL ที่ใช้สำหรับ redirect
+  useEffect(() => {
+    if (request) {
+      console.log('Redirect URL:', request.redirectUri);
+      // Log additional information for debugging
+      console.log('Client ID being used:', '988759265113-re85jw9qqfm671qrmm22kmjav3ir.apps.googleusercontent.com');
+      console.log('Authorized JavaScript origins from Google Console:', 'http://localhost:8081');
+    }
+  }, [request]);
   
   // เพิ่ม debug log เพื่อตรวจสอบ request
   useEffect(() => {
@@ -48,19 +70,33 @@ const LoginScreen = ({ navigation }) => {
   
   // จัดการกับ response จาก Google Auth
   useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
+    if (response) {
+      console.log('Auth response type:', response.type);
+      console.log('Auth response full:', JSON.stringify(response, null, 2));
       
-      const credential = GoogleAuthProvider.credential(id_token);
-      signInWithCredential(auth, credential)
-        .then(userCredential => {
-          console.log('Google sign in successful:', userCredential.user);
-          navigation.navigate('Home');
-        })
-        .catch(error => {
-          console.error('Firebase sign in error:', error);
-          alert('Firebase sign in failed: ' + error.message);
-        });
+      if (response?.type === 'success') {
+        const { id_token } = response.params;
+        
+        if (!id_token) {
+          console.error('No id_token received from Google');
+          alert('ไม่สามารถล็อกอินด้วย Google ได้: ไม่ได้รับ token');
+          return;
+        }
+        
+        const credential = GoogleAuthProvider.credential(id_token);
+        signInWithCredential(auth, credential)
+          .then(userCredential => {
+            console.log('Google sign in successful:', userCredential.user);
+            navigation.navigate('Home');
+          })
+          .catch(error => {
+            console.error('Firebase sign in error:', error);
+            alert('ล็อกอินด้วย Google ไม่สำเร็จ: ' + error.message);
+          });
+      } else if (response?.type === 'error') {
+        console.error('Google auth error:', response.error);
+        alert('ล็อกอินด้วย Google ไม่สำเร็จ: ' + (response.error?.message || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ'));
+      }
     }
   }, [response]);
 
@@ -82,10 +118,12 @@ const LoginScreen = ({ navigation }) => {
   
   const handleGoogleSignIn = async () => {
     try {
-      await promptAsync();
+      console.log('Starting Google Sign In process...');
+      const result = await promptAsync();
+      console.log('promptAsync result:', result);
     } catch (error) {
       console.error('Google sign in error:', error);
-      alert('Google sign in failed: ' + error.message);
+      alert('ล็อกอินด้วย Google ไม่สำเร็จ: ' + error.message);
     }
   };
 
