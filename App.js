@@ -10,6 +10,7 @@ import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "react-native";
 import { UserAuth } from "./models/UserAuth";
+import { registerForPushNotificationsAsync, savePushToken, setupNotificationListeners } from "./models/NotificationManager";
 
 // Screens
 import LoginScreen from "./screens/LoginScreen";
@@ -36,16 +37,46 @@ const App = () => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       if (initializing) setInitializing(false);
+      
+      // ลงทะเบียนการแจ้งเตือนเมื่อผู้ใช้ล็อกอิน
+      if (user) {
+        // ขอสิทธิ์การแจ้งเตือนและบันทึก token
+        registerForPushNotificationsAsync().then(token => {
+          if (token) {
+            savePushToken(user.uid, token);
+          } else {
+            console.log('ไม่สามารถรับ Push Token ได้');
+          }
+        }).catch(error => {
+          console.error('เกิดข้อผิดพลาดในการลงทะเบียนการแจ้งเตือน:', error);
+        });
+      }
     });
 
     // Cleanup subscription
     return unsubscribe;
   }, [initializing]);
+  
+  // ตั้งค่าการฟังการแจ้งเตือน
+  useEffect(() => {
+    if (!user) return;
+    
+    // ตั้งค่าการฟังการแจ้งเตือนเมื่อผู้ใช้ล็อกอินแล้ว
+    const navigationRef = React.createRef();
+    const unsubscribeNotifications = setupNotificationListeners(navigationRef.current);
+    
+    return () => {
+      // ยกเลิกการฟังการแจ้งเตือนเมื่อคอมโพเนนต์ถูกทำลาย
+      if (unsubscribeNotifications) {
+        unsubscribeNotifications();
+      }
+    };
+  }, [user]);
 
   if (initializing) {
     return null; // หรือแสดง LoadingScreen
   }
-
+  
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" />
@@ -74,9 +105,9 @@ const AlarmStackNavigator = () => (
     <AlarmStack.Screen
       name="AlarmList"
       component={AlarmListScreen}
-      options={{
+      options={({ navigation }) => ({
         title: "นาฬิกาปลุก",
-        headerRight: ({ navigation }) => (
+        headerRight: () => (
           <Icon
             name="plus"
             size={24}
@@ -84,7 +115,7 @@ const AlarmStackNavigator = () => (
             onPress={() => navigation.navigate("AddAlarm")}
           />
         ),
-      }}
+      })}
     />
     <AlarmStack.Screen
       name="AddAlarm"
@@ -140,11 +171,9 @@ const MainNavigator = () => (
 
         return <Icon name={iconName} size={size} color={color} />;
       },
+      tabBarActiveTintColor: "#4F46E5",
+      tabBarInactiveTintColor: "gray",
     })}
-    tabBarOptions={{
-      activeTintColor: "#4F46E5",
-      inactiveTintColor: "gray",
-    }}
   >
     <MainTab.Screen
       name="Alarm"

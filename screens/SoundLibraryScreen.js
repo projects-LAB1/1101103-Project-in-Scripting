@@ -11,7 +11,8 @@ import {
 import { getFirestore, collection, getDocs, addDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Audio } from "expo-av";
-import { Alert, Slider } from "react-native";
+import { Alert } from "react-native";
+import Slider from "@react-native-community/slider";
 import { DocumentPicker } from "expo-document-picker";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
@@ -216,11 +217,13 @@ const SoundLibraryScreen = ({ route, navigation }) => {
         style={styles.playButton}
         onPress={() => playSound(item)}
       >
-        <Icon
-          name={playingSoundId === item.id ? "stop" : "play"}
-          size={24}
-          color="#4F46E5"
-        />
+        <Text>
+          <Icon
+            name={playingSoundId === item.id ? "stop" : "play"}
+            size={24}
+            color="#4F46E5"
+          />
+        </Text>
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -260,7 +263,9 @@ const SoundLibraryScreen = ({ route, navigation }) => {
 
       {/* Upload Button */}
       <TouchableOpacity style={styles.uploadButton} onPress={uploadSound}>
-        <Icon name="upload" size={20} color="white" />
+        <Text>
+          <Icon name="upload" size={20} color="white" />
+        </Text>
         <Text style={styles.uploadButtonText}>อัปโหลดเสียงใหม่</Text>
       </TouchableOpacity>
     </View>

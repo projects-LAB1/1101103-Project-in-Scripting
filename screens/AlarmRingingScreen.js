@@ -109,19 +109,43 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     // Navigate back to previous screen
     navigation.goBack();
 
-    // Schedule new alarm in 5 minutes
-    // In a real app, you would use a background task or notification
-    // to reschedule the alarm
-    setTimeout(() => {
-      // This is just a simulation - in a real app you would use proper scheduling
-      navigation.navigate("AlarmRinging", { alarm });
-    }, 5 * 60 * 1000); // 5 minutes
+    // ตั้งค่าการแจ้งเตือนใหม่ในอีก 5 นาที
+    try {
+      // สร้างข้อมูลนาฬิกาปลุกใหม่สำหรับการเลื่อนปลุก
+      const snoozeAlarm = {
+        ...alarm,
+        hour: new Date().getHours(),
+        minute: new Date().getMinutes() + 5, // เพิ่ม 5 นาที
+        isSnooze: true,
+        snoozeCount: newSnoozeCount,
+        originalAlarmId: alarm.id
+      };
+      
+      // ปรับเวลาให้ถูกต้องหากนาทีเกิน 60
+      if (snoozeAlarm.minute >= 60) {
+        snoozeAlarm.hour = (snoozeAlarm.hour + 1) % 24;
+        snoozeAlarm.minute = snoozeAlarm.minute - 60;
+      }
+      
+      // ตั้งค่าการแจ้งเตือนใหม่
+      const notificationId = await import('../models/NotificationManager')
+        .then(module => module.scheduleAlarmNotification(snoozeAlarm));
+      
+      console.log('ตั้งค่าการเลื่อนปลุกสำเร็จ, notificationId:', notificationId);
+    } catch (error) {
+      console.error('Error scheduling snooze notification:', error);
+    }
   };
 
   // Handle dismiss based on task type
   const handleDismiss = () => {
     // Determine which task screen to navigate to based on alarm settings
+    console.log('AlarmRingingScreen - alarm:', alarm);
+    console.log('AlarmRingingScreen - taskType:', alarm.taskType);
+    console.log('AlarmRingingScreen - taskDifficulty:', alarm.taskDifficulty);
+    
     if (alarm.taskType === "math") {
+      console.log('Navigating to MathTask with difficulty:', alarm.taskDifficulty || "medium");
       navigation.navigate("MathTask", {
         alarm,
         difficulty: alarm.taskDifficulty || "medium",
@@ -159,7 +183,8 @@ const AlarmRingingScreen = ({ route, navigation }) => {
   };
 
   // Complete alarm and update statistics
-  const completeAlarm = async (status) => {
+  const completeAlarm = async (status = "completed") => {
+    console.log("Completing alarm with status:", status);
     // Stop sound and vibration
     if (sound) {
       await sound.stopAsync();

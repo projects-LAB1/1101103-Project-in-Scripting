@@ -2,10 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, TextInput, 
-  ScrollView, Switch, Alert, Platform, Slider 
+  ScrollView, Switch, Alert, Platform 
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, addDoc, updateDoc, collection } from 'firebase/firestore';
+import { scheduleAlarmNotification } from '../models/NotificationManager';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -121,7 +123,11 @@ const AddAlarmScreen = ({ route, navigation }) => {
         
         {showTimePicker && (
           <DateTimePicker
-            value={new Date().setHours(hour, minute, 0)}
+            value={(() => {
+              const date = new Date();
+              date.setHours(hour, minute, 0);
+              return date;
+            })()}
             mode="time"
             is24Hour={true}
             display="spinner"

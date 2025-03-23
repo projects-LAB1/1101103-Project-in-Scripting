@@ -30,10 +30,38 @@ const ProfileScreen = ({ navigation }) => {
       
       if (userDoc.exists()) {
         setUserData(userDoc.data());
+      } else {
+        // กรณีไม่พบข้อมูลผู้ใช้ ให้สร้างข้อมูลเริ่มต้น
+        setUserData({
+          email: user.email,
+          displayName: user.displayName || 'ผู้ใช้',
+          statistics: {
+            totalAlarms: 0,
+            alarmsCompleted: 0,
+            alarmsSnooze: 0
+          }
+        });
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
+      
+      // ตรวจสอบว่าเป็นข้อผิดพลาดเกี่ยวกับการเชื่อมต่อออฟไลน์หรือไม่
+      if (error.message && error.message.includes('offline')) {
+        // กรณีออฟไลน์ ให้สร้างข้อมูลเริ่มต้นเพื่อแสดงในโหมดออฟไลน์
+        setUserData({
+          email: user.email,
+          displayName: user.displayName || 'ผู้ใช้',
+          statistics: {
+            totalAlarms: 0,
+            alarmsCompleted: 0,
+            alarmsSnooze: 0
+          },
+          isOfflineData: true // เพิ่มตัวบ่งชี้ว่าเป็นข้อมูลออฟไลน์
+        });
+        Alert.alert('โหมดออฟไลน์', 'แอปกำลังทำงานในโหมดออฟไลน์ ข้อมูลบางส่วนอาจไม่อัปเดต');
+      } else {
+        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้');
+      }
     } finally {
       setLoading(false);
     }
