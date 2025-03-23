@@ -4,19 +4,57 @@ import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
   Dimensions, TouchableOpacity
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, enableNetwork } from 'firebase/firestore';
 import { LineChart } from 'react-native-chart-kit';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { db } from '../firebase.config'; // Import db directly from firebase.config
 
 const StatisticsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState(null);
   const [timeRange, setTimeRange] = useState('week'); // 'week', 'month', 'year'
+  const [isOffline, setIsOffline] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
   const auth = getAuth();
-  const db = getFirestore();
   const userId = auth.currentUser?.uid;
+  
+  // Check network connectivity
+  useEffect(() => {
+    const checkConnectivity = async () => {
+      try {
+        // For React Native versions < 0.63, use NetInfo.fetch()
+        // For newer versions, use the NetInfo.addEventListener approach
+        const state = await NetInfo.fetch();
+        setIsOffline(!state.isConnected);
+        
+        if (state.isConnected && isOffline) {
+          // If we're back online after being offline, enable Firestore network
+          await enableNetwork(db);
+        }
+      } catch (error) {
+        console.log("Error checking connectivity:", error);
+      }
+    };
+    
+    checkConnectivity();
+    
+    // Set up listener for network changes
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOffline(!state.isConnected);
+      
+      // When connection is restored, try fetching data again
+      if (state.isConnected && isOffline) {
+        enableNetwork(db).then(() => fetchStatistics());
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   
   useEffect(() => {
     if (userId) {
@@ -27,6 +65,13 @@ const StatisticsScreen = () => {
   const fetchStatistics = async () => {
     try {
       setLoading(true);
+      
+      // Check if we're offline
+      if (isOffline) {
+        // Use cached data if available, otherwise show offline message
+        setLoading(false);
+        return;
+      }
       
       // Get user statistics from Firestore
       const userRef = doc(db, 'users', userId);
@@ -51,11 +96,33 @@ const StatisticsScreen = () => {
           wakeUpHistory: []
         });
       }
+      
+      // Reset retry count on successful fetch
+      setRetryCount(0);
     } catch (error) {
       console.error('Error fetching statistics:', error);
+      
+      // Handle offline error specifically
+      if (error.code === 'unavailable' || error.message.includes('offline')) {
+        setIsOffline(true);
+        
+        // If we've tried less than 3 times, retry after a delay
+        if (retryCount < 3) {
+          setTimeout(() => {
+            setRetryCount(retryCount + 1);
+            fetchStatistics();
+          }, 3000); // Retry after 3 seconds
+        }
+      }
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Retry fetching data
+  const handleRetry = () => {
+    setRetryCount(0);
+    fetchStatistics();
   };
   
   // Format minutes to HH:MM
@@ -69,13 +136,13 @@ const StatisticsScreen = () => {
   
   // Get completion rate percentage
   const getCompletionRate = () => {
-    if (!statistics || !statistics.totalAlarms) return 0;
+    if (!statistics?.totalAlarms) return 0;
     return Math.round((statistics.alarmsCompleted / statistics.totalAlarms) * 100);
   };
   
   // Get snooze rate percentage
   const getSnoozeRate = () => {
-    if (!statistics || !statistics.totalAlarms) return 0;
+    if (!statistics?.totalAlarms) return 0;
     return Math.round((statistics.alarmsSnooze / statistics.totalAlarms) * 100);
   };
   
@@ -107,6 +174,22 @@ const StatisticsScreen = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4F46E5" />
+      </View>
+    );
+  }
+  
+  // Show offline message if we're offline
+  if (isOffline) {
+    return (
+      <View style={styles.offlineContainer}>
+        <Icon name="wifi-off" size={60} color="#666" />
+        <Text style={styles.offlineTitle}>ไม่สามารถเชื่อมต่อได้</Text>
+        <Text style={styles.offlineMessage}>
+          ไม่สามารถเชื่อมต่อกับ Firebase ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตของคุณและลองอีกครั้ง
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+          <Text style={styles.retryButtonText}>ลองใหม่</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -206,44 +289,12 @@ const StatisticsScreen = () => {
               stroke: '#4F46E5'
             }
           }}
-          style={styles.chart}
           bezier
+          style={{
+            marginVertical: 8,
+            borderRadius: 16
+          }}
         />
-      </View>
-      
-      {/* Tips Section */}
-      <View style={styles.tipsContainer}>
-        <Text style={styles.sectionTitle}>เคล็ดลับการตื่นนอน</Text>
-        
-        <View style={styles.tipCard}>
-          <Icon name="lightbulb-outline" size={24} color="#4F46E5" style={styles.tipIcon} />
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>ตั้งเวลานอนที่สม่ำเสมอ</Text>
-            <Text style={styles.tipText}>
-              การนอนและตื่นในเวลาเดียวกันทุกวันช่วยให้นาฬิกาชีวิตของคุณทำงานได้ดีขึ้น
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.tipCard}>
-          <Icon name="weather-sunny" size={24} color="#4F46E5" style={styles.tipIcon} />
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>รับแสงแดดตอนเช้า</Text>
-            <Text style={styles.tipText}>
-              แสงแดดช่วยหยุดการผลิตเมลาโทนินและทำให้คุณรู้สึกตื่นตัวมากขึ้น
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.tipCard}>
-          <Icon name="coffee" size={24} color="#4F46E5" style={styles.tipIcon} />
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>หลีกเลี่ยงคาเฟอีนก่อนนอน</Text>
-            <Text style={styles.tipText}>
-              คาเฟอีนสามารถอยู่ในร่างกายได้นานถึง 8 ชั่วโมง ควรหลีกเลี่ยงหลังเที่ยง
-            </Text>
-          </View>
-        </View>
       </View>
     </ScrollView>
   );
@@ -258,151 +309,138 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  offlineContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#F5F5F5',
+    height: 500,
+  },
+  offlineTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 10,
+    color: '#333',
+  },
+  offlineMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+    color: '#666',
+  },
+  retryButton: {
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   header: {
-    padding: 20,
-    paddingBottom: 10,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#111827',
+    color: '#1f2937',
   },
   summaryContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    padding: 16,
   },
   summaryCard: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 15,
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
-    width: '30%',
-    elevation: 2,
+    marginHorizontal: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
+    elevation: 2,
   },
   summaryValue: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#111827',
-    marginVertical: 5,
+    color: '#1f2937',
+    marginVertical: 8,
   },
   summaryLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#6b7280',
     textAlign: 'center',
   },
   avgTimeContainer: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 20,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    margin: 16,
+    marginTop: 0,
     alignItems: 'center',
-    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
+    elevation: 2,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 8,
   },
   avgTimeValue: {
     fontSize: 36,
     fontWeight: 'bold',
     color: '#4F46E5',
+    marginVertical: 8,
   },
   chartContainer: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 20,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    elevation: 2,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    margin: 16,
+    marginTop: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
+    elevation: 2,
   },
   timeRangeSelector: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   timeRangeButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
-    marginHorizontal: 5,
+    marginHorizontal: 4,
   },
   activeTimeRange: {
     backgroundColor: '#EEF2FF',
   },
   timeRangeText: {
     fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: '#6b7280',
   },
   activeTimeRangeText: {
     color: '#4F46E5',
-    fontWeight: '600',
-  },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
-  },
-  tipsContainer: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 20,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  tipCard: {
-    flexDirection: 'row',
-    marginBottom: 15,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  tipCard: {
-    flexDirection: 'row',
-    marginBottom: 15,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  tipIcon: {
-    marginRight: 15,
-    marginTop: 2,
-  },
-  tipContent: {
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  tipText: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
+    fontWeight: 'bold',
   },
 });
 
