@@ -49,27 +49,58 @@ const AlarmRingingScreen = ({ route, navigation }) => {
   // Load and play alarm sound
   const loadSound = async () => {
     try {
-      // In a real app, you would load the sound from Firebase Storage or local assets
-      // based on the alarm.soundId
-      const { sound } = await Audio.Sound.createAsync(
-        require("../assets/sounds/default-alarm.mp3"),
-        {
-          isLooping: true,
-          volume: alarm.volume / 100 || 0.8,
-        }
-      );
+      // Select sound file based on alarm.soundId
+      let soundSource;
 
-      setSound(sound);
-      await sound.playAsync();
+      // Handle different sound files based on soundId
+      switch (alarm.soundId) {
+        case "bell":
+          soundSource = require("../assets/sounds/bell-alarm.mp3");
+          break;
+        case "digital":
+          soundSource = require("../assets/sounds/digital-alarm.mp3");
+          break;
+        case "rooster":
+          soundSource = require("../assets/sounds/rooster-alarm.mp3");
+          break;
+        case "default":
+        default:
+          soundSource = require("../assets/sounds/default-alarm.mp3");
+          break;
+      }
+
+      // Set audio mode to play even when device is silent
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      // Create and play the sound with maximum volume
+      const { sound: audioSound } = await Audio.Sound.createAsync(soundSource, {
+        isLooping: true,
+        volume: alarm.volume / 100 || 0.8,
+        shouldPlay: true, // Start playing immediately
+      });
+
+      setSound(audioSound);
+      await audioSound.playAsync();
+
+      // Make sure sound plays at the specified volume
+      await audioSound.setVolumeAsync(alarm.volume / 100 || 0.8);
     } catch (error) {
       console.error("Error loading sound:", error);
+      // Fallback to vibration only if sound fails to load
+      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเล่นเสียงปลุกได้ ใช้การสั่นแทน");
     }
   };
 
   // Start vibration pattern
   const startVibration = () => {
     // Vibration pattern: vibrate for 500ms, pause for 500ms, repeat
-    const pattern = [500, 500];
+    // Increased intensity with longer vibration periods
+    const pattern = [0, 500, 500, 700, 500, 900, 500];
     Vibration.vibrate(pattern, true);
   };
 
@@ -154,7 +185,17 @@ const AlarmRingingScreen = ({ route, navigation }) => {
       }
     } else {
       // Normal alarm - just dismiss
-      completeAlarm("completed");
+      // Show a confirmation message before dismissing
+      Alert.alert("ปิดนาฬิกาปลุก", "คุณต้องการปิดนาฬิกาปลุกใช่หรือไม่?", [
+        {
+          text: "ยกเลิก",
+          style: "cancel",
+        },
+        {
+          text: "ปิดนาฬิกาปลุก",
+          onPress: () => completeAlarm("completed"),
+        },
+      ]);
     }
   };
 
@@ -166,6 +207,11 @@ const AlarmRingingScreen = ({ route, navigation }) => {
       await sound.unloadAsync();
     }
     Vibration.cancel();
+
+    // Show success message
+    if (status === "completed") {
+      Alert.alert("สำเร็จ", "ปิดนาฬิกาปลุกเรียบร้อยแล้ว");
+    }
 
     try {
       // Update alarm statistics in Firestore

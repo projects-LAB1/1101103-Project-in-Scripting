@@ -1,15 +1,14 @@
-// App.js - หน้าหลักของแอป
 import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
-// Import Firebase configuration
-import { auth } from "./firebase.config";
+import { useNavigation } from "@react-navigation/native";
+import { auth, initializeAlarmCache } from "./firebase.config";
 import { onAuthStateChanged } from "firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import { Provider as PaperProvider } from "react-native-paper";
 import { StatusBar } from "react-native";
-import { UserAuth } from "./models/UserAuth";
 
 // Screens
 import LoginScreen from "./screens/LoginScreen";
@@ -19,42 +18,41 @@ import AddAlarmScreen from "./screens/AddAlarmScreen";
 import AlarmRingingScreen from "./screens/AlarmRingingScreen";
 import MathTaskScreen from "./screens/tasks/MathTaskScreen";
 import PhotoTaskScreen from "./screens/tasks/PhotoTaskScreen";
-import StatisticsScreen from "./screens/StatisticsScreen";
-import ProfileScreen from "./screens/ProfileScreen";
 import SoundLibraryScreen from "./screens/SoundLibraryScreen";
 
 const AuthStack = createStackNavigator();
 const MainTab = createBottomTabNavigator();
 const AlarmStack = createStackNavigator();
 
-const App = () => {
-  const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState(null);
+export default function App() {
+  // เพิ่ม state สำหรับเช็คสถานะการ login
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Use the imported auth instance instead of calling getAuth() again
+    // ตรวจสอบสถานะการ login และเริ่มต้น cache
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (initializing) setInitializing(false);
+      setIsAuthenticated(!!user);
+      if (user) {
+        initializeAlarmCache();
+      }
     });
 
-    // Cleanup subscription
-    return unsubscribe;
-  }, [initializing]);
-
-  if (initializing) {
-    return null; // หรือแสดง LoadingScreen
-  }
+    return () => unsubscribe();
+  }, []);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" />
+    <PaperProvider>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#12111D"
+        translucent={false}
+      />
       <NavigationContainer>
-        {!user ? <AuthNavigator /> : <MainNavigator />}
+        {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
       </NavigationContainer>
-    </SafeAreaProvider>
+    </PaperProvider>
   );
-};
+}
 
 // ส่วนของการนำทางสำหรับผู้ใช้ที่ยังไม่ได้ล็อกอิน
 const AuthNavigator = () => (
@@ -69,99 +67,115 @@ const AuthNavigator = () => (
 );
 
 // ส่วนของการนำทางสำหรับหน้านาฬิกาปลุก
-const AlarmStackNavigator = () => (
-  <AlarmStack.Navigator>
-    <AlarmStack.Screen
-      name="AlarmList"
-      component={AlarmListScreen}
-      options={{
-        title: "นาฬิกาปลุก",
-        headerRight: ({ navigation }) => (
-          <Icon
-            name="plus"
-            size={24}
-            style={{ marginRight: 15 }}
-            onPress={() => navigation.navigate("AddAlarm")}
-          />
-        ),
-      }}
-    />
-    <AlarmStack.Screen
-      name="AddAlarm"
-      component={AddAlarmScreen}
-      options={{ title: "เพิ่มนาฬิกาปลุก" }}
-    />
-    <AlarmStack.Screen
-      name="AlarmRinging"
-      component={AlarmRingingScreen}
-      options={{
-        headerShown: false,
-        gestureEnabled: false,
-      }}
-    />
-    <AlarmStack.Screen
-      name="MathTask"
-      component={MathTaskScreen}
-      options={{
-        headerShown: false,
-        gestureEnabled: false,
-      }}
-    />
-    <AlarmStack.Screen
-      name="PhotoTask"
-      component={PhotoTaskScreen}
-      options={{
-        headerShown: false,
-        gestureEnabled: false,
-      }}
-    />
-    <AlarmStack.Screen
-      name="SoundLibrary"
-      component={SoundLibraryScreen}
-      options={{ title: "เลือกเสียงปลุก" }}
-    />
-  </AlarmStack.Navigator>
-);
+const AlarmStackNavigator = () => {
+  const navigation = useNavigation();
 
-// ส่วนของการนำทางหลักสำหรับผู้ใช้ที่ล็อกอินแล้ว
-const MainNavigator = () => (
-  <MainTab.Navigator
-    screenOptions={({ route }) => ({
-      tabBarIcon: ({ focused, color, size }) => {
-        let iconName;
+  return (
+    <AlarmStack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: "#12111D",
+        },
+        headerTintColor: "#fff",
+        cardStyle: { backgroundColor: "#12111D" },
+      }}
+    >
+      <AlarmStack.Screen
+        name="AlarmList"
+        component={AlarmListScreen}
+        options={{
+          title: "นาฬิกาปลุก",
+          headerRight: null,
+        }}
+      />
+      <AlarmStack.Screen
+        name="AddAlarm"
+        component={AddAlarmScreen}
+        options={{
+          headerShown: false, // ซ่อน header
+          presentation: "modal",
+          gestureEnabled: true,
+          gestureDirection: "vertical",
+          cardStyleInterpolator: ({ current, layouts }) => ({
+            cardStyle: {
+              transform: [
+                {
+                  translateY: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [layouts.screen.height, 0],
+                  }),
+                },
+              ],
+            },
+          }),
+        }}
+      />
+      <AlarmStack.Screen
+        name="AlarmRinging"
+        component={AlarmRingingScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <AlarmStack.Screen
+        name="MathTask"
+        component={MathTaskScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <AlarmStack.Screen
+        name="PhotoTask"
+        component={PhotoTaskScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <AlarmStack.Screen
+        name="SoundLibrary"
+        component={SoundLibraryScreen}
+        options={{ title: "เลือกเสียงปลุก" }}
+      />
+    </AlarmStack.Navigator>
+  );
+};
 
-        if (route.name === "Alarm") {
-          iconName = focused ? "alarm" : "alarm-outline";
-        } else if (route.name === "Statistics") {
-          iconName = focused ? "chart-bar" : "chart-bar-outline";
-        } else if (route.name === "Profile") {
-          iconName = focused ? "account" : "account-outline";
-        }
-
-        return <Icon name={iconName} size={size} color={color} />;
-      },
-    })}
-    tabBarOptions={{
-      activeTintColor: "#4F46E5",
-      inactiveTintColor: "gray",
-    }}
-  >
-    <MainTab.Screen
-      name="Alarm"
-      component={AlarmStackNavigator}
-      options={{ headerShown: false, title: "ปลุก" }}
-    />
-    <MainTab.Screen
-      name="Statistics"
-      component={StatisticsScreen}
-      options={{ title: "สถิติ" }}
-    />
-    <MainTab.Screen
-      name="Profile"
-      component={ProfileScreen}
-      options={{ title: "โปรไฟล์" }}
-    />
-  </MainTab.Navigator>
-);
-
-export default App;
+// แก้ไข MainNavigator ให้ซ่อน tab bar เมื่ออยู่ในหน้าเพิ่มนาฬิกาปลุก
+const MainNavigator = () => {
+  return (
+    <MainTab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarStyle: {
+          backgroundColor: "#D8D5F5",
+          borderTopColor: "#12111D",
+        },
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName = focused ? "alarm" : "alarm-off";
+          return <Icon name={iconName} size={size} color="#000000" />;
+        },
+        tabBarActiveTintColor: "#000000",
+        tabBarInactiveTintColor: "#000000",
+      })}
+    >
+      <MainTab.Screen
+        name="Alarm"
+        component={AlarmStackNavigator}
+        options={({ route }) => ({
+          headerShown: false,
+          title: "ปลุก",
+          // ซ่อน tab bar เมื่ออยู่ในหน้า AddAlarm
+          tabBarStyle: ((route) => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? "";
+            if (routeName === "AddAlarm" || routeName === "SoundLibrary") {
+              return { display: "none" };
+            }
+            return;
+          })(route),
+        })}
+      />
+    </MainTab.Navigator>
+  );
+};

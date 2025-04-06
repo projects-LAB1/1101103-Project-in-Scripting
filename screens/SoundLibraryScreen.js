@@ -7,11 +7,13 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
+  StatusBar,
 } from "react-native";
 import { getFirestore, collection, getDocs, addDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Audio } from "expo-av";
-import { Alert, Slider } from "react-native";
+import Slider from "@react-native-community/slider";
 import { DocumentPicker } from "expo-document-picker";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
@@ -194,6 +196,7 @@ const SoundLibraryScreen = ({ route, navigation }) => {
   const selectSound = (sound) => {
     if (onSelect) {
       onSelect(sound);
+      // ใช้ navigation.goBack() เพื่อให้แน่ใจว่ากลับไปยังหน้าก่อนหน้าได้อย่างถูกต้อง
       navigation.goBack();
     }
   };
@@ -227,6 +230,11 @@ const SoundLibraryScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#12111D"
+        translucent={false}
+      />
       {/* Volume Slider */}
       <View style={styles.volumeContainer}>
         <Text style={styles.volumeLabel}>ระดับเสียง</Text>
