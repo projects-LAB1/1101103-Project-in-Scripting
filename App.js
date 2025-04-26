@@ -8,7 +8,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Provider as PaperProvider } from "react-native-paper";
-import { StatusBar } from "react-native";
+import { StatusBar, TouchableOpacity, Alert } from "react-native";
+import { AuthProvider } from "./models/UserAuth";
 
 // Screens
 import LoginScreen from "./screens/LoginScreen";
@@ -41,16 +42,18 @@ export default function App() {
   }, []);
 
   return (
-    <PaperProvider>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="#12111D"
-        translucent={false}
-      />
-      <NavigationContainer>
-        {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
-      </NavigationContainer>
-    </PaperProvider>
+    <AuthProvider>
+      <PaperProvider>
+        <StatusBar
+          barStyle="light-content"
+          backgroundColor="#12111D"
+          translucent={false}
+        />
+        <NavigationContainer>
+          {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
+        </NavigationContainer>
+      </PaperProvider>
+    </AuthProvider>
   );
 }
 
@@ -70,6 +73,35 @@ const AuthNavigator = () => (
 const AlarmStackNavigator = () => {
   const navigation = useNavigation();
 
+  // นำเข้า UserAuth hook เพื่อใช้ฟังก์ชัน logout
+  const { logout } = require("./models/UserAuth").UserAuth();
+
+  // ฟังก์ชันสำหรับออกจากระบบ
+  const handleLogout = () => {
+    Alert.alert(
+      "ออกจากระบบ",
+      "คุณต้องการออกจากระบบใช่หรือไม่?",
+      [
+        {
+          text: "ยกเลิก",
+          style: "cancel"
+        },
+        {
+          text: "ออกจากระบบ",
+          onPress: async () => {
+            try {
+              await logout();
+              // ไม่จำเป็นต้องนำทางไปที่หน้า Login เพราะ App.js จะจัดการให้อัตโนมัติ
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("ข้อผิดพลาด", "ไม่สามารถออกจากระบบได้ กรุณาลองอีกครั้ง");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <AlarmStack.Navigator
       screenOptions={{
@@ -85,7 +117,14 @@ const AlarmStackNavigator = () => {
         component={AlarmListScreen}
         options={{
           title: "นาฬิกาปลุก",
-          headerRight: null,
+          headerRight: () => (
+            <TouchableOpacity
+              style={{ marginRight: 16 }}
+              onPress={handleLogout}
+            >
+              <Icon name="logout" size={24} color="#fff" />
+            </TouchableOpacity>
+          ),
         }}
       />
       <AlarmStack.Screen
@@ -147,12 +186,12 @@ const AlarmStackNavigator = () => {
 const MainNavigator = () => {
   return (
     <MainTab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={() => ({
         tabBarStyle: {
           backgroundColor: "#D8D5F5",
           borderTopColor: "#12111D",
         },
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, size }) => {
           let iconName = focused ? "alarm" : "alarm-off";
           return <Icon name={iconName} size={size} color="#000000" />;
         },

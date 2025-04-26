@@ -1,5 +1,5 @@
 // AlarmListScreen.js - หน้าแสดงรายการนาฬิกาปลุก
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -28,12 +28,16 @@ import {
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { FAB } from "react-native-paper";
 import { Swipeable } from "react-native-gesture-handler";
+import { UserAuth } from "../models/UserAuth";
 
 const AlarmListScreen = ({ navigation }) => {
   const [alarms, setAlarms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+
+  // ใช้ hook จาก UserAuth เพื่อเข้าถึงฟังก์ชัน logout
+  const { logout } = UserAuth();
 
   const auth = getAuth();
   const db = getFirestore();
@@ -56,6 +60,8 @@ const AlarmListScreen = ({ navigation }) => {
       unsubscribeNetInfo();
     };
   }, []);
+
+
 
   useEffect(() => {
     if (!userId) return;
