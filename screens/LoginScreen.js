@@ -1,5 +1,5 @@
 // 1. หน้าล็อกอิน (LoginScreen.js)
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,38 +12,75 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
+import { auth } from '../firebase.config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const auth = getAuth();
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        navigation.replace('AlarmList');
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("ข้อผิดพลาด", "กรุณากรอกอีเมลและรหัสผ่าน");
-      return;
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert("ข้อผิดพลาด", "รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง");
+      Alert.alert("Error", "Please enter your email and password");
       return;
     }
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      // ล็อกอินสำเร็จ Firebase จะเปลี่ยนสถานะและ App.js จะจัดการการนำทาง
-    } catch (error) {
-      console.error(error);
-      Alert.alert(
-        "ล็อกอินไม่สำเร็จ",
-        "อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง"
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
       );
+      
+      // Store user token
+      const token = await userCredential.user.getIdToken();
+      await AsyncStorage.setItem('@user_token', token);
+      
+      // Navigate to main screen
+      navigation.replace('AlarmList');
+    } catch (error) {
+      console.error('Login error:', error);
+      let errorMessage = "An error occurred during login.";
+      
+      switch (error.code) {
+        case 'auth/invalid-credential':
+          errorMessage = "The email or password is incorrect. Please try again.";
+          break;
+        case 'auth/user-not-found':
+          errorMessage = "No account exists with this email. Please register first.";
+          break;
+        case 'auth/wrong-password':
+          errorMessage = "Incorrect password. Please try again.";
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = "Network error. Please check your internet connection.";
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = "Too many failed attempts. Please try again later.";
+          break;
+        case 'auth/user-disabled':
+          errorMessage = "This account has been disabled. Please contact support.";
+          break;
+      }
+      
+      Alert.alert("Login Failed", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -62,16 +99,15 @@ const LoginScreen = ({ navigation }) => {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.appTitle}>WAKE UP</Text>
-            <Text style={styles.appSubtitle}>นาฬิกาปลุกสำหรับคนตื่นยาก</Text>
+            <Text style={styles.title}>Login</Text>
           </View>
 
           <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>อีเมล</Text>
+              <FontAwesome name="user" size={20} color="#6B7280" style={styles.icon} />
               <TextInput
                 style={styles.input}
-                placeholder="อีเมลของคุณ"
+                placeholder="User Name or Email"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -80,10 +116,10 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>รหัสผ่าน</Text>
+              <MaterialIcons name="lock" size={20} color="#6B7280" style={styles.icon} />
               <TextInput
                 style={styles.input}
-                placeholder="รหัสผ่านของคุณ"
+                placeholder="Password"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -95,30 +131,47 @@ const LoginScreen = ({ navigation }) => {
               onPress={handleLogin}
               disabled={loading}
             >
-              <Text style={styles.loginButtonText}>
-                {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
-              </Text>
+              <LinearGradient
+                colors={["#4F46E5", "#6B46E5"]}
+                style={styles.gradientButton}
+              >
+                <Text style={styles.loginButtonText}>
+                  {loading ? "Logging in..." : "Login"}
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.forgotButton}
               onPress={() => navigation.navigate("ForgotPassword")}
             >
-              <Text style={styles.forgotButtonText}>ลืมรหัสผ่าน?</Text>
+              <Text style={styles.forgotButtonText}>Forgot your password?</Text>
             </TouchableOpacity>
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>หรือ</Text>
-              <View style={styles.dividerLine} />
+            <View style={styles.dividerContainer}>
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>or connect with</Text>
+              <View style={styles.divider} />
             </View>
 
-            <TouchableOpacity
-              style={styles.registerButton}
-              onPress={() => navigation.navigate("Register")}
-            >
-              <Text style={styles.registerButtonText}>สมัครสมาชิก</Text>
-            </TouchableOpacity>
+            <View style={styles.socialButtonsContainer}>
+              <TouchableOpacity style={styles.socialButton}>
+                <FontAwesome name="facebook" size={20} color="#1877F2" />
+                <Text style={styles.socialButtonText}>Facebook</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.socialButton}>
+                <FontAwesome name="google" size={20} color="#DB4437" />
+                <Text style={styles.socialButtonText}>Google</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.signupContainer}>
+              <Text style={styles.signupText}>Don’t have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+                <Text style={styles.signupLink}>Sign up</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -129,102 +182,113 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#1E1E2C",
   },
   keyboardContainer: {
     flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: 30,
+    padding: 20,
   },
   logoContainer: {
     alignItems: "center",
-    marginTop: 60,
-    marginBottom: 40,
+    marginTop: 50,
+    marginBottom: 30,
   },
   logo: {
     width: 100,
     height: 100,
-    marginBottom: 10,
   },
-  appTitle: {
-    fontSize: 28,
+  title: {
+    fontSize: 24,
     fontWeight: "bold",
-    color: "#4F46E5",
-    marginBottom: 5,
-  },
-  appSubtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  formContainer: {
-    paddingHorizontal: 30,
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    marginBottom: 8,
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#374151",
-  },
-  input: {
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
-  },
-  loginButton: {
-    backgroundColor: "#4F46E5",
-    borderRadius: 10,
-    padding: 15,
-    alignItems: "center",
+    color: "#FFFFFF",
     marginTop: 10,
   },
+  formContainer: {
+    marginTop: 20,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2C2C3A",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    marginBottom: 15,
+  },
+  icon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    color: "#FFFFFF",
+    paddingVertical: 10,
+  },
+  loginButton: {
+    marginTop: 10,
+  },
+  gradientButton: {
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
   loginButtonText: {
-    color: "white",
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
   forgotButton: {
     alignItems: "center",
-    marginTop: 15,
-    marginBottom: 20,
+    marginTop: 10,
   },
   forgotButtonText: {
-    color: "#4F46E5",
+    color: "#6B7280",
     fontSize: 14,
   },
-  divider: {
+  dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 20,
   },
-  dividerLine: {
+  divider: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#3A3A4A",
   },
   dividerText: {
-    paddingHorizontal: 10,
     color: "#6B7280",
     fontSize: 14,
+    marginHorizontal: 10,
   },
-  registerButton: {
-    borderWidth: 1,
-    borderColor: "#4F46E5",
-    borderRadius: 10,
-    padding: 15,
+  socialButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  socialButton: {
+    flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#2C2C3A",
+    borderRadius: 10,
+    padding: 10,
+    flex: 1,
+    marginHorizontal: 5,
   },
-  registerButtonText: {
+  socialButtonText: {
+    color: "#FFFFFF",
+    marginLeft: 10,
+  },
+  signupContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  signupText: {
+    color: "#6B7280",
+  },
+  signupLink: {
     color: "#4F46E5",
-    fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
 });
 
