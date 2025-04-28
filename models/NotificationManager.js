@@ -2,7 +2,8 @@
 import * as Notifications from "expo-notifications";
 import { Platform, Alert } from "react-native";
 import Constants from "expo-constants";
-import { getFirestore, doc, updateDoc } from "firebase/firestore";
+import { supabase } from '../supabase.config';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Add warning about expo-notifications in Expo Go
 // This addresses the warning about push notifications being removed from Expo Go in SDK 53
@@ -72,92 +73,45 @@ export const registerForPushNotificationsAsync = async () => {
 
   // ดึง token สำหรับการแจ้งเตือน
   try {
-    // ใช้ projectId จาก app.json ผ่าน Constants
-    // ตรวจสอบว่ามี Constants.manifest หรือไม่
-    let projectId;
-
-    if (Constants.manifest) {
-      // ใช้ projectId จาก Constants.manifest
-      projectId = Constants.manifest?.extra?.eas?.projectId;
-    } else if (Constants.expoConfig) {
-      // ใช้ projectId จาก Constants.expoConfig (สำหรับ Expo SDK 46+)
-      projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    }
-
-    // ถ้าไม่พบ projectId ให้ใช้ค่าจาก app.json ที่กำหนดไว้แล้ว
+    let projectId = Constants.expoConfig?.extra?.eas?.projectId;
     if (!projectId) {
       projectId = "c3b68283-9f4b-4fa7-9389-d76b1e5dc6e2"; // ใช้ค่าจาก app.json โดยตรง
     }
-
-    console.log("Using projectId:", projectId);
 
     // ตรวจสอบว่า projectId เป็น UUID ที่ถูกต้องหรือไม่
     const uuidRegex =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(projectId)) {
-      console.warn(
-        "projectId ไม่ใช่รูปแบบ UUID ที่ถูกต้อง กำลังใช้ค่า UUID จาก app.json"
-      );
-      // ใช้ค่า UUID จาก app.json โดยตรง
       projectId = "c3b68283-9f4b-4fa7-9389-d76b1e5dc6e2";
-      try {
-        // ใช้ projectId ที่เป็น UUID
-        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      } catch (tokenError) {
-        console.error(
-          "Error getting push token with UUID projectId:",
-          tokenError
-        );
-        // ลองใช้วิธีเริ่มต้นถ้าวิธีแรกล้มเหลว
-        try {
-          token = (await Notifications.getExpoPushTokenAsync()).data;
-        } catch (fallbackError) {
-          console.error("Error getting fallback push token:", fallbackError);
-          return null;
-        }
-      }
-    } else {
-      try {
-        token = (
-          await Notifications.getExpoPushTokenAsync({
-            projectId: projectId,
-          })
-        ).data;
-      } catch (tokenError) {
-        console.error("Error getting push token with projectId:", tokenError);
-        // ลองใช้วิธีเริ่มต้นถ้าวิธีแรกล้มเหลว
-        try {
-          token = (await Notifications.getExpoPushTokenAsync()).data;
-        } catch (fallbackError) {
-          console.error("Error getting fallback push token:", fallbackError);
-          return null;
-        }
-      }
     }
+
+    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   } catch (error) {
     console.error("Error getting push token:", error);
-    // ถ้าไม่สามารถรับ token ได้ ให้ส่งค่า null กลับไป
     return null;
   }
 
   return token;
 };
 
-// บันทึก token ลงใน Firestore
+// บันทึก token ลงใน Supabase
 export const savePushToken = async (userId, token) => {
   if (!userId || !token) return;
 
   try {
-    const db = getFirestore();
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      pushToken: token,
-      deviceInfo: {
-        platform: Platform.OS,
-        version: Platform.Version,
-        lastUpdated: new Date(),
-      },
-    });
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        push_token: token,
+        device_info: {
+          platform: Platform.OS,
+          version: Platform.Version,
+          last_updated: new Date(),
+        }
+      })
+      .eq('id', userId);
+
+    if (error) throw error;
     console.log("บันทึก Push Token สำเร็จ");
   } catch (error) {
     console.error("Error saving push token:", error);
@@ -173,74 +127,138 @@ export const scheduleAlarmNotification = async (alarm) => {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== "granted") {
       console.log("ไม่ได้รับสิทธิ์การแจ้งเตือน กำลังขอสิทธิ์...");
-      const { status: newStatus } =
-        await Notifications.requestPermissionsAsync();
+      const { status: newStatus } = await Notifications.requestPermissionsAsync();
       if (newStatus !== "granted") {
         console.error("ไม่ได้รับสิทธิ์การแจ้งเตือน ไม่สามารถตั้งนาฬิกาปลุกได้");
         return null;
       }
     }
 
-    // คำนวณเวลาที่จะปลุก
+    // คำนวณเวลาที่จะปลุกให้ถูกต้อง
     const now = new Date();
     const alarmTime = new Date();
-    alarmTime.setHours(alarm.hour, alarm.minute, 0);
 
-    // ถ้าเวลาปลุกผ่านไปแล้ว ให้ตั้งเป็นวันถัดไป
-    if (alarmTime <= now) {
+    // ตั้งค่าเวลาให้ตรงกับที่ผู้ใช้กำหนด
+    alarmTime.setHours(parseInt(alarm.hour), parseInt(alarm.minute), 0, 0);
+
+    console.log(`กำลังตั้งนาฬิกาปลุกสำหรับเวลา: ${alarm.hour}:${alarm.minute}`);
+    console.log(`เวลาปัจจุบัน: ${now.toLocaleTimeString()}`);
+    console.log(`เวลาที่ตั้ง: ${alarmTime.toLocaleTimeString()}`);
+
+    // คำนวณความแตกต่างของเวลาในหน่วยมิลลิวินาที
+    const timeDifference = alarmTime.getTime() - now.getTime();
+    const minutesDiff = timeDifference / 60000; // แปลงเป็นนาที
+    console.log(`ความแตกต่างของเวลา: ${timeDifference} มิลลิวินาที (${minutesDiff.toFixed(2)} นาที)`);
+
+    // ถ้าเวลาปลุกผ่านไปแล้ว หรือใกล้เกินไป (น้อยกว่า 5 วินาที) ให้ตั้งเป็นวันถัดไป
+    if (timeDifference < 5000) { // น้อยกว่า 5 วินาที
       alarmTime.setDate(alarmTime.getDate() + 1);
+      console.log(`เวลาปลุกผ่านไปแล้วหรือใกล้เกินไป ตั้งเป็นวันถัดไป: ${alarmTime.toString()}`);
     }
 
     // ตรวจสอบว่าเป็นการปลุกซ้ำหรือไม่
-    if (alarm.repeatDays && alarm.repeatDays.length > 0) {
-      // ถ้าเป็นการปลุกซ้ำ ให้ตรวจสอบว่าวันนี้ต้องปลุกหรือไม่
-      const today = now.getDay();
-      // ปรับ index เพื่อให้ตรงกับ repeatDays (0 = จันทร์, 6 = อาทิตย์)
+    if (alarm.repeat_days && alarm.repeat_days.length > 0) {
+      const today = now.getDay(); // 0 = วันอาทิตย์, 1 = วันจันทร์, ...
+      // ปรับให้ 0 = วันจันทร์, 1 = วันอังคาร, ... 6 = วันอาทิตย์ ตามที่เก็บในฐานข้อมูล
       const adjustedToday = today === 0 ? 6 : today - 1;
 
-      if (!alarm.repeatDays.includes(adjustedToday)) {
-        // หาวันถัดไปที่ต้องปลุก
+      console.log(`วันนี้คือวันที่: ${today} (ปรับเป็น ${adjustedToday})`);
+      console.log(`วันที่ต้องการปลุกซ้ำ: ${alarm.repeat_days.join(', ')}`);
+
+      // ถ้าวันนี้ไม่ได้อยู่ในวันที่ต้องการปลุกซ้ำ ให้หาวันถัดไปที่ต้องปลุก
+      if (!alarm.repeat_days.includes(adjustedToday)) {
         let daysToAdd = 1;
         let nextDay = (adjustedToday + 1) % 7;
 
-        while (!alarm.repeatDays.includes(nextDay)) {
+        while (!alarm.repeat_days.includes(nextDay)) {
           daysToAdd++;
           nextDay = (nextDay + 1) % 7;
         }
 
         alarmTime.setDate(now.getDate() + daysToAdd);
+        console.log(`วันนี้ไม่ได้อยู่ในวันที่ต้องการปลุกซ้ำ เลื่อนไป ${daysToAdd} วัน: ${alarmTime.toString()}`);
+      } else {
+        // ถ้าวันนี้อยู่ในวันที่ต้องการปลุกซ้ำ แต่เวลาผ่านไปแล้ว
+        if (alarmTime <= now) {
+          // หาวันถัดไปที่ต้องปลุก
+          let daysToAdd = 1;
+          let nextDay = (adjustedToday + 1) % 7;
+
+          while (!alarm.repeat_days.includes(nextDay)) {
+            daysToAdd++;
+            nextDay = (nextDay + 1) % 7;
+          }
+
+          alarmTime.setDate(now.getDate() + daysToAdd);
+          console.log(`วันนี้อยู่ในวันที่ต้องการปลุกซ้ำ แต่เวลาผ่านไปแล้ว เลื่อนไป ${daysToAdd} วัน: ${alarmTime.toString()}`);
+        } else {
+          console.log(`วันนี้อยู่ในวันที่ต้องการปลุกซ้ำ และเวลายังไม่ผ่าน: ${alarmTime.toString()}`);
+        }
       }
     }
 
     // ยกเลิกการแจ้งเตือนเดิม (ถ้ามี)
-    if (alarm.notificationId) {
-      await Notifications.cancelScheduledNotificationAsync(
-        alarm.notificationId
-      );
+    if (alarm.notification_id) {
+      await Notifications.cancelScheduledNotificationAsync(alarm.notification_id);
     }
 
-    // ตั้งค่าการแจ้งเตือนใหม่ด้วยการกำหนดค่าที่เหมาะสม
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: alarm.label || "นาฬิกาปลุก",
-        body: `${alarm.hour.toString().padStart(2, "0")}:${alarm.minute
-          .toString()
-          .padStart(2, "0")}`,
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.MAX,
-        vibrate: [0, 250, 250, 250],
-        data: { alarm },
-        autoDismiss: false, // ไม่ให้การแจ้งเตือนหายไปเอง
+    // ตั้งค่าการแจ้งเตือนใหม่
+    console.log(`กำลังตั้งการแจ้งเตือนสำหรับเวลา: ${alarmTime.toLocaleString()}`);
+
+    // ตรวจสอบว่าเวลาที่ตั้งไว้ห่างจากเวลาปัจจุบันเท่าไร
+    const currentTime = new Date();
+    const timeRemaining = alarmTime.getTime() - currentTime.getTime();
+    const minutesRemaining = Math.floor(timeRemaining / 60000);
+    const secondsRemaining = Math.floor((timeRemaining % 60000) / 1000);
+
+    console.log(`เวลาที่ตั้งห่างจากเวลาปัจจุบัน: ${minutesRemaining} นาที ${secondsRemaining} วินาที`);
+
+    // สร้างข้อมูลสำหรับการแจ้งเตือน
+    const notificationContent = {
+      title: alarm.label || "นาฬิกาปลุก",
+      body: `${alarm.hour.toString().padStart(2, "0")}:${alarm.minute
+        .toString()
+        .padStart(2, "0")}`,
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.MAX,
+      vibrate: [0, 250, 250, 250],
+      data: {
+        alarm,
+        id: alarm.id,
+        hour: alarm.hour,
+        minute: alarm.minute,
+        label: alarm.label,
+        repeat_days: alarm.repeat_days,
+        task_type: alarm.task_type,
+        task_difficulty: alarm.task_difficulty,
+        is_active: true
       },
+      autoDismiss: false,
+    };
+
+    // ตั้งค่าการแจ้งเตือน
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: notificationContent,
       trigger: {
         date: alarmTime,
         channelId: "alarms",
       },
     });
 
-    console.log(
-      `ตั้งนาฬิกาปลุกสำเร็จ ID: ${notificationId}, เวลา: ${alarmTime.toString()}`
-    );
+    // แสดงข้อมูลการตั้งนาฬิกาปลุกในคอนโซล
+    console.log(`ตั้งนาฬิกาปลุกสำเร็จ ID: ${notificationId}`);
+    console.log(`เวลาที่ตั้ง: ${alarmTime.toString()}`);
+    console.log(`ข้อมูลนาฬิกาปลุก: ${JSON.stringify({
+      id: alarm.id,
+      hour: alarm.hour,
+      minute: alarm.minute,
+      label: alarm.label || "นาฬิกาปลุก",
+      repeat_days: alarm.repeat_days,
+      task_type: alarm.task_type,
+      is_active: true
+    })}`);
+
+    // ไม่ต้องแสดง Alert เพื่อไม่ให้รบกวนผู้ใช้
     return notificationId;
   } catch (error) {
     console.error("Error scheduling notification:", error);
@@ -264,12 +282,33 @@ export const setupNotificationListeners = (navigation) => {
   // เมื่อได้รับการแจ้งเตือนและแอปกำลังทำงาน
   const foregroundSubscription = Notifications.addNotificationReceivedListener(
     (notification) => {
-      const alarmData = notification.request.content.data.alarm;
-      console.log("ได้รับการแจ้งเตือนในขณะที่แอปทำงาน:", alarmData);
+      const data = notification.request.content.data;
+      console.log("ได้รับการแจ้งเตือนในขณะที่แอปทำงาน:", data);
+
+      // สร้างข้อมูลนาฬิกาปลุกที่ถูกต้อง
+      const alarmData = {
+        id: data.id,
+        hour: data.hour,
+        minute: data.minute,
+        label: data.label || "นาฬิกาปลุก",
+        repeat_days: data.repeat_days || [],
+        task_type: data.task_type || "normal",
+        task_difficulty: data.task_difficulty || "medium",
+        is_active: true,
+        ...data.alarm // รวมข้อมูลเพิ่มเติมจาก alarm ถ้ามี
+      };
 
       // ถ้าแอปกำลังทำงานอยู่แล้ว ให้นำทางไปยังหน้าปลุกทันที
-      if (alarmData && navigation) {
-        navigation.navigate("AlarmRinging", { alarm: alarmData });
+      if (navigation) {
+        console.log("นำทางไปยังหน้าปลุก:", alarmData);
+
+        // ใช้ reset แทน navigate เพื่อให้แน่ใจว่าหน้าจอจะแสดงเต็มหน้าจอและไม่มีหน้าจออื่นซ้อนทับ
+        navigation.reset({
+          index: 0,
+          routes: [
+            { name: 'AlarmRinging', params: { alarm: alarmData } },
+          ],
+        });
       }
     }
   );
@@ -277,12 +316,33 @@ export const setupNotificationListeners = (navigation) => {
   // เมื่อผู้ใช้กดที่การแจ้งเตือน
   const responseSubscription =
     Notifications.addNotificationResponseReceivedListener((response) => {
-      const alarmData = response.notification.request.content.data.alarm;
-      console.log("ผู้ใช้กดที่การแจ้งเตือน:", alarmData);
+      const data = response.notification.request.content.data;
+      console.log("ผู้ใช้กดที่การแจ้งเตือน:", data);
+
+      // สร้างข้อมูลนาฬิกาปลุกที่ถูกต้อง
+      const alarmData = {
+        id: data.id,
+        hour: data.hour,
+        minute: data.minute,
+        label: data.label || "นาฬิกาปลุก",
+        repeat_days: data.repeat_days || [],
+        task_type: data.task_type || "normal",
+        task_difficulty: data.task_difficulty || "medium",
+        is_active: true,
+        ...data.alarm // รวมข้อมูลเพิ่มเติมจาก alarm ถ้ามี
+      };
 
       // นำทางไปยังหน้าปลุก
-      if (alarmData && navigation) {
-        navigation.navigate("AlarmRinging", { alarm: alarmData });
+      if (navigation) {
+        console.log("ผู้ใช้กดที่การแจ้งเตือน - นำทางไปยังหน้าปลุก:", alarmData);
+
+        // ใช้ reset แทน navigate เพื่อให้แน่ใจว่าหน้าจอจะแสดงเต็มหน้าจอและไม่มีหน้าจออื่นซ้อนทับ
+        navigation.reset({
+          index: 0,
+          routes: [
+            { name: 'AlarmRinging', params: { alarm: alarmData } },
+          ],
+        });
       }
     });
 

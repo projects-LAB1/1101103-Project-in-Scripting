@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
 import { useNavigation } from "@react-navigation/native";
-import { auth, initializeAlarmCache } from "./firebase.config";
-import { onAuthStateChanged } from "firebase/auth";
+import { supabase } from "./supabase.config";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Provider as PaperProvider } from "react-native-paper";
 import { StatusBar, TouchableOpacity, Alert } from "react-native";
-import { AuthProvider } from "./models/UserAuth";
+import { AuthProvider, UserAuth } from "./models/UserAuth";
+import 'react-native-url-polyfill/auto';
+import * as Notifications from "expo-notifications";
+import { setupNotificationListeners, checkNotificationPermissions } from "./models/NotificationManager";
 
 // Screens
 import LoginScreen from "./screens/LoginScreen";
@@ -25,22 +27,41 @@ const AuthStack = createStackNavigator();
 const MainTab = createBottomTabNavigator();
 const AlarmStack = createStackNavigator();
 
-export default function App() {
-  // เพิ่ม state สำหรับเช็คสถานะการ login
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+const AppContent = () => {
+  const { user } = UserAuth();
+  const navigationRef = useRef(null);
 
+  // ตั้งค่าการแจ้งเตือน
   useEffect(() => {
-    // ตรวจสอบสถานะการ login และเริ่มต้น cache
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(!!user);
-      if (user) {
-        initializeAlarmCache();
-      }
+    // ตั้งค่าการแสดงการแจ้งเตือนเมื่อแอปกำลังทำงาน
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
     });
 
-    return () => unsubscribe();
+    // ตรวจสอบและขอสิทธิ์การแจ้งเตือน
+    checkNotificationPermissions();
+
+    // ตั้งค่าการจัดการเมื่อได้รับการแจ้งเตือน
+    const unsubscribe = setupNotificationListeners(navigationRef.current);
+
+    // ยกเลิกการติดตามเมื่อ component unmount
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
+  return (
+    <NavigationContainer ref={navigationRef}>
+      {user ? <MainNavigator /> : <AuthNavigator />}
+    </NavigationContainer>
+  );
+};
+
+export default function App() {
   return (
     <AuthProvider>
       <PaperProvider>
@@ -49,9 +70,7 @@ export default function App() {
           backgroundColor="#12111D"
           translucent={false}
         />
-        <NavigationContainer>
-          {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
-        </NavigationContainer>
+        <AppContent />
       </PaperProvider>
     </AuthProvider>
   );
@@ -71,10 +90,7 @@ const AuthNavigator = () => (
 
 // ส่วนของการนำทางสำหรับหน้านาฬิกาปลุก
 const AlarmStackNavigator = () => {
-  const navigation = useNavigation();
-
-  // นำเข้า UserAuth hook เพื่อใช้ฟังก์ชัน logout
-  const { logout } = require("./models/UserAuth").UserAuth();
+  const { logout } = UserAuth();
 
   // ฟังก์ชันสำหรับออกจากระบบ
   const handleLogout = () => {
@@ -91,7 +107,6 @@ const AlarmStackNavigator = () => {
           onPress: async () => {
             try {
               await logout();
-              // ไม่จำเป็นต้องนำทางไปที่หน้า Login เพราะ App.js จะจัดการให้อัตโนมัติ
             } catch (error) {
               console.error("Logout error:", error);
               Alert.alert("ข้อผิดพลาด", "ไม่สามารถออกจากระบบได้ กรุณาลองอีกครั้ง");
@@ -205,7 +220,6 @@ const MainNavigator = () => {
         options={({ route }) => ({
           headerShown: false,
           title: "ปลุก",
-          // ซ่อน tab bar เมื่ออยู่ในหน้า AddAlarm
           tabBarStyle: ((route) => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? "";
             if (routeName === "AddAlarm" || routeName === "SoundLibrary") {

@@ -1,5 +1,5 @@
 // AlarmListScreen.js - หน้าแสดงรายการนาฬิกาปลุก
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -13,35 +13,19 @@ import {
   Animated,
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
-import { getAuth } from "firebase/auth";
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-} from "firebase/firestore";
+import { supabase } from "../supabase.config";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { FAB } from "react-native-paper";
 import { Swipeable } from "react-native-gesture-handler";
 import { UserAuth } from "../models/UserAuth";
+import { scheduleAlarmNotification, cancelAlarmNotification } from "../models/NotificationManager";
 
 const AlarmListScreen = ({ navigation }) => {
   const [alarms, setAlarms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
-
-  // ใช้ hook จาก UserAuth เพื่อเข้าถึงฟังก์ชัน logout
-  const { logout } = UserAuth();
-
-  const auth = getAuth();
-  const db = getFirestore();
-  const userId = auth.currentUser?.uid;
+  const { user } = UserAuth();
 
   // Monitor network connectivity
   useEffect(() => {
@@ -61,69 +45,66 @@ const AlarmListScreen = ({ navigation }) => {
     };
   }, []);
 
-
-
+  // Subscribe to alarms changes
   useEffect(() => {
-    if (!userId) return;
+    if (!user?.id) return;
 
-    // Subscribe to alarms collection for the current user
-    const alarmsRef = collection(db, "alarms");
-    const userAlarmsQuery = query(alarmsRef, where("userId", "==", userId));
+    // Set up realtime subscription
+    const channel = supabase
+      .channel('alarms')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'alarms',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        fetchAlarms();
+      })
+      .subscribe();
 
-    const unsubscribe = onSnapshot(
-      userAlarmsQuery,
-      (snapshot) => {
-        const alarmList = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+    // Initial fetch
+    fetchAlarms();
 
-        // Sort alarms by time
-        alarmList.sort((a, b) => {
-          const timeA = a.hour * 60 + a.minute;
-          const timeB = b.hour * 60 + b.minute;
-          return timeA - timeB;
-        });
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
-        setAlarms(alarmList);
-        setLoading(false);
-        setRefreshing(false);
-        setIsOffline(false); // Successfully loaded data, so we're online
-      },
-      (error) => {
-        console.error("Error fetching alarms:", error);
-        setLoading(false);
-        setRefreshing(false);
+  const fetchAlarms = async () => {
+    try {
+      const { data: alarmList, error } = await supabase
+        .from('alarms')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('hour, minute');
 
-        // Check if error is due to being offline
-        if (
-          error.code === "unavailable" ||
-          error.code === "failed-precondition" ||
-          error.message.includes("offline") ||
-          error.message.includes("network") ||
-          error.message.includes("client is offline")
-        ) {
-          setIsOffline(true);
-          // If we have cached data, don't show an error
-          if (alarms.length === 0) {
-            Alert.alert(
-              "ไม่มีการเชื่อมต่ออินเทอร์เน็ต",
-              "กำลังแสดงข้อมูลที่บันทึกไว้ล่าสุด"
-            );
-          }
-        } else {
-          Alert.alert("ข้อผิดพลาด", "ไม่สามารถโหลดรายการนาฬิกาปลุกได้");
+      if (error) throw error;
+
+      setAlarms(alarmList || []);
+      setLoading(false);
+      setRefreshing(false);
+      setIsOffline(false);
+    } catch (error) {
+      console.error("Error fetching alarms:", error);
+      setLoading(false);
+      setRefreshing(false);
+
+      if (!navigator.onLine) {
+        setIsOffline(true);
+        if (alarms.length === 0) {
+          Alert.alert(
+            "ไม่มีการเชื่อมต่ออินเทอร์เน็ต",
+            "กำลังแสดงข้อมูลที่บันทึกไว้ล่าสุด"
+          );
         }
+      } else {
+        Alert.alert("ข้อผิดพลาด", "ไม่สามารถโหลดรายการนาฬิกาปลุกได้");
       }
-    );
+    }
+  };
 
-    return unsubscribe;
-  }, [userId, db]);
-
-  // Pull to refresh handler
   const onRefresh = () => {
     setRefreshing(true);
-    // Check network status
     NetInfo.fetch().then((state) => {
       const isConnected = state.isConnected && state.isInternetReachable;
       if (!isConnected) {
@@ -133,65 +114,114 @@ const AlarmListScreen = ({ navigation }) => {
           "ไม่มีการเชื่อมต่ออินเทอร์เน็ต",
           "กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง"
         );
+      } else {
+        fetchAlarms();
       }
-      // The Firestore listener will automatically update when back online
     });
   };
 
-  // Import notification functions
-  const {
-    scheduleAlarmNotification,
-    cancelAlarmNotification,
-  } = require("../models/NotificationManager");
-
   const toggleAlarmActive = async (alarmId, currentStatus) => {
     try {
-      // Get the full alarm data
-      const alarmRef = doc(db, "alarms", alarmId);
-      const alarmDoc = await getDoc(alarmRef);
+      console.log(`กำลังเปลี่ยนสถานะนาฬิกาปลุก ID: ${alarmId}, สถานะปัจจุบัน: ${currentStatus}`);
 
-      if (!alarmDoc.exists()) {
-        Alert.alert("ข้อผิดพลาด", "ไม่พบข้อมูลนาฬิกาปลุก");
-        return;
+      // Get the full alarm data
+      const { data: alarm, error: fetchError } = await supabase
+        .from('alarms')
+        .select('*')
+        .eq('id', alarmId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const newStatus = !currentStatus;
+      console.log(`สถานะใหม่: ${newStatus}`);
+
+      // อัปเดตข้อมูลในแอปก่อนเพื่อให้ UI ตอบสนองทันที
+      console.log(`กำลังอัปเดตข้อมูลในแอป: ${alarmId} -> ${newStatus}`);
+
+      // สร้างสำเนาของข้อมูลและอัปเดตเฉพาะรายการที่ต้องการ
+      const updatedAlarms = [...alarms];
+      const alarmIndex = updatedAlarms.findIndex(item => item.id === alarmId);
+
+      if (alarmIndex !== -1) {
+        updatedAlarms[alarmIndex] = {
+          ...updatedAlarms[alarmIndex],
+          is_active: newStatus
+        };
+        setAlarms(updatedAlarms);
+        console.log(`อัปเดตข้อมูลในแอปสำเร็จ`);
+      } else {
+        console.log(`ไม่พบนาฬิกาปลุก ID: ${alarmId} ในข้อมูลปัจจุบัน`);
       }
 
-      const alarmData = { id: alarmId, ...alarmDoc.data() };
-      const newStatus = !currentStatus;
+      // Update the alarm status in database
+      console.log(`กำลังอัปเดตสถานะในฐานข้อมูล: ${alarmId} -> ${newStatus}`);
+      const { data: updateData, error: updateError } = await supabase
+        .from('alarms')
+        .update({
+          is_active: newStatus,
+          updated_at: new Date()
+        })
+        .eq('id', alarmId)
+        .select();
 
-      // Update the alarm status
-      await updateDoc(alarmRef, {
-        isActive: newStatus,
-      });
+      if (updateError) {
+        console.error("Error updating alarm status:", updateError);
+        throw updateError;
+      }
 
-      // Schedule or cancel notification based on new status
+      console.log(`อัปเดตสถานะสำเร็จ:`, updateData);
+
+      // Handle notifications
       if (newStatus) {
-        // Schedule notification
+        // ส่งข้อมูลที่ถูกต้องไปยัง scheduleAlarmNotification
+        console.log(`กำลังตั้งการแจ้งเตือนสำหรับนาฬิกาปลุก ID: ${alarmId}`);
         const notificationId = await scheduleAlarmNotification({
-          ...alarmData,
-          isActive: true,
+          ...alarm,
+          id: alarm.id,
+          hour: alarm.hour,
+          minute: alarm.minute,
+          repeat_days: alarm.repeat_days,
+          is_active: true
         });
 
-        // Save notification ID
         if (notificationId) {
-          await updateDoc(alarmRef, { notificationId });
+          console.log(`ได้รับ notification ID: ${notificationId}`);
+          await supabase
+            .from('alarms')
+            .update({ notification_id: notificationId })
+            .eq('id', alarmId);
         }
-      } else if (alarmData.notificationId) {
-        // Cancel notification
-        await cancelAlarmNotification(alarmData.notificationId);
-
-        // Remove notification ID
-        await updateDoc(alarmRef, { notificationId: null });
+      } else if (alarm.notification_id) {
+        console.log(`กำลังยกเลิกการแจ้งเตือน ID: ${alarm.notification_id}`);
+        await cancelAlarmNotification(alarm.notification_id);
+        await supabase
+          .from('alarms')
+          .update({ notification_id: null })
+          .eq('id', alarmId);
       }
+
+      // ดึงข้อมูลใหม่เพื่ออัปเดต UI
+      fetchAlarms();
+
     } catch (error) {
       console.error("Error toggling alarm:", error);
-      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเปลี่ยนสถานะนาฬิกาปลุกได้");
+      // ไม่แสดง Alert เมื่อเปิด/ปิดนาฬิกาปลุก เพื่อไม่ให้รบกวนผู้ใช้
+      // เพียงแค่บันทึกข้อผิดพลาดลงใน console
+
+      // กรณีเกิดข้อผิดพลาด ให้ดึงข้อมูลใหม่เพื่อให้ UI แสดงสถานะที่ถูกต้อง
+      fetchAlarms();
     }
   };
 
   const deleteAlarm = async (alarmId) => {
     try {
-      const alarmRef = doc(db, "alarms", alarmId);
-      await deleteDoc(alarmRef);
+      const { error } = await supabase
+        .from('alarms')
+        .delete()
+        .eq('id', alarmId);
+
+      if (error) throw error;
     } catch (error) {
       console.error("Error deleting alarm:", error);
       Alert.alert("ข้อผิดพลาด", "ไม่สามารถลบนาฬิกาปลุกได้");
@@ -276,14 +306,14 @@ const AlarmListScreen = ({ navigation }) => {
           <Text style={styles.alarmTime}>
             {formatTime(item.hour, item.minute)}
           </Text>
-          <Text style={styles.alarmDays}>{getDaysText(item.repeatDays)}</Text>
+          <Text style={styles.alarmDays}>{getDaysText(item.repeat_days)}</Text>
           <Text style={styles.alarmLabel}>{item.label || "นาฬิกาปลุก"}</Text>
           <Text style={styles.alarmTask}>
-            {item.taskType === "math"
+            {item.task_type === "math"
               ? "โจทย์คณิตศาสตร์"
-              : item.taskType === "photo"
+              : item.task_type === "photo"
               ? "ถ่ายรูป"
-              : item.taskType === "random"
+              : item.task_type === "random"
               ? "สุ่มภารกิจ"
               : "ปกติ"}
           </Text>
@@ -291,10 +321,14 @@ const AlarmListScreen = ({ navigation }) => {
 
         <View style={styles.alarmActions}>
           <Switch
-            value={item.isActive}
-            onValueChange={() => toggleAlarmActive(item.id, item.isActive)}
+            value={Boolean(item.is_active)}
+            onValueChange={() => {
+              console.log(`กดปุ่มเปิด/ปิดนาฬิกาปลุก ID: ${item.id}, สถานะปัจจุบัน: ${item.is_active}`);
+              toggleAlarmActive(item.id, item.is_active);
+            }}
             trackColor={{ false: "#D1D5DB", true: "#4F46E5" }}
-            thumbColor={item.isActive ? "#FFFFFF" : "#F3F4F6"}
+            thumbColor={Boolean(item.is_active) ? "#FFFFFF" : "#F3F4F6"}
+            disabled={false}
           />
         </View>
       </View>

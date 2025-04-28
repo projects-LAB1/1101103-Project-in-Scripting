@@ -1,5 +1,5 @@
 // 1. หน้าล็อกอิน (LoginScreen.js)
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -14,26 +14,15 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
-import { auth } from '../firebase.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { UserAuth } from '../models/UserAuth';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // Check if user is already logged in
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        navigation.replace('AlarmList');
-      }
-    });
-
-    return unsubscribe;
-  }, []);
+  const { login } = UserAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -43,41 +32,29 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email.trim(),
-        password
-      );
-      
-      // Store user token
-      const token = await userCredential.user.getIdToken();
-      await AsyncStorage.setItem('@user_token', token);
-      
-      // Navigate to main screen
-      navigation.replace('AlarmList');
+      const { session } = await login(email.trim(), password);
+      // Store session token
+      if (session?.access_token) {
+        await AsyncStorage.setItem('@session_token', session.access_token);
+      }
     } catch (error) {
       console.error('Login error:', error);
       let errorMessage = "An error occurred during login.";
       
-      switch (error.code) {
-        case 'auth/invalid-credential':
+      switch (error.message) {
+        case 'Invalid login credentials':
           errorMessage = "The email or password is incorrect. Please try again.";
           break;
-        case 'auth/user-not-found':
+        case 'Email not confirmed':
+          errorMessage = "Please verify your email address before logging in.";
+          break;
+        case 'User not found':
           errorMessage = "No account exists with this email. Please register first.";
           break;
-        case 'auth/wrong-password':
-          errorMessage = "Incorrect password. Please try again.";
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = "Network error. Please check your internet connection.";
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = "Too many failed attempts. Please try again later.";
-          break;
-        case 'auth/user-disabled':
-          errorMessage = "This account has been disabled. Please contact support.";
-          break;
+        default:
+          if (error.message.includes('network')) {
+            errorMessage = "Network error. Please check your internet connection.";
+          }
       }
       
       Alert.alert("Login Failed", errorMessage);

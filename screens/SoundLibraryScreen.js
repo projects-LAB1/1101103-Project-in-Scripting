@@ -9,62 +9,58 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  Vibration,
 } from "react-native";
-import { getFirestore, collection, getDocs, addDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Audio } from "expo-av";
+import { supabase } from "../supabase.config";
+// import { Audio } from "expo-av"; // ปิดการใช้งานชั่วคราวเนื่องจากมีปัญหา
 import Slider from "@react-native-community/slider";
 import { DocumentPicker } from "expo-document-picker";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { UserAuth } from "../models/UserAuth";
 
 const SoundLibraryScreen = ({ route, navigation }) => {
   const { onSelect, currentSoundId } = route.params || {};
   const [sounds, setSounds] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [playingSound, setPlayingSound] = useState(null);
+  // const [playingSound, setPlayingSound] = useState(null); // ปิดการใช้งานชั่วคราว
   const [playingSoundId, setPlayingSoundId] = useState(null);
   const [volume, setVolume] = useState(0.8);
+  const { user } = UserAuth();
 
-  const db = getFirestore();
-  const storage = getStorage();
-
-  // Load sounds from Firestore
   useEffect(() => {
     loadSounds();
 
-    // Clean up sound when leaving screen
     return () => {
-      if (playingSound) {
-        playingSound.stopAsync();
-        playingSound.unloadAsync();
-      }
+      // ปิดการใช้งานการหยุดเสียงชั่วคราว
+      // if (playingSound) {
+      //   playingSound.stopAsync();
+      //   playingSound.unloadAsync();
+      // }
+
+      // หยุดการสั่นเมื่อออกจากหน้าจอ
+      Vibration.cancel();
     };
   }, []);
 
   const loadSounds = async () => {
     try {
-      // Get sounds from Firestore
-      const soundsRef = collection(db, "sounds");
-      const snapshot = await getDocs(soundsRef);
+      // Get sounds from Supabase
+      const { data: customSounds, error } = await supabase
+        .from('sounds')
+        .select('*')
+        .eq('user_id', user.id);
 
-      const soundsList = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      if (error) throw error;
 
-      // Add default sounds if none exist
-      if (soundsList.length === 0) {
-        const defaultSounds = [
-          { id: "default", name: "Default Alarm", url: null },
-          { id: "bell", name: "Bell", url: null },
-          { id: "digital", name: "Digital", url: null },
-          { id: "rooster", name: "Rooster", url: null },
-        ];
-        setSounds(defaultSounds);
-      } else {
-        setSounds(soundsList);
-      }
+      // Combine default sounds with custom sounds
+      const defaultSounds = [
+        { id: "default", name: "Default Alarm", url: null },
+        { id: "bell", name: "Bell", url: null },
+        { id: "digital", name: "Digital", url: null },
+        { id: "rooster", name: "Rooster", url: null },
+      ];
 
+      setSounds([...defaultSounds, ...(customSounds || [])]);
       setLoading(false);
     } catch (error) {
       console.error("Error loading sounds:", error);
@@ -73,76 +69,80 @@ const SoundLibraryScreen = ({ route, navigation }) => {
     }
   };
 
-  // Play sound preview
   const playSound = async (sound) => {
     try {
-      // Stop current sound if playing
+      console.log("กำลังเล่นเสียงตัวอย่าง...");
+
+      // ใช้การสั่นแทนเสียงชั่วคราว
+      if (playingSoundId === sound.id) {
+        // ถ้ากดเสียงเดิมซ้ำ ให้หยุดการสั่น
+        Vibration.cancel();
+        setPlayingSoundId(null);
+        return;
+      }
+
+      // หยุดการสั่นที่กำลังทำงานอยู่ (ถ้ามี)
+      Vibration.cancel();
+
+      // สั่นเป็นเวลาสั้นๆ เพื่อแสดงว่ากำลังเล่นเสียง
+      Vibration.vibrate(500);
+
+      // แสดงสถานะว่ากำลังเล่นเสียง
+      setPlayingSoundId(sound.id);
+
+      // จำลองการเล่นเสียงเสร็จสิ้นหลังจาก 2 วินาที
+      setTimeout(() => {
+        setPlayingSoundId(null);
+      }, 2000);
+
+      /* ปิดการทำงานของโค้ดเดิมที่มีปัญหา
+      // หยุดเสียงที่กำลังเล่นอยู่ (ถ้ามี)
       if (playingSound) {
         await playingSound.stopAsync();
         await playingSound.unloadAsync();
         setPlayingSound(null);
 
-        // If clicking the same sound, just stop it
+        // ถ้ากดเสียงเดิมซ้ำ ให้หยุดเล่นและออกจากฟังก์ชัน
         if (playingSoundId === sound.id) {
           setPlayingSoundId(null);
           return;
         }
       }
 
-      // Get sound URL from Firebase Storage or use local asset
-      let soundSource;
-      if (sound.url) {
-        // Get URL from Firebase Storage
-        const soundRef = ref(storage, sound.url);
-        const url = await getDownloadURL(soundRef);
-        soundSource = { uri: url };
-      } else {
-        // Use local asset based on sound ID
-        switch (sound.id) {
-          case "default":
-            soundSource = require("../assets/sounds/default-alarm.mp3");
-            break;
-          case "bell":
-            soundSource = require("../assets/sounds/bell-alarm.mp3");
-            break;
-          case "digital":
-            soundSource = require("../assets/sounds/digital-alarm.mp3");
-            break;
-          case "rooster":
-            soundSource = require("../assets/sounds/rooster-alarm.mp3");
-            break;
-          default:
-            soundSource = require("../assets/sounds/default-alarm.mp3");
-        }
-      }
+      // ใช้เสียงเริ่มต้นเพียงเสียงเดียวเพื่อลดความซับซ้อน
+      const soundSource = require("../assets/sounds/default-alarm.mp3");
 
-      // Load and play sound
-      const { sound: audioSound } = await Audio.Sound.createAsync(soundSource, {
-        volume: volume,
-      });
+      // สร้างและเล่นเสียงด้วยระดับเสียงที่กำหนด
+      const { sound: audioSound } = await Audio.Sound.createAsync(
+        soundSource,
+        { volume: volume },
+        (status) => {
+          console.log('Sound status update:', status);
+          if (status.didJustFinish) {
+            setPlayingSoundId(null);
+          }
+          if (status.error) {
+            console.error('Sound playback error:', status.error);
+          }
+        }
+      );
 
       setPlayingSound(audioSound);
       setPlayingSoundId(sound.id);
 
-      // Play sound
+      // เล่นเสียง
       await audioSound.playAsync();
+      */
 
-      // Set up listener for when sound finishes playing
-      audioSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) {
-          setPlayingSoundId(null);
-        }
-      });
+      console.log("ใช้การสั่นแทนเสียงตัวอย่าง");
     } catch (error) {
-      console.error("Error playing sound:", error);
-      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเล่นเสียงตัวอย่างได้");
+      console.error("Error in playSound:", error);
+      Alert.alert("ข้อมูลแจ้ง", "ไม่สามารถเล่นเสียงตัวอย่างได้");
     }
   };
 
-  // Upload custom sound
   const uploadSound = async () => {
     try {
-      // Pick audio file
       const result = await DocumentPicker.getDocumentAsync({
         type: "audio/*",
         copyToCacheDirectory: true,
@@ -153,7 +153,6 @@ const SoundLibraryScreen = ({ route, navigation }) => {
       const file = result.assets[0];
       const fileName = file.name;
 
-      // Check file size (limit to 5MB)
       if (file.size > 5 * 1024 * 1024) {
         Alert.alert("ไฟล์ใหญ่เกินไป", "ไฟล์เสียงต้องมีขนาดไม่เกิน 5MB");
         return;
@@ -161,30 +160,33 @@ const SoundLibraryScreen = ({ route, navigation }) => {
 
       setLoading(true);
 
-      // Upload to Firebase Storage
-      const response = await fetch(file.uri);
-      const blob = await response.blob();
+      // Upload to Supabase Storage
+      const fileExt = fileName.split('.').pop();
+      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
 
-      const storageRef = ref(storage, `sounds/${Date.now()}_${fileName}`);
-      await uploadBytes(storageRef, blob);
+      const { error: uploadError } = await supabase
+        .storage
+        .from('sounds')
+        .upload(filePath, file);
 
-      // Get download URL
-      const downloadURL = await getDownloadURL(storageRef);
+      if (uploadError) throw uploadError;
 
-      // Add to Firestore
-      const soundData = {
-        name: fileName.replace(/\.[^/.]+$/, ""), // Remove file extension
-        url: downloadURL,
-        createdAt: new Date(),
-      };
+      // Add to Supabase database
+      const { error: dbError } = await supabase
+        .from('sounds')
+        .insert([
+          {
+            name: fileName.replace(/\.[^/.]+$/, ""),
+            url: filePath,
+            user_id: user.id,
+            created_at: new Date(),
+          }
+        ]);
 
-      const docRef = await addDoc(collection(db, "sounds"), soundData);
-
-      // Add to local state
-      setSounds([...sounds, { id: docRef.id, ...soundData }]);
+      if (dbError) throw dbError;
 
       Alert.alert("สำเร็จ", "อัปโหลดไฟล์เสียงเรียบร้อยแล้ว");
-      setLoading(false);
+      loadSounds();
     } catch (error) {
       console.error("Error uploading sound:", error);
       Alert.alert("ข้อผิดพลาด", "ไม่สามารถอัปโหลดไฟล์เสียงได้");

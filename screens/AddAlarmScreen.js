@@ -9,26 +9,25 @@ import {
   ScrollView,
   Switch,
   Alert,
-  Animated,
+  SafeAreaView,
+  StatusBar,
+  Platform,
+  Dimensions,
+  Pressable,
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
-import { getAuth } from "firebase/auth";
-import {
-  getFirestore,
-  doc,
-  addDoc,
-  updateDoc,
-  collection,
-} from "firebase/firestore";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { Picker } from "@react-native-picker/picker";
+import { supabase } from "../supabase.config";
+import { UserAuth } from "../models/UserAuth";
+// ใช้ Icon สำหรับปุ่มเพิ่ม/ลดเวลา
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { scheduleAlarmNotification } from "../models/NotificationManager";
+import { Picker } from '@react-native-picker/picker';
 
 const AddAlarmScreen = ({ route, navigation }) => {
   // Get alarm data if editing an existing alarm
   const existingAlarm = route.params?.alarm;
   const isEditing = !!existingAlarm;
+  const { user } = UserAuth();
 
   // State for alarm data
   const [hour, setHour] = useState(
@@ -38,21 +37,32 @@ const AddAlarmScreen = ({ route, navigation }) => {
     existingAlarm?.minute || new Date().getMinutes()
   );
   const [label, setLabel] = useState(existingAlarm?.label || "");
-  const [isActive, setIsActive] = useState(existingAlarm?.isActive !== false);
-  const [repeatDays, setRepeatDays] = useState(existingAlarm?.repeatDays || []);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [taskType, setTaskType] = useState(existingAlarm?.taskType || "normal");
+  const [isActive, setIsActive] = useState(existingAlarm?.is_active !== false);
+  const [repeatDays, setRepeatDays] = useState(existingAlarm?.repeat_days || []);
+  const [taskType, setTaskType] = useState(existingAlarm?.task_type || "normal");
   const [taskDifficulty, setTaskDifficulty] = useState(
-    existingAlarm?.taskDifficulty || "medium"
+    existingAlarm?.task_difficulty || "medium"
   );
-  const [soundId, setSoundId] = useState(existingAlarm?.soundId || "default");
+  const [soundId, setSoundId] = useState(existingAlarm?.sound_id || "default");
   const [soundName, setSoundName] = useState(
-    existingAlarm?.soundName || "Default Alarm"
+    existingAlarm?.sound_name || "Default Alarm"
   );
 
-  const auth = getAuth();
-  const db = getFirestore();
-  const userId = auth.currentUser?.uid;
+  // Handler for incrementing/decrementing time
+  const adjustTime = (type, increment) => {
+    if (type === 'hour') {
+      let newHour = (hour + increment) % 24;
+      if (newHour < 0) newHour = 23;
+      setHour(newHour);
+    } else {
+      let newMinute = (minute + increment) % 60;
+      if (newMinute < 0) newMinute = 59;
+      setMinute(newMinute);
+    }
+  };
+
+  // Format number to 2 digits
+  const formatNumber = (number) => number.toString().padStart(2, '0');
 
   // Day names for repeat selection
   const dayNames = [
@@ -65,43 +75,15 @@ const AddAlarmScreen = ({ route, navigation }) => {
     "อาทิตย์",
   ];
 
-  // Handle time change from picker
-  const onTimeChange = (event, selectedDate) => {
-    setShowTimePicker(false);
-    if (selectedDate) {
-      setHour(selectedDate.getHours());
-      setMinute(selectedDate.getMinutes());
-    }
-  };
-
-  // Toggle repeat day selection
-  const toggleDay = (dayIndex) => {
-    if (repeatDays.includes(dayIndex)) {
-      setRepeatDays(repeatDays.filter((day) => day !== dayIndex));
-    } else {
-      setRepeatDays([...repeatDays, dayIndex].sort());
-    }
-  };
-
-  // Import scheduleAlarmNotification
-  const {
-    scheduleAlarmNotification,
-  } = require("../models/NotificationManager");
-
-  // แก้ไขการสร้าง slideAnim
-  const slideAnim = React.useRef(new Animated.Value(0)).current;
-
-  // ฟังก์ชันสำหรับบันทึกนาฬิกาปลุกและย้อนกลับ
   const handleSaveAndBack = async () => {
-    if (!userId) {
+    if (!user?.id) {
       Alert.alert("ข้อผิดพลาด", "กรุณาเข้าสู่ระบบก่อนบันทึกนาฬิกาปลุก");
       return;
     }
 
     // ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต
     const networkState = await NetInfo.fetch();
-    const isConnected =
-      networkState.isConnected && networkState.isInternetReachable;
+    const isConnected = networkState.isConnected && networkState.isInternetReachable;
 
     if (!isConnected) {
       Alert.alert(
@@ -117,70 +99,66 @@ const AddAlarmScreen = ({ route, navigation }) => {
         hour,
         minute,
         label,
-        isActive,
-        repeatDays,
-        taskType,
-        taskDifficulty,
-        soundId,
-        soundName,
-        userId,
-        updatedAt: new Date(),
+        is_active: isActive,
+        repeat_days: repeatDays,
+        task_type: taskType,
+        task_difficulty: taskDifficulty,
+        sound_id: soundId,
+        sound_name: soundName,
+        user_id: user.id,
+        updated_at: new Date(),
       };
 
       let alarmId;
 
       if (isEditing) {
-        // อัปเดตนาฬิกาปลุกที่มีอยู่
+        // Update existing alarm
+        const { error: updateError } = await supabase
+          .from('alarms')
+          .update(alarmData)
+          .eq('id', existingAlarm.id);
+
+        if (updateError) throw updateError;
         alarmId = existingAlarm.id;
-        const alarmRef = doc(db, "alarms", alarmId);
-        await updateDoc(alarmRef, alarmData);
       } else {
-        // สร้างนาฬิกาปลุกใหม่
-        alarmData.createdAt = new Date();
-        const docRef = await addDoc(collection(db, "alarms"), alarmData);
-        alarmId = docRef.id;
+        // Create new alarm
+        alarmData.created_at = new Date();
+        const { data, error: insertError } = await supabase
+          .from('alarms')
+          .insert([alarmData])
+          .select();
+
+        if (insertError) throw insertError;
+        alarmId = data[0].id;
       }
 
-      // ตั้งค่าการแจ้งเตือนถ้านาฬิกาปลุกเปิดใช้งาน
+      // Set up notification if alarm is active
       if (isActive) {
         const fullAlarmData = { ...alarmData, id: alarmId };
         const notificationId = await scheduleAlarmNotification(fullAlarmData);
 
-        // อัปเดตนาฬิกาปลุกด้วย ID การแจ้งเตือน
         if (notificationId) {
-          const alarmRef = doc(db, "alarms", alarmId);
-          await updateDoc(alarmRef, { notificationId });
-          console.log(
-            `Alarm scheduled with notification ID: ${notificationId}`
-          );
+          await supabase
+            .from('alarms')
+            .update({ notification_id: notificationId })
+            .eq('id', alarmId);
         }
       }
 
-      // นำทางกลับหน้าแรกทันที โดยใช้ navigation.reset เพื่อให้แน่ใจว่ากลับไปหน้าแรกได้อย่างถูกต้อง
       navigation.reset({
         index: 0,
         routes: [{ name: "Alarm" }],
       });
 
-      // ไม่จำเป็นต้องใช้ animation และ setTimeout เพราะ navigation.reset จะทำงานทันที
     } catch (error) {
       console.error("Error saving alarm:", error);
+      let errorMessage = "ไม่สามารถบันทึกนาฬิกาปลุกได้";
 
-      // จัดการกับประเภทข้อผิดพลาดต่างๆ
-      if (
-        error.code === "unavailable" ||
-        error.code === "failed-precondition" ||
-        error.message.includes("offline") ||
-        error.message.includes("network") ||
-        error.message.includes("client is offline")
-      ) {
-        Alert.alert(
-          "ข้อผิดพลาดการเชื่อมต่อ",
-          "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง"
-        );
-      } else {
-        Alert.alert("ข้อผิดพลาด", "ไม่สามารถบันทึกนาฬิกาปลุกได้");
+      if (error.message?.includes('offline') || error.message?.includes('network')) {
+        errorMessage = "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง";
       }
+
+      Alert.alert("ข้อผิดพลาด", errorMessage);
     }
   };
 
@@ -196,281 +174,228 @@ const AddAlarmScreen = ({ route, navigation }) => {
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Animated.View
-        style={{
-          flex: 1,
-          transform: [{ translateY: slideAnim }],
-        }}
-      >
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={{ paddingBottom: 40 }}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => navigation.goBack()}
         >
-          {/* Time Picker Section */}
+          <Text style={styles.cancelButton}>ยกเลิก</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>เพิ่มการตั้งปลุก</Text>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={handleSaveAndBack}
+        >
+          <Text style={styles.saveButton}>บันทึก</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.container}>
+        {/* Time Display Section */}
+        <View style={styles.timePickerContainer}>
           <View style={styles.timeSection}>
-            <TouchableOpacity
-              style={styles.timeDisplay}
-              onPress={() => setShowTimePicker(true)}
+            <TouchableOpacity 
+              style={styles.timeButton}
+              onPress={() => adjustTime('hour', 1)}
             >
-              <Text style={styles.timeText}>
-                {`${hour.toString().padStart(2, "0")}:${minute
-                  .toString()
-                  .padStart(2, "0")}`}
-              </Text>
+              <Icon name="chevron-up" size={24} color="#86868B" />
             </TouchableOpacity>
-
-            {showTimePicker && (
-              <DateTimePicker
-                value={new Date(new Date().setHours(hour, minute, 0))}
-                mode="time"
-                is24Hour={true}
-                display="spinner"
-                onChange={onTimeChange}
-              />
-            )}
-          </View>
-
-          {/* Alarm Details Section */}
-          <View style={styles.section}>
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>ชื่อนาฬิกาปลุก</Text>
-              <TextInput
-                style={styles.textInput}
-                value={label}
-                onChangeText={setLabel}
-                placeholder="ใส่ชื่อนาฬิกาปลุก"
-                maxLength={30}
-              />
-            </View>
-
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>เปิดใช้งาน</Text>
-              <Switch
-                value={isActive}
-                onValueChange={setIsActive}
-                trackColor={{ false: "#D1D5DB", true: "#4F46E5" }}
-              />
-            </View>
-          </View>
-
-          {/* Repeat Days Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>ทำซ้ำ</Text>
-            {dayNames.map((day, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.dayRow}
-                onPress={() => toggleDay(index)}
-              >
-                <Text style={styles.dayText}>{day}</Text>
-                <View
-                  style={[
-                    styles.dayIndicator,
-                    repeatDays.includes(index) && styles.daySelected,
-                  ]}
-                >
-                  {repeatDays.includes(index) && (
-                    <Icon name="check" size={16} color="white" />
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Task Type Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>วิธีปิดนาฬิกาปลุก</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={taskType}
-                onValueChange={(itemValue) => setTaskType(itemValue)}
-                style={styles.picker}
-              >
-                <Picker.Item label="ปกติ (กดปุ่มปิด)" value="normal" />
-                <Picker.Item label="โจทย์คณิตศาสตร์" value="math" />
-                <Picker.Item label="ถ่ายรูปตามสีที่กำหนด" value="photo" />
-                <Picker.Item label="สุ่มภารกิจ" value="random" />
-              </Picker>
-            </View>
-
-            {taskType !== "normal" && (
-              <>
-                <Text style={styles.inputLabel}>ระดับความยาก</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={taskDifficulty}
-                    onValueChange={(itemValue) => setTaskDifficulty(itemValue)}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="ง่าย" value="easy" />
-                    <Picker.Item label="ปานกลาง" value="medium" />
-                    <Picker.Item label="ยาก" value="hard" />
-                  </Picker>
-                </View>
-              </>
-            )}
-          </View>
-
-          {/* Sound Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>เสียงปลุก</Text>
-            <TouchableOpacity
-              style={styles.soundSelector}
-              onPress={selectSound}
+            <Text style={styles.timeText}>{formatNumber(hour)}</Text>
+            <TouchableOpacity 
+              style={styles.timeButton}
+              onPress={() => adjustTime('hour', -1)}
             >
-              <View>
-                <Text style={styles.soundName}>{soundName}</Text>
-              </View>
-              <Icon name="chevron-right" size={24} color="#6B7280" />
+              <Icon name="chevron-down" size={24} color="#86868B" />
             </TouchableOpacity>
           </View>
 
-          {/* แทนที่ปุ่มเดิมด้วยปุ่มใหม่ */}
+          <Text style={styles.colonText}>:</Text>
+
+          <View style={styles.timeSection}>
+            <TouchableOpacity 
+              style={styles.timeButton}
+              onPress={() => adjustTime('minute', 1)}
+            >
+              <Icon name="chevron-up" size={24} color="#86868B" />
+            </TouchableOpacity>
+            <Text style={styles.timeText}>{formatNumber(minute)}</Text>
+            <TouchableOpacity 
+              style={styles.timeButton}
+              onPress={() => adjustTime('minute', -1)}
+            >
+              <Icon name="chevron-down" size={24} color="#86868B" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Options Container */}
+        <View style={styles.optionsContainer}>
+          {/* Repeat Option */}
           <TouchableOpacity
-            style={[
-              styles.saveButton,
-              {
-                flexDirection: "row",
-                justifyContent: "center",
-                alignItems: "center",
-              },
-            ]}
-            onPress={handleSaveAndBack}
+            style={styles.optionRow}
+            onPress={() => navigation.navigate("RepeatDaysScreen", {
+              repeatDays,
+              onSelect: (days) => setRepeatDays(days)
+            })}
           >
-            <Icon
-              name="content-save"
-              size={24}
-              color="#000000"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.saveButtonText}>
-              {isEditing ? "บันทึกและย้อนกลับ" : "บันทึกนาฬิกาปลุก"}
-            </Text>
+            <Text style={styles.optionLabel}>ปลุกซ้ำ</Text>
+            <View style={styles.optionValue}>
+              <Text style={styles.optionValueText}>
+                {repeatDays.length === 0 ? "ไม่ปลุกซ้ำ" :
+                 repeatDays.length === 7 ? "ทุกวัน" :
+                 dayNames.filter((_, i) => repeatDays.includes(i)).join(", ")}
+              </Text>
+              <Icon name="chevron-right" size={20} color="#86868B" />
+            </View>
           </TouchableOpacity>
-        </ScrollView>
-      </Animated.View>
-    </GestureHandlerRootView>
+
+          {/* Label Option */}
+          <View style={styles.optionRow}>
+            <Text style={styles.optionLabel}>ชื่อ</Text>
+            <TextInput
+              style={styles.textInput}
+              value={label}
+              onChangeText={setLabel}
+              placeholder="การตั้งปลุก"
+              placeholderTextColor="#86868B"
+              maxLength={30}
+            />
+          </View>
+
+          {/* Sound Option */}
+          <TouchableOpacity
+            style={styles.optionRow}
+            onPress={selectSound}
+          >
+            <Text style={styles.optionLabel}>เสียง</Text>
+            <View style={styles.optionValue}>
+              <Text style={styles.optionValueText}>{soundName}</Text>
+              <Icon name="chevron-right" size={20} color="#86868B" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Snooze Option */}
+          <View style={styles.optionRow}>
+            <Text style={styles.optionLabel}>เลื่อนปลุก</Text>
+            <Switch
+              value={isActive}
+              onValueChange={setIsActive}
+              trackColor={{ false: "#3A3A3C", true: "#34C759" }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor="#3A3A3C"
+            />
+          </View>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: "#12111D",
-    padding: 16,
+    backgroundColor: "#000000",
   },
-  timeSection: {
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  timeDisplay: {
-    backgroundColor: "#1a237e",
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  timeText: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  section: {
-    backgroundColor: "#1F1D2B",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 16,
-    color: "#fff",
-  },
-  inputRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    backgroundColor: "#000000",
+    borderBottomWidth: 0,
   },
-  inputLabel: {
-    fontSize: 16,
-    color: "#9fa8da",
+  headerButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
-  textInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 16,
-    textAlign: "right",
-    color: "#fff",
+  headerTitle: {
+    fontSize: 17,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
-  dayRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  dayText: {
-    fontSize: 16,
-    color: "#9fa8da",
-  },
-  dayIndicator: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  daySelected: {
-    backgroundColor: "#1a237e",
-    borderColor: "#4F46E5",
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: "#1a237e",
-    borderRadius: 8,
-    marginBottom: 16,
-    backgroundColor: "#162447",
-  },
-  picker: {
-    height: 50,
-  },
-  soundSelector: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  soundName: {
-    fontSize: 16,
-    color: "#9fa8da",
+  cancelButton: {
+    fontSize: 17,
+    color: '#FF9F0A',
+    fontWeight: '400',
   },
   saveButton: {
-    backgroundColor: "#D8D5F5",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginVertical: 20,
+    fontSize: 17,
+    color: '#FF9F0A',
+    fontWeight: '600',
   },
-  saveButtonText: {
-    color: "#000000",
-    fontSize: 18,
-    fontWeight: "bold",
+  container: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+  timePickerContainer: {
+    backgroundColor: "#1C1C1E",
+    paddingVertical: 30,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeSection: {
+    alignItems: 'center',
+    width: 80,
+  },
+  timeButton: {
+    padding: 12,
+    borderRadius: 20,
+  },
+  timeText: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '400',
+    marginVertical: 5,
+  },
+  colonText: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    marginHorizontal: 15,
+    fontWeight: '400',
+  },
+  optionsContainer: {
+    backgroundColor: "#1C1C1E",
+    borderRadius: 10,
+    marginHorizontal: 16,
+    overflow: 'hidden',
+  },
+  optionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#38383A",
+    backgroundColor: "transparent",
+  },
+  optionLabel: {
+    fontSize: 17,
+    color: "#FFFFFF",
+    fontWeight: '400',
+  },
+  optionValue: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  optionValueText: {
+    fontSize: 17,
+    color: "#86868B",
+    marginRight: 8,
+  },
+  textInput: {
+    fontSize: 17,
+    color: "#86868B",
+    textAlign: "right",
+    paddingVertical: 0,
+    minWidth: 120,
   },
 });
 
-export default AddAlarmScreen;
+// ใช้ React.memo เพื่อป้องกัน re-render ที่ไม่จำเป็น
+export default React.memo(AddAlarmScreen);
