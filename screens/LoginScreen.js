@@ -6,20 +6,77 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
+  Keyboard,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { useAuth } from '../contexts/AuthContext';
+import { BlurView } from 'expo-blur';
+
+const { width } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const auth = getAuth();
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const { login } = useAuth();
+
+  // Animation values
+  const logoOpacity = new Animated.Value(1);
+  const formTranslateY = new Animated.Value(0);
+
+  React.useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+        Animated.parallel([
+          Animated.timing(logoOpacity, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(formTranslateY, {
+            toValue: -100,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        Animated.parallel([
+          Animated.timing(logoOpacity, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(formTranslateY, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -27,22 +84,23 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      Alert.alert("ข้อผิดพลาด", "รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง");
+      Alert.alert("ข้อผิดพลาด", "รูปแบบอีเมลไม่ถูกต้อง");
       return;
     }
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      // ล็อกอินสำเร็จ Firebase จะเปลี่ยนสถานะและ App.js จะจัดการการนำทาง
+      const result = await login(email.trim(), password);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
     } catch (error) {
       console.error(error);
       Alert.alert(
         "ล็อกอินไม่สำเร็จ",
-        "อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง"
+        "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
       );
     } finally {
       setLoading(false);
@@ -51,47 +109,58 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardContainer}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.logoContainer}>
-            <Image
-              source={require("../assets/logo.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={styles.appTitle}>WAKE UP</Text>
-            <Text style={styles.appSubtitle}>นาฬิกาปลุกสำหรับคนตื่นยาก</Text>
-          </View>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View style={[styles.logoContainer, { opacity: logoOpacity }]}>
+            <View style={styles.logoBackground}>
+              <MaterialCommunityIcons name="alarm" size={80} color="#FF9500" />
+            </View>
+            <Text style={styles.appName}>Clock</Text>
+            <Text style={styles.appSubtitle}>นาฬิกาปลุกอัจฉริยะ</Text>
+          </Animated.View>
 
-          <View style={styles.formContainer}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>อีเมล</Text>
+          <Animated.View 
+            style={[
+              styles.formContainer,
+              { transform: [{ translateY: formTranslateY }] }
+            ]}
+          >
+            <View style={styles.inputWrapper}>
+              <MaterialCommunityIcons name="email-outline" size={24} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="อีเมลของคุณ"
+                placeholder="อีเมล"
+                placeholderTextColor="#666"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                autoComplete="email"
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>รหัสผ่าน</Text>
+            <View style={styles.inputWrapper}>
+              <MaterialCommunityIcons name="lock-outline" size={24} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="รหัสผ่านของคุณ"
+                placeholder="รหัสผ่าน"
+                placeholderTextColor="#666"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
+                autoComplete="password"
               />
             </View>
 
             <TouchableOpacity
-              style={styles.loginButton}
+              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={loading}
             >
@@ -117,9 +186,9 @@ const LoginScreen = ({ navigation }) => {
               style={styles.registerButton}
               onPress={() => navigation.navigate("Register")}
             >
-              <Text style={styles.registerButtonText}>สมัครสมาชิก</Text>
+              <Text style={styles.registerButtonText}>สมัครสมาชิกใหม่</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -129,101 +198,123 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#000000",
   },
   keyboardContainer: {
     flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: 30,
+    paddingHorizontal: 24,
+    paddingTop: 20,
   },
   logoContainer: {
     alignItems: "center",
-    marginTop: 60,
-    marginBottom: 40,
+    marginTop: 40,
+    marginBottom: 48,
   },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 10,
+  logoBackground: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  appTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#4F46E5",
-    marginBottom: 5,
+  appName: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 8,
   },
   appSubtitle: {
-    fontSize: 16,
-    color: "#6B7280",
+    fontSize: 17,
+    color: "#666",
+    marginBottom: 24,
   },
   formContainer: {
-    paddingHorizontal: 30,
+    width: "100%",
+    paddingHorizontal: 16,
   },
-  inputContainer: {
-    marginBottom: 20,
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: "#1C1C1E",
+    borderRadius: 12,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    height: 56,
   },
-  inputLabel: {
-    marginBottom: 8,
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#374151",
+  inputIcon: {
+    marginRight: 12,
   },
   input: {
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
+    flex: 1,
+    color: "#FFFFFF",
+    fontSize: 17,
+    height: '100%',
   },
   loginButton: {
-    backgroundColor: "#4F46E5",
-    borderRadius: 10,
-    padding: 15,
+    backgroundColor: "#FF9500",
+    borderRadius: 12,
+    height: 56,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 24,
+    shadowColor: "#FF9500",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  loginButtonDisabled: {
+    opacity: 0.7,
   },
   loginButtonText: {
-    color: "white",
-    fontSize: 16,
+    color: "#000000",
+    fontSize: 17,
     fontWeight: "600",
   },
   forgotButton: {
+    height: 44,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 15,
-    marginBottom: 20,
+    marginTop: 16,
   },
   forgotButtonText: {
-    color: "#4F46E5",
-    fontSize: 14,
+    color: "#FF9500",
+    fontSize: 15,
   },
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 20,
+    marginVertical: 32,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#333",
   },
   dividerText: {
-    paddingHorizontal: 10,
-    color: "#6B7280",
-    fontSize: 14,
+    color: "#666",
+    fontSize: 15,
+    marginHorizontal: 16,
   },
   registerButton: {
-    borderWidth: 1,
-    borderColor: "#4F46E5",
-    borderRadius: 10,
-    padding: 15,
+    height: 56,
+    justifyContent: "center",
     alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FF9500",
   },
   registerButtonText: {
-    color: "#4F46E5",
-    fontSize: 16,
+    color: "#FF9500",
+    fontSize: 17,
     fontWeight: "600",
   },
 });

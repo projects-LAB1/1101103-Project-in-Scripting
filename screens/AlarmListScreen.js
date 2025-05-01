@@ -11,45 +11,31 @@ import {
   ActivityIndicator,
   RefreshControl,
   Animated,
+  StatusBar,
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
-import { getAuth } from "firebase/auth";
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-} from "firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { FAB } from "react-native-paper";
 import { Swipeable } from "react-native-gesture-handler";
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  loadAlarms,
+  saveAlarms,
+  deleteAlarm as deleteAlarmFromStorage,
+  toggleAlarmStatus as toggleAlarmInStorage
+} from '../utils/alarmStorage';
+import { scheduleAlarmNotification, cancelAlarmNotification } from "../models/NotificationManager";
 
 const AlarmListScreen = ({ navigation }) => {
   const [alarms, setAlarms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
-
-  const auth = getAuth();
-  const db = getFirestore();
-  const userId = auth.currentUser?.uid;
+  const swipeableRef = useRef(null);
 
   // Monitor network connectivity
   useEffect(() => {
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-      const isConnected = state.isConnected && state.isInternetReachable;
-      setIsOffline(!isConnected);
-    });
-
-    // Initial network check
-    NetInfo.fetch().then((state) => {
-      const isConnected = state.isConnected && state.isInternetReachable;
-      setIsOffline(!isConnected);
+      setIsOffline(!state.isConnected);
     });
 
     return () => {
@@ -57,159 +43,114 @@ const AlarmListScreen = ({ navigation }) => {
     };
   }, []);
 
+  // Load alarms from storage
+  const loadStoredAlarms = async () => {
+    try {
+      const storedAlarms = await loadAlarms();
+      setAlarms(storedAlarms.sort((a, b) => {
+        const timeA = a.hour * 60 + a.minute;
+        const timeB = b.hour * 60 + b.minute;
+        return timeA - timeB;
+      }));
+    } catch (error) {
+      console.error('Error loading alarms:', error);
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลการปลุกได้');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Initial load
   useEffect(() => {
-    if (!userId) return;
+    loadStoredAlarms();
+  }, []);
 
-    // Subscribe to alarms collection for the current user
-    const alarmsRef = collection(db, "alarms");
-    const userAlarmsQuery = query(alarmsRef, where("userId", "==", userId));
-
-    const unsubscribe = onSnapshot(
-      userAlarmsQuery,
-      (snapshot) => {
-        const alarmList = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        // Sort alarms by time
-        alarmList.sort((a, b) => {
-          const timeA = a.hour * 60 + a.minute;
-          const timeB = b.hour * 60 + b.minute;
-          return timeA - timeB;
-        });
-
-        setAlarms(alarmList);
-        setLoading(false);
-        setRefreshing(false);
-        setIsOffline(false); // Successfully loaded data, so we're online
+  // Add navigation options
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => navigation.navigate('AddAlarm')}
+        >
+          <Icon name="plus" size={24} color="#FF9500" />
+        </TouchableOpacity>
+      ),
+      headerStyle: {
+        backgroundColor: '#000000',
       },
-      (error) => {
-        console.error("Error fetching alarms:", error);
-        setLoading(false);
-        setRefreshing(false);
-
-        // Check if error is due to being offline
-        if (
-          error.code === "unavailable" ||
-          error.code === "failed-precondition" ||
-          error.message.includes("offline") ||
-          error.message.includes("network") ||
-          error.message.includes("client is offline")
-        ) {
-          setIsOffline(true);
-          // If we have cached data, don't show an error
-          if (alarms.length === 0) {
-            Alert.alert(
-              "ไม่มีการเชื่อมต่ออินเทอร์เน็ต",
-              "กำลังแสดงข้อมูลที่บันทึกไว้ล่าสุด"
-            );
-          }
-        } else {
-          Alert.alert("ข้อผิดพลาด", "ไม่สามารถโหลดรายการนาฬิกาปลุกได้");
-        }
-      }
-    );
-
-    return unsubscribe;
-  }, [userId, db]);
+      headerTintColor: '#FFFFFF',
+      headerTitle: 'ปลุก',
+      headerTitleStyle: {
+        fontSize: 34,
+        fontWeight: '700',
+      },
+    });
+  }, [navigation]);
 
   // Pull to refresh handler
   const onRefresh = () => {
     setRefreshing(true);
-    // Check network status
-    NetInfo.fetch().then((state) => {
-      const isConnected = state.isConnected && state.isInternetReachable;
-      if (!isConnected) {
-        setRefreshing(false);
-        setIsOffline(true);
-        Alert.alert(
-          "ไม่มีการเชื่อมต่ออินเทอร์เน็ต",
-          "กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง"
-        );
-      }
-      // The Firestore listener will automatically update when back online
-    });
+    loadStoredAlarms();
   };
-
-  // Import notification functions
-  const {
-    scheduleAlarmNotification,
-    cancelAlarmNotification,
-  } = require("../models/NotificationManager");
 
   const toggleAlarmActive = async (alarmId, currentStatus) => {
     try {
-      // Get the full alarm data
-      const alarmRef = doc(db, "alarms", alarmId);
-      const alarmDoc = await getDoc(alarmRef);
-
-      if (!alarmDoc.exists()) {
-        Alert.alert("ข้อผิดพลาด", "ไม่พบข้อมูลนาฬิกาปลุก");
-        return;
-      }
-
-      const alarmData = { id: alarmId, ...alarmDoc.data() };
-      const newStatus = !currentStatus;
-
-      // Update the alarm status
-      await updateDoc(alarmRef, {
-        isActive: newStatus,
-      });
-
-      // Schedule or cancel notification based on new status
-      if (newStatus) {
-        // Schedule notification
-        const notificationId = await scheduleAlarmNotification({
-          ...alarmData,
-          isActive: true,
+      const success = await toggleAlarmInStorage(alarmId);
+      if (success) {
+        const updatedAlarms = alarms.map(alarm => {
+          if (alarm.id === alarmId) {
+            const newStatus = !currentStatus;
+            // Handle notifications
+            if (newStatus) {
+              scheduleAlarmNotification(alarm);
+            } else {
+              cancelAlarmNotification(alarm.notificationId);
+            }
+            return { ...alarm, isActive: newStatus };
+          }
+          return alarm;
         });
-
-        // Save notification ID
-        if (notificationId) {
-          await updateDoc(alarmRef, { notificationId });
-        }
-      } else if (alarmData.notificationId) {
-        // Cancel notification
-        await cancelAlarmNotification(alarmData.notificationId);
-
-        // Remove notification ID
-        await updateDoc(alarmRef, { notificationId: null });
+        setAlarms(updatedAlarms);
+        await saveAlarms(updatedAlarms);
       }
     } catch (error) {
-      console.error("Error toggling alarm:", error);
-      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเปลี่ยนสถานะนาฬิกาปลุกได้");
+      console.error('Error toggling alarm:', error);
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถเปลี่ยนสถานะการปลุกได้');
     }
   };
 
   const deleteAlarm = async (alarmId) => {
     try {
-      const alarmRef = doc(db, "alarms", alarmId);
-      await deleteDoc(alarmRef);
+      const success = await deleteAlarmFromStorage(alarmId);
+      if (success) {
+        const alarm = alarms.find(a => a.id === alarmId);
+        if (alarm?.notificationId) {
+          await cancelAlarmNotification(alarm.notificationId);
+        }
+        const updatedAlarms = alarms.filter(alarm => alarm.id !== alarmId);
+        setAlarms(updatedAlarms);
+      }
     } catch (error) {
-      console.error("Error deleting alarm:", error);
-      Alert.alert("ข้อผิดพลาด", "ไม่สามารถลบนาฬิกาปลุกได้");
+      console.error('Error deleting alarm:', error);
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถลบการปลุกได้');
     }
   };
 
   const formatTime = (hour, minute) => {
-    return `${hour.toString().padStart(2, "0")}:${minute
-      .toString()
-      .padStart(2, "0")}`;
+    return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
   };
 
   const getDaysText = (days) => {
     if (!days || days.length === 0) return "ครั้งเดียว";
-
     const dayNames = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
-
     if (days.length === 7) return "ทุกวัน";
-
     return days.map((day) => dayNames[day]).join(", ");
   };
 
   // สร้าง component สำหรับปุ่มลบที่จะแสดงเมื่อเลื่อนรายการไปทางซ้าย
-  const renderRightActions = (progress, dragX, item) => {
+  const renderRightActions = (progress, dragX) => {
     const trans = dragX.interpolate({
       inputRange: [-100, 0],
       outputRange: [0, 100],
@@ -217,26 +158,30 @@ const AlarmListScreen = ({ navigation }) => {
     });
 
     return (
-      <Animated.View
-        style={[
-          styles.deleteAction,
-          {
-            transform: [{ translateX: trans }],
-          },
-        ]}
+      <TouchableOpacity
+        style={styles.deleteAction}
+        onPress={() => {
+          if (swipeableRef.current) {
+            swipeableRef.current.close();
+          }
+        }}
       >
-        <View style={styles.deleteActionContent}>
+        <Animated.View
+          style={[
+            styles.deleteActionContent,
+            {
+              transform: [{ translateX: trans }],
+            },
+          ]}
+        >
           <Icon name="trash-can-outline" size={28} color="#FFFFFF" />
           <Text style={styles.deleteActionText}>ลบ</Text>
-        </View>
-      </Animated.View>
+        </Animated.View>
+      </TouchableOpacity>
     );
   };
 
   // อ้างอิงไปยัง Swipeable ที่กำลังเปิดอยู่
-  const swipeableRef = useRef(null);
-
-  // ปิด Swipeable ที่เปิดอยู่เมื่อเปิด Swipeable ใหม่
   const closeOpenSwipeable = (ref) => {
     if (swipeableRef.current && swipeableRef.current !== ref) {
       swipeableRef.current.close();
@@ -247,231 +192,192 @@ const AlarmListScreen = ({ navigation }) => {
   const renderAlarmItem = ({ item }) => (
     <Swipeable
       renderRightActions={(progress, dragX) =>
-        renderRightActions(progress, dragX, item)
+        renderRightActions(progress, dragX)
       }
       onSwipeableOpen={() => {
-        closeOpenSwipeable(swipeableRef.current);
-        deleteAlarm(item.id);
+        Alert.alert(
+          'ลบการปลุก',
+          'คุณแน่ใจหรือไม่ที่จะลบการปลุกนี้?',
+          [
+            { text: 'ยกเลิก', style: 'cancel' },
+            { 
+              text: 'ลบ', 
+              style: 'destructive',
+              onPress: () => deleteAlarm(item.id)
+            }
+          ]
+        );
       }}
       ref={(ref) => {
-        if (ref && !swipeableRef.current) {
+        if (ref && item.id === swipeableRef?.current?.props?.children?.props?.item?.id) {
           swipeableRef.current = ref;
         }
       }}
-      friction={2}
       rightThreshold={40}
       overshootRight={false}
     >
-      <View style={styles.alarmItem}>
-        <TouchableOpacity
-          style={styles.alarmInfo}
-          onPress={() => navigation.navigate("AddAlarm", { alarm: item })}
-        >
-          <Text style={styles.alarmTime}>
-            {formatTime(item.hour, item.minute)}
-          </Text>
-          <Text style={styles.alarmDays}>{getDaysText(item.repeatDays)}</Text>
-          <Text style={styles.alarmLabel}>{item.label || "นาฬิกาปลุก"}</Text>
-          <Text style={styles.alarmTask}>
-            {item.taskType === "math"
-              ? "โจทย์คณิตศาสตร์"
-              : item.taskType === "photo"
-              ? "ถ่ายรูป"
-              : item.taskType === "random"
-              ? "สุ่มภารกิจ"
-              : "ปกติ"}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.alarmActions}>
+      <TouchableOpacity
+        style={styles.alarmItem}
+        onPress={() => navigation.navigate("AddAlarm", { alarm: item })}
+      >
+        <View style={styles.alarmContent}>
+          <View style={styles.timeContainer}>
+            <Text style={[styles.timeText, !item.isActive && styles.inactiveText]}>
+              {formatTime(item.hour, item.minute)}
+            </Text>
+            <Text style={[styles.daysText, !item.isActive && styles.inactiveText]}>
+              {getDaysText(item.repeatDays)}
+            </Text>
+          </View>
           <Switch
             value={item.isActive}
             onValueChange={() => toggleAlarmActive(item.id, item.isActive)}
-            trackColor={{ false: "#D1D5DB", true: "#4F46E5" }}
-            thumbColor={item.isActive ? "#FFFFFF" : "#F3F4F6"}
+            trackColor={{ false: '#767577', true: '#34C759' }}
+            thumbColor={item.isActive ? '#FFFFFF' : '#F4F3F4'}
+            ios_backgroundColor="#3e3e3e"
           />
         </View>
-      </View>
+      </TouchableOpacity>
     </Swipeable>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FF9500" />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['right', 'left']}>
+      <StatusBar barStyle="light-content" />
       {isOffline && (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>
-            ออฟไลน์ - แสดงข้อมูลที่บันทึกไว้
-          </Text>
+          <Icon name="cloud-off-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.offlineText}>ไม่มีการเชื่อมต่ออินเทอร์เน็ต</Text>
         </View>
       )}
-
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4F46E5" />
-          <Text style={styles.loadingText}>กำลังโหลด...</Text>
-        </View>
-      ) : alarms.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Icon name="alarm-off" size={64} color="#9CA3AF" />
-          <Text style={styles.emptyText}>ไม่มีนาฬิกาปลุก</Text>
-          <Text style={styles.emptySubText}>
-            กดปุ่ม + เพื่อเพิ่มนาฬิกาปลุกใหม่
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={alarms}
-          renderItem={renderAlarmItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
-      )}
-      <FAB
-        style={styles.fab}
-        icon="plus"
-        onPress={() => navigation.navigate("AddAlarm")}
+      <FlatList
+        data={alarms}
+        renderItem={renderAlarmItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FF9500"
+          />
+        }
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Icon name="alarm-plus" size={64} color="#666666" />
+            <Text style={styles.emptyText}>ไม่มีการตั้งปลุก</Text>
+            <Text style={styles.emptySubtext}>แตะที่ + เพื่อเพิ่มการปลุก</Text>
+          </View>
+        )}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#12111D",
+    backgroundColor: "#000000",
   },
   loadingContainer: {
     flex: 1,
+    backgroundColor: "#000000",
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#6B7280",
+  addButton: {
+    marginRight: 16,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listContent: {
+    flexGrow: 1,
+  },
+  alarmItem: {
+    backgroundColor: "#1C1C1E",
+  },
+  alarmContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 88,
+  },
+  timeContainer: {
+    flex: 1,
+  },
+  timeText: {
+    fontSize: 48,
+    color: "#FFFFFF",
+    fontWeight: "300",
+    fontVariant: ['tabular-nums'],
+    marginBottom: 4,
+  },
+  inactiveText: {
+    color: "#666666",
+  },
+  daysText: {
+    fontSize: 15,
+    color: "#999999",
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#333333",
+  },
+  deleteAction: {
+    backgroundColor: "#FF3B30",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+    height: "100%",
+  },
+  deleteActionContent: {
+    alignItems: "center",
+  },
+  deleteActionText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    marginTop: 4,
+  },
+  offlineBanner: {
+    backgroundColor: "#FF3B30",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+  },
+  offlineText: {
+    color: "#FFFFFF",
+    marginLeft: 8,
+    fontSize: 14,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    paddingTop: 100,
   },
   emptyText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#4B5563",
+    color: "#666666",
+    fontSize: 17,
     marginTop: 16,
   },
-  emptySubText: {
-    fontSize: 16,
-    color: "#6B7280",
+  emptySubtext: {
+    color: "#666666",
+    fontSize: 15,
     marginTop: 8,
-    textAlign: "center",
-  },
-  listContent: {
-    padding: 16,
-  },
-  alarmItem: {
-    flexDirection: "row",
-    backgroundColor: "#1F1D2B",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: "#2A2838",
-  },
-  alarmInfo: {
-    flex: 1,
-  },
-  alarmTime: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 6,
-    letterSpacing: 1,
-  },
-  alarmDays: {
-    fontSize: 14,
-    color: "#a5b4fc",
-    marginBottom: 6,
-    fontWeight: "500",
-  },
-  alarmLabel: {
-    fontSize: 16,
-    color: "#c7d2fe",
-    marginBottom: 6,
-    fontWeight: "500",
-  },
-  alarmTask: {
-    fontSize: 14,
-    color: "#818cf8",
-    fontWeight: "500",
-  },
-  alarmActions: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingLeft: 16,
-  },
-  deleteButton: {
-    marginTop: 12,
-    padding: 4,
-  },
-  deleteAction: {
-    backgroundColor: "rgb(239, 68, 68)", // ปรับความโปร่งใสของสีแดงให้มากขึ้น
-    justifyContent: "center",
-    alignItems: "center",
-    width: 160,
-    height: "93%",
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)", // เพิ่มขอบให้ชัดขึ้นเล็กน้อย
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  deleteActionContent: {
-    justifyContent: "center",
-    alignItems: "center",
-    width: "75%",
-    height: "75%",
-  },
-  deleteActionText: {
-    color: "rgba(255, 255, 255, 0.9)", // ทำให้ข้อความมีความโปร่งใสเล็กน้อย
-    fontWeight: "600", // ปรับความหนาของตัวอักษร
-    fontSize: 14,
-    marginTop: 4,
-    letterSpacing: 0.5, // เพิ่มระยะห่างระหว่างตัวอักษร
-  },
-  offlineBanner: {
-    backgroundColor: "#EF4444",
-    padding: 8,
-    alignItems: "center",
-    width: "100%",
-  },
-  offlineText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  fab: {
-    position: "absolute",
-    bottom: 16,
-    alignSelf: "center",
-    backgroundColor: "#D8D5F5",
-    borderRadius: 28,
-    width: 56,
-    height: 56,
   },
 });
 

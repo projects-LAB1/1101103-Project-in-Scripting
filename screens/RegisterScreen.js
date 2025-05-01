@@ -12,12 +12,8 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth";
-import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { StatusBar } from 'expo-status-bar';
+import { useAuth } from '../contexts/AuthContext';
 
 const RegisterScreen = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -26,25 +22,22 @@ const RegisterScreen = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const auth = getAuth();
-  const db = getFirestore();
+  const { register } = useAuth();
 
   const handleRegister = async () => {
-    // Validate inputs
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert("ข้อผิดพลาด", "กรุณากรอกข้อมูลให้ครบทุกช่อง");
       return;
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert("ข้อผิดพลาด", "รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง");
+    if (password !== confirmPassword) {
+      Alert.alert("ข้อผิดพลาด", "รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง");
       return;
     }
 
-    if (password !== confirmPassword) {
-      Alert.alert("ข้อผิดพลาด", "รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("ข้อผิดพลาด", "รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง");
       return;
     }
 
@@ -55,42 +48,19 @@ const RegisterScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // Create user with email and password
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email.trim(),
-        password
-      );
-      const user = userCredential.user;
-
-      // Update user profile with display name
-      await updateProfile(user, {
-        displayName: name,
-      });
-
-      // Create user document in Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        name,
-        email,
-        createdAt: new Date(),
-        statistics: {
-          totalAlarms: 0,
-          alarmsCompleted: 0,
-          alarmsSnooze: 0,
-          avgWakeUpTime: null,
-        },
-      });
-
-      // Registration successful - Firebase Auth will handle the state change
+      const result = await register(email.trim(), password, name);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
     } catch (error) {
       console.error("Registration error:", error);
       let errorMessage = "ไม่สามารถสมัครสมาชิกได้ กรุณาลองอีกครั้ง";
 
-      if (error.code === "auth/email-already-in-use") {
+      if (error.message.includes('email-already-in-use')) {
         errorMessage = "อีเมลนี้ถูกใช้งานแล้ว กรุณาใช้อีเมลอื่น";
-      } else if (error.code === "auth/invalid-email") {
+      } else if (error.message.includes('invalid-email')) {
         errorMessage = "รูปแบบอีเมลไม่ถูกต้อง";
-      } else if (error.code === "auth/weak-password") {
+      } else if (error.message.includes('weak-password')) {
         errorMessage = "รหัสผ่านไม่ปลอดภัย กรุณาใช้รหัสผ่านที่ซับซ้อนมากขึ้น";
       }
 
@@ -102,6 +72,7 @@ const RegisterScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidView}
@@ -186,7 +157,7 @@ const RegisterScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#000000",
   },
   keyboardAvoidView: {
     flex: 1,
@@ -203,12 +174,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#1F2937",
+    color: "#FFFFFF",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: "#6B7280",
+    color: "#FFFFFF",
     textAlign: "center",
   },
   form: {
@@ -219,29 +190,30 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    color: "#4B5563",
+    color: "#FFFFFF",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "white",
+    backgroundColor: "#1C1C1E",
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderColor: "#FFFFFF",
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    color: "#FFFFFF",
   },
   button: {
-    backgroundColor: "#4F46E5",
+    backgroundColor: "#FF9500",
     borderRadius: 8,
     padding: 16,
     alignItems: "center",
     marginTop: 10,
   },
   buttonDisabled: {
-    backgroundColor: "#9CA3AF",
+    backgroundColor: "#FFFFFF",
   },
   buttonText: {
-    color: "white",
+    color: "#000000",
     fontSize: 16,
     fontWeight: "bold",
   },
@@ -252,11 +224,11 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 16,
-    color: "#4B5563",
+    color: "#FFFFFF",
   },
   loginLink: {
     fontSize: 16,
-    color: "#4F46E5",
+    color: "#FF9500",
     fontWeight: "bold",
   },
 });

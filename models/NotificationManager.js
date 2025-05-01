@@ -2,7 +2,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform, Alert } from "react-native";
 import Constants from "expo-constants";
-import { getFirestore, doc, updateDoc } from "firebase/firestore";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Add warning about expo-notifications in Expo Go
 // This addresses the warning about push notifications being removed from Expo Go in SDK 53
@@ -143,21 +143,19 @@ export const registerForPushNotificationsAsync = async () => {
   return token;
 };
 
-// บันทึก token ลงใน Firestore
+// บันทึก token ลงใน AsyncStorage
 export const savePushToken = async (userId, token) => {
   if (!userId || !token) return;
 
   try {
-    const db = getFirestore();
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
+    const deviceInfo = {
       pushToken: token,
-      deviceInfo: {
-        platform: Platform.OS,
-        version: Platform.Version,
-        lastUpdated: new Date(),
-      },
-    });
+      platform: Platform.OS,
+      version: Platform.Version,
+      lastUpdated: new Date().toISOString(),
+    };
+    
+    await AsyncStorage.setItem(`@device_info_${userId}`, JSON.stringify(deviceInfo));
     console.log("บันทึก Push Token สำเร็จ");
   } catch (error) {
     console.error("Error saving push token:", error);
