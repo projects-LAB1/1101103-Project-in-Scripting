@@ -1,0 +1,53 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+        maven {
+            url 'https://maven.google.com'
+        }
+        maven {
+            url "$rootDir/../node_modules/expo/android/maven"
+        }
+    }
+    includeBuild(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().toString())
+}
+plugins { id("com.facebook.react.settings") }
+
+// Comment out the problematic auto-linking configuration
+// extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+//   if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {
+//     ex.autolinkLibrariesFromCommand()
+//   } else {
+//     def command = [
+//       'node',
+//       '--no-warnings',
+//       '--eval',
+//       'require(require.resolve(\'expo-modules-autolinking\', { paths: [require.resolve(\'expo/package.json\')] }))(process.argv.slice(1))',
+//       'react-native-config',
+//       '--json',
+//       '--platform',
+//       'android'
+//     ].toList()
+//     ex.autolinkLibrariesFromCommand(command)
+//   }
+// }
+
+rootProject.name = 'myproj'
+
+dependencyResolutionManagement {
+  versionCatalogs {
+    reactAndroidLibs {
+      from(files(new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim(), "../gradle/libs.versions.toml")))
+    }
+  }
+}
+
+// Comment out the Expo autolinking scripts
+// apply from: new File(["node", "--print", "require.resolve('expo/package.json')"].execute(null, rootDir).text.trim(), "../scripts/autolinking.gradle");
+// useExpoModules()
+
+include ':app'
+include ':expo-linear-gradient'
+project(':expo-linear-gradient').projectDir = new File(rootProject.projectDir, '../node_modules/expo-linear-gradient/android')
+includeBuild(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile())

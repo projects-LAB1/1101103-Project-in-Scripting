@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
 import { useNavigation } from "@react-navigation/native";
-import { auth, initializeAlarmCache } from "./firebase.config";
-import { onAuthStateChanged } from "firebase/auth";
+import { supabase } from "./supabase.config";
+// Import Firebase configuration
+import { auth, db, storage, initializeAlarmCache } from './firebase.config';
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Provider as PaperProvider } from "react-native-paper";
-import { StatusBar } from "react-native";
+import { StatusBar, TouchableOpacity, Alert } from "react-native";
+import { AuthProvider, UserAuth } from "./models/UserAuth";
+import 'react-native-url-polyfill/auto';
+import * as Notifications from "expo-notifications";
+import { setupNotificationListeners, checkNotificationPermissions } from "./models/NotificationManager";
 
 // Screens
 import LoginScreen from "./screens/LoginScreen";
@@ -24,33 +29,59 @@ const AuthStack = createStackNavigator();
 const MainTab = createBottomTabNavigator();
 const AlarmStack = createStackNavigator();
 
-export default function App() {
-  // เพิ่ม state สำหรับเช็คสถานะการ login
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+const AppContent = () => {
+  const { user } = UserAuth();
+  const navigationRef = useRef(null);
 
+  // Initialize Firebase alarm cache
   useEffect(() => {
-    // ตรวจสอบสถานะการ login และเริ่มต้น cache
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(!!user);
-      if (user) {
-        initializeAlarmCache();
-      }
+    initializeAlarmCache().catch(error => {
+      console.error("Error initializing alarm cache:", error);
+    });
+  }, []);
+
+  // ตั้งค่าการแจ้งเตือน
+  useEffect(() => {
+    // ตั้งค่าการแสดงการแจ้งเตือนเมื่อแอปกำลังทำงาน
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
     });
 
-    return () => unsubscribe();
+    // ตรวจสอบและขอสิทธิ์การแจ้งเตือน
+    checkNotificationPermissions();
+
+    // ตั้งค่าการจัดการเมื่อได้รับการแจ้งเตือน
+    const unsubscribe = setupNotificationListeners(navigationRef.current);
+
+    // ยกเลิกการติดตามเมื่อ component unmount
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   return (
-    <PaperProvider>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="#12111D"
-        translucent={false}
-      />
-      <NavigationContainer>
-        {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
-      </NavigationContainer>
-    </PaperProvider>
+    <NavigationContainer ref={navigationRef}>
+      {user ? <MainNavigator /> : <AuthNavigator />}
+    </NavigationContainer>
+  );
+};
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <PaperProvider>
+        <StatusBar
+          barStyle="light-content"
+          backgroundColor="#12111D"
+          translucent={false}
+        />
+        <AppContent />
+      </PaperProvider>
+    </AuthProvider>
   );
 }
 
@@ -68,7 +99,32 @@ const AuthNavigator = () => (
 
 // ส่วนของการนำทางสำหรับหน้านาฬิกาปลุก
 const AlarmStackNavigator = () => {
-  const navigation = useNavigation();
+  const { logout } = UserAuth();
+
+  // ฟังก์ชันสำหรับออกจากระบบ
+  const handleLogout = () => {
+    Alert.alert(
+      "ออกจากระบบ",
+      "คุณต้องการออกจากระบบใช่หรือไม่?",
+      [
+        {
+          text: "ยกเลิก",
+          style: "cancel"
+        },
+        {
+          text: "ออกจากระบบ",
+          onPress: async () => {
+            try {
+              await logout();
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("ข้อผิดพลาด", "ไม่สามารถออกจากระบบได้ กรุณาลองอีกครั้ง");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <AlarmStack.Navigator
@@ -85,7 +141,14 @@ const AlarmStackNavigator = () => {
         component={AlarmListScreen}
         options={{
           title: "นาฬิกาปลุก",
-          headerRight: null,
+          headerRight: () => (
+            <TouchableOpacity
+              style={{ marginRight: 16 }}
+              onPress={handleLogout}
+            >
+              <Icon name="logout" size={24} color="#fff" />
+            </TouchableOpacity>
+          ),
         }}
       />
       <AlarmStack.Screen
@@ -147,12 +210,12 @@ const AlarmStackNavigator = () => {
 const MainNavigator = () => {
   return (
     <MainTab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={() => ({
         tabBarStyle: {
           backgroundColor: "#D8D5F5",
           borderTopColor: "#12111D",
         },
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, size }) => {
           let iconName = focused ? "alarm" : "alarm-off";
           return <Icon name={iconName} size={size} color="#000000" />;
         },
@@ -166,7 +229,6 @@ const MainNavigator = () => {
         options={({ route }) => ({
           headerShown: false,
           title: "ปลุก",
-          // ซ่อน tab bar เมื่ออยู่ในหน้า AddAlarm
           tabBarStyle: ((route) => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? "";
             if (routeName === "AddAlarm" || routeName === "SoundLibrary") {

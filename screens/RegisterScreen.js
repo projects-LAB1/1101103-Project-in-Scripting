@@ -12,12 +12,8 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth";
-import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { supabase } from "../supabase.config";
+import { UserAuth } from "../models/UserAuth";
 
 const RegisterScreen = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -25,9 +21,8 @@ const RegisterScreen = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const auth = getAuth();
-  const db = getFirestore();
+  
+  const { register } = UserAuth();
 
   const handleRegister = async () => {
     // Validate inputs
@@ -55,43 +50,29 @@ const RegisterScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // Create user with email and password
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email.trim(),
-        password
+      // Register user with Supabase Auth
+      const { data, error } = await register(email, password, {
+        name: name,
+        created_at: new Date().toISOString()
+      });
+
+      if (error) throw error;
+
+      Alert.alert(
+        "สมัครสมาชิกสำเร็จ", 
+        "กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ",
+        [{ text: "ตกลง", onPress: () => navigation.navigate("Login") }]
       );
-      const user = userCredential.user;
-
-      // Update user profile with display name
-      await updateProfile(user, {
-        displayName: name,
-      });
-
-      // Create user document in Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        name,
-        email,
-        createdAt: new Date(),
-        statistics: {
-          totalAlarms: 0,
-          alarmsCompleted: 0,
-          alarmsSnooze: 0,
-          avgWakeUpTime: null,
-        },
-      });
-
-      // Registration successful - Firebase Auth will handle the state change
     } catch (error) {
       console.error("Registration error:", error);
       let errorMessage = "ไม่สามารถสมัครสมาชิกได้ กรุณาลองอีกครั้ง";
 
-      if (error.code === "auth/email-already-in-use") {
+      if (error.message?.includes('already registered')) {
         errorMessage = "อีเมลนี้ถูกใช้งานแล้ว กรุณาใช้อีเมลอื่น";
-      } else if (error.code === "auth/invalid-email") {
-        errorMessage = "รูปแบบอีเมลไม่ถูกต้อง";
-      } else if (error.code === "auth/weak-password") {
+      } else if (error.message?.includes('weak password')) {
         errorMessage = "รหัสผ่านไม่ปลอดภัย กรุณาใช้รหัสผ่านที่ซับซ้อนมากขึ้น";
+      } else if (error.message?.includes('invalid email')) {
+        errorMessage = "รูปแบบอีเมลไม่ถูกต้อง";
       }
 
       Alert.alert("สมัครสมาชิกไม่สำเร็จ", errorMessage);
