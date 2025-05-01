@@ -1,5 +1,5 @@
 // 1. หน้าล็อกอิน (LoginScreen.js)
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,12 +13,19 @@ import {
   Animated,
   Keyboard,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../contexts/AuthContext';
 import { BlurView } from 'expo-blur';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import { auth } from '../config/firebaseConfig';
+import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const { width } = Dimensions.get('window');
 
@@ -26,6 +33,7 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleSignInLoading, setGoogleSignInLoading] = useState(false);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const { login } = useAuth();
 
@@ -33,7 +41,7 @@ const LoginScreen = ({ navigation }) => {
   const logoOpacity = new Animated.Value(1);
   const formTranslateY = new Animated.Value(0);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       () => {
@@ -94,16 +102,38 @@ const LoginScreen = ({ navigation }) => {
     try {
       const result = await login(email.trim(), password);
       if (!result.success) {
-        throw new Error(result.error);
+        Alert.alert(
+          "ล็อกอินไม่สำเร็จ",
+          result.error || "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+        );
       }
     } catch (error) {
-      console.error(error);
       Alert.alert(
         "ล็อกอินไม่สำเร็จ",
-        "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+        "เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองอีกครั้ง"
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setGoogleSignInLoading(true);
+      
+      // ใช้ email/password login แทน Google Sign-in เพื่อการทดสอบ
+      Alert.alert(
+        "Google Sign-in ไม่พร้อมใช้งาน",
+        "ระบบเข้าสู่ระบบด้วย Google ยังอยู่ในระหว่างการพัฒนา โปรดใช้การเข้าสู่ระบบด้วยอีเมลและรหัสผ่านแทน"
+      );
+    } catch (error) {
+      console.error('Error with Google sign-in:', error);
+      Alert.alert(
+        'ล็อกอินไม่สำเร็จ',
+        'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google'
+      );
+    } finally {
+      setGoogleSignInLoading(false);
     }
   };
 
@@ -160,20 +190,22 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+              style={[styles.primaryButton, loading && styles.buttonDisabled]}
               onPress={handleLogin}
               disabled={loading}
             >
-              <Text style={styles.loginButtonText}>
-                {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator size="small" color="#000000" />
+              ) : (
+                <Text style={styles.primaryButtonText}>เข้าสู่ระบบ</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.forgotButton}
+              style={styles.linkButton}
               onPress={() => navigation.navigate("ForgotPassword")}
             >
-              <Text style={styles.forgotButtonText}>ลืมรหัสผ่าน?</Text>
+              <Text style={styles.linkButtonText}>ลืมรหัสผ่าน?</Text>
             </TouchableOpacity>
 
             <View style={styles.divider}>
@@ -183,10 +215,25 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <TouchableOpacity
-              style={styles.registerButton}
+              style={styles.socialButton}
+              onPress={handleGoogleSignIn}
+              disabled={googleSignInLoading}
+            >
+              {googleSignInLoading ? (
+                <ActivityIndicator size="small" color="#333" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="google" size={24} color="#DB4437" style={styles.socialIcon} />
+                  <Text style={styles.socialButtonText}>เข้าสู่ระบบด้วย Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.outlineButton}
               onPress={() => navigation.navigate("Register")}
             >
-              <Text style={styles.registerButtonText}>สมัครสมาชิกใหม่</Text>
+              <Text style={styles.outlineButtonText}>สมัครสมาชิกใหม่</Text>
             </TouchableOpacity>
           </Animated.View>
         </ScrollView>
@@ -207,6 +254,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 20,
+    paddingBottom: 40,
   },
   logoContainer: {
     alignItems: "center",
@@ -217,10 +265,18 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    backgroundColor: 'rgba(255, 149, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    shadowColor: "#FF9500",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
   },
   appName: {
     fontSize: 36,
@@ -230,7 +286,7 @@ const styles = StyleSheet.create({
   },
   appSubtitle: {
     fontSize: 17,
-    color: "#666",
+    color: "#A0A0A0",
     marginBottom: 24,
   },
   formContainer: {
@@ -241,10 +297,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: "#1C1C1E",
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 16,
     paddingHorizontal: 16,
     height: 56,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 3,
   },
   inputIcon: {
     marginRight: 12,
@@ -255,9 +319,10 @@ const styles = StyleSheet.create({
     fontSize: 17,
     height: '100%',
   },
-  loginButton: {
+  // ปุ่มหลัก (เข้าสู่ระบบ)
+  primaryButton: {
     backgroundColor: "#FF9500",
-    borderRadius: 12,
+    borderRadius: 14,
     height: 56,
     justifyContent: "center",
     alignItems: "center",
@@ -265,29 +330,31 @@ const styles = StyleSheet.create({
     shadowColor: "#FF9500",
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 5,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
     elevation: 8,
   },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
+  primaryButtonText: {
     color: "#000000",
     fontSize: 17,
     fontWeight: "600",
   },
-  forgotButton: {
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  // ปุ่มลิงก์ (ลืมรหัสผ่าน)
+  linkButton: {
     height: 44,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 16,
   },
-  forgotButtonText: {
+  linkButtonText: {
     color: "#FF9500",
-    fontSize: 15,
+    fontSize: 16,
+    fontWeight: "500",
   },
   divider: {
     flexDirection: "row",
@@ -300,19 +367,48 @@ const styles = StyleSheet.create({
     backgroundColor: "#333",
   },
   dividerText: {
-    color: "#666",
+    color: "#A0A0A0",
     fontSize: 15,
     marginHorizontal: 16,
+    fontWeight: "500",
   },
-  registerButton: {
+  // ปุ่ม Social (Google)
+  socialButton: {
+    flexDirection: 'row',
     height: 56,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FF9500",
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 5,
   },
-  registerButtonText: {
+  socialIcon: {
+    marginRight: 12,
+  },
+  socialButtonText: {
+    color: "#333333",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  // ปุ่ม Outline (สมัครสมาชิก)
+  outlineButton: {
+    height: 56,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#FF9500",
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+  },
+  outlineButtonText: {
     color: "#FF9500",
     fontSize: 17,
     fontWeight: "600",

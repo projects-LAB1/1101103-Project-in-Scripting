@@ -1,5 +1,14 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { register, login, logout, getCurrentUser } from '../utils/authStorage';
+import { connectToMongoDB, isConnected } from '../config/mongoConfig';
+import {
+  register as mongoRegister,
+  login as mongoLogin,
+  logout as mongoLogout,
+  getCurrentUser as mongoGetCurrentUser,
+  updateUser as mongoUpdateUser,
+  changePassword as mongoChangePassword,
+  sendResetPasswordEmail as mongoSendResetEmail
+} from '../utils/mongoAuthService';
 
 const AuthContext = createContext(null);
 
@@ -16,46 +25,95 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // ตรวจสอบสถานะการเข้าสู่ระบบเมื่อแอพเริ่มทำงาน
-    const initializeAuth = async () => {
+    const initializeApp = async () => {
       try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        // รอให้เชื่อมต่อ MongoDB สำเร็จก่อน
+        if (!isConnected()) {
+          const connected = await connectToMongoDB();
+          if (!connected) {
+            throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
+          }
+        }
+
+        // ตรวจสอบสถานะการเข้าสู่ระบบ
+        const userData = await mongoGetCurrentUser();
+        setUser(userData);
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('Error initializing app:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    initializeAuth();
+    initializeApp();
   }, []);
 
   const handleRegister = async (email, password) => {
     try {
-      const newUser = await register(email, password);
+      setLoading(true);
+      const newUser = await mongoRegister(email, password);
       setUser(newUser);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleLogin = async (email, password) => {
     try {
-      const loggedInUser = await login(email, password);
+      setLoading(true);
+      const loggedInUser = await mongoLogin(email, password);
       setUser(loggedInUser);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      setLoading(true);
+      await mongoLogout();
+      setUser(null);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateUser = async (userData) => {
+    try {
+      if (!user) throw new Error('ยังไม่มีการเข้าสู่ระบบ');
+      
+      const updatedUser = await mongoUpdateUser(user.id, userData);
+      setUser(updatedUser);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }
   };
 
-  const handleLogout = async () => {
+  const handleChangePassword = async (currentPassword, newPassword) => {
     try {
-      await logout();
-      setUser(null);
-      return { success: true };
+      if (!user) throw new Error('ยังไม่มีการเข้าสู่ระบบ');
+      
+      const result = await mongoChangePassword(user.id, currentPassword, newPassword);
+      return result;
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const handleResetPassword = async (email) => {
+    try {
+      const result = await mongoSendResetEmail(email);
+      return result;
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -67,11 +125,18 @@ export const AuthProvider = ({ children }) => {
     register: handleRegister,
     login: handleLogin,
     logout: handleLogout,
+    updateUser: handleUpdateUser,
+    changePassword: handleChangePassword,
+    resetPassword: handleResetPassword,
+    isAuthenticated: !!user,
   };
 
   if (loading) {
-    // คุณอาจจะแสดง loading screen ที่นี่
-    return null;
+    return (
+      <AuthContext.Provider value={value}>
+        {null}
+      </AuthContext.Provider>
+    );
   }
 
   return (
@@ -79,4 +144,4 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-}; 
+};

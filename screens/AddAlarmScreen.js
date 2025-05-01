@@ -1,17 +1,15 @@
 // AddAlarmScreen.js - หน้าเพิ่มและแก้ไขนาฬิกาปลุก
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  ScrollView,
   Switch,
   Alert,
   Platform,
   Pressable,
-  Modal,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,29 +17,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { addAlarm, updateAlarm, cancelAlarm, deleteAlarm } from '../utils/alarmStorage';
 import { scheduleAlarm } from '../utils/alarmNotification';
-import { BlurView } from 'expo-blur';
 
 const AddAlarmScreen = ({ route, navigation }) => {
   const { user } = useAuth();
   const editingAlarm = route.params?.alarm;
-  
-  const [time, setTime] = useState(editingAlarm ? 
-    new Date(2000, 1, 1, editingAlarm.hour, editingAlarm.minute) : 
+
+  const [time, setTime] = useState(editingAlarm ?
+    new Date(2000, 1, 1, editingAlarm.hour, editingAlarm.minute) :
     new Date()
   );
   const [repeatDays, setRepeatDays] = useState(editingAlarm?.repeatDays || []);
   const [isActive, setIsActive] = useState(editingAlarm?.isActive ?? true);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [label, setLabel] = useState(editingAlarm?.label || "");
-  const [taskType, setTaskType] = useState(editingAlarm?.taskType || "normal");
-  const [taskDifficulty, setTaskDifficulty] = useState(
-    editingAlarm?.taskDifficulty || "medium"
-  );
-  const [soundId, setSoundId] = useState(editingAlarm?.soundId || "default");
-  const [soundName, setSoundName] = useState(editingAlarm?.soundName || "เสียงเริ่มต้น");
-  const [snooze, setSnooze] = useState(editingAlarm?.snooze ?? true);
+  const [label, setLabel] = useState(editingAlarm?.label || "การตั้งปลุก"); // Default label
+  const [soundId, setSoundId] = useState(editingAlarm?.soundId || "default-alarm.mp3"); // Default sound ID
+  const [soundName, setSoundName] = useState(editingAlarm?.soundName || "Default Alarm"); // Default sound name
 
-  const dayNames = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+  const dayNames = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']; // Short day names
 
   const handleSave = async () => {
     try {
@@ -51,32 +42,35 @@ const AddAlarmScreen = ({ route, navigation }) => {
         repeatDays,
         isActive,
         userId: user?.id,
-        label,
+        label: label || "การตั้งปลุก", // Ensure label is not empty
         soundId,
         soundName,
-        snooze,
-        createdAt: new Date().toISOString(),
+        snooze: false, // Snooze removed from UI, set to false
+        createdAt: editingAlarm?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
+      let savedAlarm;
       if (editingAlarm) {
+        // Cancel previous notification if exists
         if (editingAlarm.notificationId) {
           await cancelAlarm(editingAlarm.notificationId);
         }
-        await updateAlarm(editingAlarm.id, alarmData);
+        savedAlarm = await updateAlarm(editingAlarm.id, alarmData);
       } else {
-        const newAlarm = await addAlarm(alarmData);
-        if (!newAlarm) {
-          throw new Error('Failed to add alarm');
-        }
+        savedAlarm = await addAlarm(alarmData);
       }
 
+      if (!savedAlarm) {
+        throw new Error('Failed to save alarm');
+      }
+
+      // Schedule new notification if active
       if (isActive) {
-        const notificationId = await scheduleAlarm(alarmData);
+        const notificationId = await scheduleAlarm(savedAlarm);
         if (notificationId) {
-          await updateAlarm(editingAlarm?.id || Date.now().toString(), {
-            ...alarmData,
-            notificationId,
-          });
+          // Update alarm with the new notification ID
+          await updateAlarm(savedAlarm.id, { ...savedAlarm, notificationId });
         }
       }
 
@@ -87,41 +81,63 @@ const AddAlarmScreen = ({ route, navigation }) => {
     }
   };
 
-  const toggleDay = (dayIndex) => {
-    if (repeatDays.includes(dayIndex)) {
-      setRepeatDays(repeatDays.filter(d => d !== dayIndex));
-    } else {
-      setRepeatDays([...repeatDays, dayIndex].sort());
-    }
+  const handleDelete = async () => {
+    if (!editingAlarm) return;
+
+    Alert.alert(
+      'ลบการปลุก',
+      'คุณแน่ใจหรือไม่ที่จะลบการปลุกนี้?',
+      [
+        { text: 'ยกเลิก', style: 'cancel' },
+        {
+          text: 'ลบ',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (editingAlarm.notificationId) {
+                await cancelAlarm(editingAlarm.notificationId);
+              }
+              await deleteAlarm(editingAlarm.id);
+              navigation.goBack();
+            } catch (error) {
+              console.error('Error deleting alarm:', error);
+              Alert.alert('ข้อผิดพลาด', 'ไม่สามารถลบการปลุกได้');
+            }
+          }
+        }
+      ]
+    );
   };
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('th-TH', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
-  React.useLayoutEffect(() => {
+  // Update header buttons dynamically
+  useEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-          <Text style={styles.saveButtonText}>บันทึก</Text>
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+          <Text style={styles.headerButtonText}>ยกเลิก</Text>
         </TouchableOpacity>
       ),
-      title: editingAlarm ? 'แก้ไขการปลุก' : 'เพิ่มการปลุก',
+      headerRight: () => (
+        <TouchableOpacity onPress={handleSave} style={styles.headerButton}>
+          <Text style={styles.headerButtonText}>บันทึก</Text>
+        </TouchableOpacity>
+      ),
+      title: editingAlarm ? 'แก้ไขการปลุก' : 'เพิ่มการตั้งปลุก',
+      headerTitleStyle: styles.headerTitle,
       headerStyle: {
         backgroundColor: '#000000',
+        borderBottomWidth: 0, // Remove bottom border
+        elevation: 0, // Remove shadow on Android
+        shadowOpacity: 0, // Remove shadow on iOS
       },
-      headerTintColor: '#FFFFFF',
+      headerTintColor: '#FF9500',
     });
-  }, [navigation, time, repeatDays, isActive]);
+  }, [navigation, time, repeatDays, isActive, label, soundName]); // Add dependencies
 
   const getRepeatDaysText = () => {
-    if (repeatDays.length === 0) return 'ไม่เลย';
+    if (repeatDays.length === 0) return 'ไม่ปลุกซ้ำ';
     if (repeatDays.length === 7) return 'ทุกวัน';
-    if (repeatDays.length === 5 && !repeatDays.includes(5) && !repeatDays.includes(6)) 
+    if (repeatDays.length === 5 && !repeatDays.includes(5) && !repeatDays.includes(6))
       return 'วันธรรมดา';
     if (repeatDays.length === 2 && repeatDays.includes(5) && repeatDays.includes(6))
       return 'สุดสัปดาห์';
@@ -131,159 +147,96 @@ const AddAlarmScreen = ({ route, navigation }) => {
       .join(' ');
   };
 
+  // Callback function for SoundLibraryScreen
+  const handleSoundSelected = (selectedSoundId, selectedSoundName) => {
+    setSoundId(selectedSoundId);
+    setSoundName(selectedSoundName);
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'left', 'bottom']}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollViewContent}
-        bounces={true}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.cardContainer}>
-          <Pressable 
-            style={styles.card}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <View style={styles.cardIconContainer}>
-              <MaterialCommunityIcons name="clock-outline" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.cardMainContent}>
-              <Text style={styles.cardLabel}>เวลา</Text>
-              <Text style={styles.timeText}>{formatTime(time)}</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
-          </Pressable>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <View style={styles.pickerContainer}>
+        <DateTimePicker
+          value={time}
+          mode="time"
+          is24Hour={true}
+          display="spinner" // Use spinner display like the image
+          onChange={(event, selectedTime) => {
+            if (selectedTime) {
+              setTime(selectedTime);
+            }
+          }}
+          textColor="#FFFFFF" // White text for spinner
+          style={styles.picker}
+        />
+      </View>
 
-          <Pressable 
-            style={styles.card}
-            onPress={() => navigation.navigate('RepeatDays', { 
-              repeatDays, 
-              onSave: setRepeatDays 
+      <View style={styles.optionsContainer}>
+        {/* Repeat Option */}
+        <Pressable
+          style={styles.optionRow}
+          onPress={() => navigation.navigate('RepeatDays', {
+            repeatDays,
+            onSave: setRepeatDays
+          })}
+        >
+          <Text style={styles.optionLabel}>ปลุกซ้ำ</Text>
+          <View style={styles.optionValueContainer}>
+            <Text style={styles.optionValueText} numberOfLines={1}>{getRepeatDaysText()}</Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color="#666" />
+          </View>
+        </Pressable>
+
+        {/* Label Option */}
+        <View style={styles.optionRow}>
+          <Text style={styles.optionLabel}>ชื่อ</Text>
+          <TextInput
+            style={styles.labelInput}
+            value={label}
+            onChangeText={setLabel}
+            placeholder="การตั้งปลุก"
+            placeholderTextColor="#666"
+            maxLength={30}
+          />
+        </View>
+
+        {/* Sound Option */}
+        <Pressable
+          style={styles.optionRow}
+          onPress={() => navigation.navigate('SoundLibrary', { 
+              currentSoundId: soundId, 
+              onSoundSelected: handleSoundSelected 
             })}
-          >
-            <View style={styles.cardIconContainer}>
-              <MaterialCommunityIcons name="repeat" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.cardMainContent}>
-              <Text style={styles.cardLabel}>ทำซ้ำ</Text>
-              <Text style={styles.cardValue}>{getRepeatDaysText()}</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
-          </Pressable>
-
-          <View style={styles.card}>
-            <View style={styles.cardIconContainer}>
-              <MaterialCommunityIcons name="label-outline" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.cardMainContent}>
-              <Text style={styles.cardLabel}>ชื่อ</Text>
-              <TextInput
-                style={styles.labelInput}
-                value={label}
-                onChangeText={setLabel}
-                placeholder="เพิ่มชื่อ"
-                placeholderTextColor="#666"
-                maxLength={30}
-              />
-            </View>
+        >
+          <Text style={styles.optionLabel}>เสียง</Text>
+          <View style={styles.optionValueContainer}>
+            <Text style={styles.optionValueText} numberOfLines={1}>{soundName}</Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color="#666" />
           </View>
+        </Pressable>
 
-          <View style={styles.card}>
-            <View style={styles.cardIconContainer}>
-              <MaterialCommunityIcons name="bell-ring-outline" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.cardMainContent}>
-              <Text style={styles.cardLabel}>เลื่อนปลุก</Text>
-            </View>
-            <Switch
-              value={snooze}
-              onValueChange={setSnooze}
-              trackColor={{ false: '#3e3e3e', true: '#FF9500' }}
-              thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : snooze ? '#FFFFFF' : '#f4f3f4'}
-              ios_backgroundColor="#3e3e3e"
-            />
-          </View>
+        {/* Active Switch */}
+        <View style={styles.optionRow}>
+          <Text style={styles.optionLabel}>เปิดใช้งาน</Text>
+          <Switch
+            value={isActive}
+            onValueChange={setIsActive}
+            trackColor={{ false: '#3e3e3e', true: '#34C759' }} // Green color when active
+            thumbColor={'#FFFFFF'}
+            ios_backgroundColor="#3e3e3e"
+            style={styles.switch}
+          />
         </View>
+      </View>
 
-        {editingAlarm && (
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => {
-              Alert.alert(
-                'ลบการปลุก',
-                'คุณแน่ใจหรือไม่ที่จะลบการปลุกนี้?',
-                [
-                  { text: 'ยกเลิก', style: 'cancel' },
-                  { 
-                    text: 'ลบ', 
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        if (editingAlarm.notificationId) {
-                          await cancelAlarm(editingAlarm.notificationId);
-                        }
-                        await deleteAlarm(editingAlarm.id);
-                        navigation.goBack();
-                      } catch (error) {
-                        console.error('Error deleting alarm:', error);
-                        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถลบการปลุกได้');
-                      }
-                    }
-                  }
-                ]
-              );
-            }}
-          >
-            <MaterialCommunityIcons name="trash-can-outline" size={24} color="#FF3B30" />
-            <Text style={styles.deleteButtonText}>ลบการปลุก</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
-
-      <Modal
-        visible={showTimePicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowTimePicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity 
-                onPress={() => setShowTimePicker(false)}
-                style={styles.modalButton}
-              >
-                <Text style={styles.modalCancelText}>ยกเลิก</Text>
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>ตั้งเวลา</Text>
-              <TouchableOpacity 
-                onPress={() => setShowTimePicker(false)}
-                style={styles.modalButton}
-              >
-                <Text style={styles.modalSaveText}>ตกลง</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.timePreview}>
-              <Text style={styles.timePreviewText}>{formatTime(time)}</Text>
-            </View>
-            <View style={styles.pickerContainer}>
-              <DateTimePicker
-                value={time}
-                mode="time"
-                is24Hour={true}
-                display="spinner"
-                onChange={(event, selectedTime) => {
-                  if (selectedTime) {
-                    setTime(selectedTime);
-                  }
-                }}
-                textColor="#FFFFFF"
-                style={styles.picker}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {editingAlarm && (
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={handleDelete}
+        >
+          <Text style={styles.deleteButtonText}>ลบการปลุก</Text>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 };
@@ -292,141 +245,85 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+    paddingTop: 20, // Add some padding at the top
   },
-  scrollView: {
-    flex: 1,
+  headerButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  scrollViewContent: {
-    flexGrow: 1,
-    paddingVertical: 16,
-  },
-  cardContainer: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 28,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    overflow: 'hidden',
-    padding: 8,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    minHeight: 72,
-  },
-  cardIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 149, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  cardMainContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  cardLabel: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  timeText: {
-    color: '#FF9500',
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  cardValue: {
-    color: '#666',
-    fontSize: 14,
-  },
-  labelInput: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    padding: 0,
-    height: 20,
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 28,
-    marginTop: 8,
-  },
-  deleteButtonText: {
-    color: '#FF3B30',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  saveButton: {
-    marginRight: 16,
-  },
-  saveButtonText: {
+  headerButtonText: {
     color: '#FF9500',
     fontSize: 17,
     fontWeight: '600',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
+  headerTitle: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  pickerContainer: {
+    // Container for the DateTimePicker
     alignItems: 'center',
+    marginBottom: 30, // Space below the picker
   },
-  modalContent: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 28,
-    width: '90%',
-    maxWidth: 340,
-    paddingBottom: 24,
+  picker: {
+    width: Platform.OS === 'ios' ? '90%' : 300, // Adjust width as needed
+    height: Platform.OS === 'ios' ? 200 : 180, // Adjust height for spinner
   },
-  modalHeader: {
+  optionsContainer: {
+    backgroundColor: '#1C1C1E', // Dark gray background for options
+    borderRadius: 10,
+    marginHorizontal: 16,
+    overflow: 'hidden', // Clip the border radius
+  },
+  optionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#333333',
+    borderBottomColor: '#333333', // Separator line color
+    minHeight: 50, // Minimum row height
   },
-  modalButton: {
-    padding: 8,
-  },
-  modalTitle: {
+  optionLabel: {
     color: '#FFFFFF',
     fontSize: 17,
-    fontWeight: '600',
   },
-  modalCancelText: {
-    color: '#FF3B30',
-    fontSize: 17,
-  },
-  modalSaveText: {
-    color: '#34C759',
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  timePreview: {
+  optionValueContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 24,
+    flexShrink: 1, // Allow text to shrink if needed
   },
-  timePreviewText: {
-    color: '#FFFFFF',
-    fontSize: 56,
-    fontWeight: '300',
-    letterSpacing: 2,
+  optionValueText: {
+    color: '#8E8E93', // Lighter gray for value text
+    fontSize: 17,
+    marginRight: 5,
+    textAlign: 'right',
+    maxWidth: '80%', // Limit width to prevent overlap
   },
-  pickerContainer: {
+  labelInput: {
+    color: '#8E8E93',
+    fontSize: 17,
+    textAlign: 'right',
+    flex: 1, // Take remaining space
+    marginLeft: 10, // Space between label and input
+    padding: 0, // Remove default padding
+  },
+  switch: {
+    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] // Slightly smaller switch
+  },
+  deleteButton: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginTop: 30, // Space above delete button
+    paddingVertical: 14,
     alignItems: 'center',
-    paddingHorizontal: 24,
   },
-  picker: {
-    width: Platform.OS === 'ios' ? '100%' : 280,
-    height: Platform.OS === 'ios' ? 200 : 'auto',
+  deleteButtonText: {
+    color: '#FF3B30', // Red color for delete
+    fontSize: 17,
+    fontWeight: '600',
   },
 });
 

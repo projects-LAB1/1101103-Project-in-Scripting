@@ -56,7 +56,8 @@ export const register = async (email, password) => {
       id: Date.now().toString(),
       email,
       password, // ในระบบจริงควรเข้ารหัสรหัสผ่านก่อนเก็บ
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      displayName: email.split('@')[0]
     };
 
     const updatedUsers = [...users, newUser];
@@ -131,4 +132,55 @@ export const updateUser = async (userId, updatedData) => {
     console.error('Error updating user:', error);
     return false;
   }
-}; 
+};
+
+// เปลี่ยนรหัสผ่าน
+export const changePassword = async (userId, currentPassword, newPassword) => {
+  try {
+    const users = await loadUsers();
+    const userIndex = users.findIndex(u => u.id === userId);
+    
+    if (userIndex === -1) {
+      throw new Error('ไม่พบผู้ใช้ในระบบ');
+    }
+    
+    if (users[userIndex].password !== currentPassword) {
+      throw new Error('รหัสผ่านปัจจุบันไม่ถูกต้อง');
+    }
+    
+    users[userIndex].password = newPassword;
+    
+    await saveUsers(users);
+    
+    // อัพเดท current user ถ้าเป็นผู้ใช้ปัจจุบัน
+    const currentUser = await getCurrentUser();
+    if (currentUser?.id === userId) {
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(users[userIndex]));
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error changing password:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ส่งลิงก์รีเซ็ตรหัสผ่าน (จำลอง)
+export const sendResetPasswordEmail = async (email) => {
+  try {
+    const users = await loadUsers();
+    const user = users.find(u => u.email === email);
+    
+    if (!user) {
+      throw new Error('ไม่พบบัญชีผู้ใช้ที่ตรงกับอีเมลนี้');
+    }
+    
+    // ในระบบจริงควรส่งอีเมลรีเซ็ตรหัสผ่าน
+    // แต่ในที่นี้เราจำลองว่าส่งสำเร็จ
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending password reset email:', error);
+    return { success: false, error: error.message };
+  }
+};
