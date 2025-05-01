@@ -23,17 +23,17 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isMongoInitialized, setIsMongoInitialized] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // รอให้เชื่อมต่อ MongoDB สำเร็จก่อน
-        if (!isConnected()) {
-          const connected = await connectToMongoDB();
-          if (!connected) {
-            throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
-          }
+        // Ensure MongoDB is connected before proceeding
+        const connected = await connectToMongoDB();
+        if (!connected) {
+          throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
         }
+        setIsMongoInitialized(true);
 
         // ตรวจสอบสถานะการเข้าสู่ระบบ
         const userData = await mongoGetCurrentUser();
@@ -49,6 +49,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const handleRegister = async (email, password) => {
+    if (!isMongoInitialized) {
+      return { success: false, error: 'ระบบกำลังเริ่มต้น กรุณาลองใหม่อีกครั้ง' };
+    }
     try {
       setLoading(true);
       const newUser = await mongoRegister(email, password);
@@ -62,6 +65,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const handleLogin = async (email, password) => {
+    if (!isMongoInitialized) {
+      return { success: false, error: 'ระบบกำลังเริ่มต้น กรุณาลองใหม่อีกครั้ง' };
+    }
     try {
       setLoading(true);
       const loggedInUser = await mongoLogin(email, password);
@@ -129,6 +135,7 @@ export const AuthProvider = ({ children }) => {
     changePassword: handleChangePassword,
     resetPassword: handleResetPassword,
     isAuthenticated: !!user,
+    isMongoInitialized
   };
 
   if (loading) {

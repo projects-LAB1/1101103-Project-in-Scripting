@@ -1,17 +1,41 @@
-import User from '../models/User';
-import { isConnected } from '../config/mongoConfig';
+// Import mongoose directly to ensure it's initialized
+import mongoose from 'mongoose';
+import { isConnected, connectToMongoDB } from '../config/mongoConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CURRENT_USER_KEY = '@currentUser';
+
+// Helper function to get User model safely
+const getUserModel = async () => {
+  try {
+    // Ensure MongoDB is connected
+    if (!isConnected()) {
+      await connectToMongoDB();
+    }
+    
+    // Import the User model dynamically to ensure mongoose is ready
+    const UserModule = await import('../models/User');
+    return UserModule.default;
+  } catch (error) {
+    console.error('Error getting User model:', error);
+    throw new Error('ไม่สามารถเข้าถึงข้อมูลผู้ใช้ได้');
+  }
+};
 
 // ลงทะเบียนผู้ใช้ใหม่
 export const register = async (email, password) => {
   try {
     // ตรวจสอบการเชื่อมต่อกับ MongoDB
     if (!isConnected()) {
-      throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
+      await connectToMongoDB();
+      if (!isConnected()) {
+        throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
+      }
     }
 
+    // Get User model
+    const User = await getUserModel();
+    
     // ตรวจสอบว่ามีอีเมลนี้ในระบบแล้วหรือไม่
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -51,8 +75,14 @@ export const login = async (email, password) => {
   try {
     // ตรวจสอบการเชื่อมต่อกับ MongoDB
     if (!isConnected()) {
-      throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
+      await connectToMongoDB();
+      if (!isConnected()) {
+        throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
+      }
     }
+
+    // Get User model
+    const User = await getUserModel();
 
     // ค้นหาผู้ใช้ด้วยอีเมล (เลือกเอาฟิลด์รหัสผ่านด้วยเพราะปกติจะไม่ถูกส่งกลับ)
     const user = await User.findOne({ email }).select('+password');
@@ -113,9 +143,15 @@ export const updateUser = async (userId, updatedData) => {
   try {
     // ตรวจสอบการเชื่อมต่อกับ MongoDB
     if (!isConnected()) {
-      throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
+      await connectToMongoDB();
+      if (!isConnected()) {
+        throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
+      }
     }
 
+    // Get User model
+    const User = await getUserModel();
+    
     // อัพเดทข้อมูลและรับข้อมูลล่าสุดกลับมา
     const user = await User.findByIdAndUpdate(
       userId,
@@ -156,9 +192,15 @@ export const changePassword = async (userId, currentPassword, newPassword) => {
   try {
     // ตรวจสอบการเชื่อมต่อกับ MongoDB
     if (!isConnected()) {
-      return { success: false, error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้' };
+      await connectToMongoDB();
+      if (!isConnected()) {
+        return { success: false, error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้' };
+      }
     }
 
+    // Get User model
+    const User = await getUserModel();
+    
     // ค้นหาผู้ใช้ด้วย ID และเลือกเอาฟิลด์รหัสผ่านด้วย
     const user = await User.findById(userId).select('+password');
     
@@ -189,9 +231,15 @@ export const sendResetPasswordEmail = async (email) => {
   try {
     // ตรวจสอบการเชื่อมต่อกับ MongoDB
     if (!isConnected()) {
-      return { success: false, error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้' };
+      await connectToMongoDB();
+      if (!isConnected()) {
+        return { success: false, error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้' };
+      }
     }
 
+    // Get User model
+    const User = await getUserModel();
+    
     // ตรวจสอบว่ามีอีเมลนี้ในระบบหรือไม่
     const user = await User.findOne({ email });
     
