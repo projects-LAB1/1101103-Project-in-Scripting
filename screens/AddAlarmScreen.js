@@ -6,10 +6,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  ScrollView,
   Switch,
   Alert,
-  Animated,
+  SafeAreaView,
+  StatusBar,
+  Platform
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { getAuth } from "firebase/auth";
@@ -23,7 +24,6 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 const AddAlarmScreen = ({ route, navigation }) => {
   // Get alarm data if editing an existing alarm
@@ -87,9 +87,6 @@ const AddAlarmScreen = ({ route, navigation }) => {
   const {
     scheduleAlarmNotification,
   } = require("../models/NotificationManager");
-
-  // แก้ไขการสร้าง slideAnim
-  const slideAnim = React.useRef(new Animated.Value(0)).current;
 
   // ฟังก์ชันสำหรับบันทึกนาฬิกาปลุกและย้อนกลับ
   const handleSaveAndBack = async () => {
@@ -196,281 +193,180 @@ const AddAlarmScreen = ({ route, navigation }) => {
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Animated.View
-        style={{
-          flex: 1,
-          transform: [{ translateY: slideAnim }],
-        }}
-      >
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={{ paddingBottom: 40 }}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* ส่วนหัวของหน้าจอที่มีปุ่มยกเลิกและบันทึก */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => navigation.goBack()}
         >
-          {/* Time Picker Section */}
-          <View style={styles.timeSection}>
-            <TouchableOpacity
-              style={styles.timeDisplay}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Text style={styles.timeText}>
-                {`${hour.toString().padStart(2, "0")}:${minute
-                  .toString()
-                  .padStart(2, "0")}`}
-              </Text>
-            </TouchableOpacity>
+          <Text style={styles.cancelText}>ยกเลิก</Text>
+        </TouchableOpacity>
+        
+        <Text style={styles.headerTitle}>เพิ่มการตั้งปลุก</Text>
+        
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={handleSaveAndBack}
+        >
+          <Text style={styles.saveText}>บันทึก</Text>
+        </TouchableOpacity>
+      </View>
 
-            {showTimePicker && (
-              <DateTimePicker
-                value={new Date(new Date().setHours(hour, minute, 0))}
-                mode="time"
-                is24Hour={true}
-                display="spinner"
-                onChange={onTimeChange}
-              />
-            )}
-          </View>
+      {/* Time Picker แบบแสดงตัวเลือกแนวนอน */}
+      <View style={styles.timePickerContainer}>
+        <DateTimePicker
+          value={new Date(new Date().setHours(hour, minute, 0))}
+          mode="time"
+          is24Hour={true}
+          display={Platform.OS === 'ios' ? "spinner" : "default"}
+          onChange={onTimeChange}
+          textColor="#FFFFFF"
+          style={styles.timePicker}
+        />
+      </View>
 
-          {/* Alarm Details Section */}
-          <View style={styles.section}>
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>ชื่อนาฬิกาปลุก</Text>
-              <TextInput
-                style={styles.textInput}
-                value={label}
-                onChangeText={setLabel}
-                placeholder="ใส่ชื่อนาฬิกาปลุก"
-                maxLength={30}
-              />
-            </View>
-
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>เปิดใช้งาน</Text>
-              <Switch
-                value={isActive}
-                onValueChange={setIsActive}
-                trackColor={{ false: "#D1D5DB", true: "#4F46E5" }}
-              />
-            </View>
-          </View>
-
-          {/* Repeat Days Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>ทำซ้ำ</Text>
-            {dayNames.map((day, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.dayRow}
-                onPress={() => toggleDay(index)}
-              >
-                <Text style={styles.dayText}>{day}</Text>
-                <View
-                  style={[
-                    styles.dayIndicator,
-                    repeatDays.includes(index) && styles.daySelected,
-                  ]}
-                >
-                  {repeatDays.includes(index) && (
-                    <Icon name="check" size={16} color="white" />
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Task Type Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>วิธีปิดนาฬิกาปลุก</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={taskType}
-                onValueChange={(itemValue) => setTaskType(itemValue)}
-                style={styles.picker}
-              >
-                <Picker.Item label="ปกติ (กดปุ่มปิด)" value="normal" />
-                <Picker.Item label="โจทย์คณิตศาสตร์" value="math" />
-                <Picker.Item label="ถ่ายรูปตามสีที่กำหนด" value="photo" />
-                <Picker.Item label="สุ่มภารกิจ" value="random" />
-              </Picker>
-            </View>
-
-            {taskType !== "normal" && (
-              <>
-                <Text style={styles.inputLabel}>ระดับความยาก</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={taskDifficulty}
-                    onValueChange={(itemValue) => setTaskDifficulty(itemValue)}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="ง่าย" value="easy" />
-                    <Picker.Item label="ปานกลาง" value="medium" />
-                    <Picker.Item label="ยาก" value="hard" />
-                  </Picker>
-                </View>
-              </>
-            )}
-          </View>
-
-          {/* Sound Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>เสียงปลุก</Text>
-            <TouchableOpacity
-              style={styles.soundSelector}
-              onPress={selectSound}
-            >
-              <View>
-                <Text style={styles.soundName}>{soundName}</Text>
-              </View>
-              <Icon name="chevron-right" size={24} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-
-          {/* แทนที่ปุ่มเดิมด้วยปุ่มใหม่ */}
-          <TouchableOpacity
-            style={[
-              styles.saveButton,
-              {
-                flexDirection: "row",
-                justifyContent: "center",
-                alignItems: "center",
-              },
-            ]}
-            onPress={handleSaveAndBack}
-          >
-            <Icon
-              name="content-save"
-              size={24}
-              color="#000000"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.saveButtonText}>
-              {isEditing ? "บันทึกและย้อนกลับ" : "บันทึกนาฬิกาปลุก"}
+      {/* ส่วนของตัวเลือกการทำซ้ำ */}
+      <View style={styles.optionSection}>
+        <TouchableOpacity style={styles.optionRow} onPress={() => navigation.navigate("RepeatOptions", { repeatDays, setRepeatDays })}>
+          <Text style={styles.optionLabel}>ปลุกซ้ำ</Text>
+          <View style={styles.optionValue}>
+            <Text style={styles.optionValueText}>
+              {repeatDays.length === 0 ? "ไม่ปลุกซ้ำ" : 
+               repeatDays.length === 7 ? "ทุกวัน" :
+               dayNames.filter((_, i) => repeatDays.includes(i)).join(', ')}
             </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </Animated.View>
-    </GestureHandlerRootView>
+            <Icon name="chevron-right" size={24} color="#9CA3AF" />
+          </View>
+        </TouchableOpacity>
+        
+        <View style={styles.separator} />
+        
+        <View style={styles.optionRow}>
+          <Text style={styles.optionLabel}>ชื่อ</Text>
+          <TextInput
+            style={styles.inputField}
+            value={label}
+            onChangeText={setLabel}
+            placeholder="การตั้งปลุก"
+            placeholderTextColor="#9CA3AF"
+          />
+        </View>
+        
+        <View style={styles.separator} />
+        
+        <TouchableOpacity style={styles.optionRow} onPress={selectSound}>
+          <Text style={styles.optionLabel}>เสียง</Text>
+          <View style={styles.optionValue}>
+            <Text style={styles.optionValueText}>{soundName || "ค่าเริ่มต้น"}</Text>
+            <Icon name="chevron-right" size={24} color="#9CA3AF" />
+          </View>
+        </TouchableOpacity>
+        
+        <View style={styles.separator} />
+        
+        <View style={styles.optionRow}>
+          <Text style={styles.optionLabel}>เลื่อนปลุก</Text>
+          <Switch
+            value={isActive}
+            onValueChange={setIsActive}
+            trackColor={{ false: "#767577", true: "#4CAF50" }}
+            thumbColor={isActive ? "#FFFFFF" : "#f4f3f4"}
+            ios_backgroundColor="#3e3e3e"
+          />
+        </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: "#12111D",
-    padding: 16,
+    backgroundColor: "#121212",
   },
-  timeSection: {
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  timeDisplay: {
-    backgroundColor: "#1a237e",
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  timeText: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  section: {
-    backgroundColor: "#1F1D2B",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 16,
-    color: "#fff",
-  },
-  inputRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#333333',
+    backgroundColor: '#1C1C1E',
   },
-  inputLabel: {
-    fontSize: 16,
-    color: "#9fa8da",
+  headerButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
-  textInput: {
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  cancelText: {
+    fontSize: 17,
+    color: '#FF9500',
+    fontWeight: '400',
+  },
+  saveText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FF9500',
+  },
+  timePickerContainer: {
+    paddingVertical: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+  },
+  timePicker: {
+    width: '100%',
+    backgroundColor: '#1C1C1E',
+  },
+  optionSection: {
+    marginTop: 20,
+    backgroundColor: '#1C1C1E',
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: '#333333',
+  },
+  optionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  optionLabel: {
+    fontSize: 17,
+    color: '#FFFFFF',
+  },
+  optionValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  optionValueText: {
+    fontSize: 17,
+    color: '#9CA3AF',
+    marginRight: 8,
+  },
+  inputField: {
+    fontSize: 17,
+    color: '#9CA3AF',
+    textAlign: 'right',
     flex: 1,
-    marginLeft: 10,
-    fontSize: 16,
-    textAlign: "right",
-    color: "#fff",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
-  dayRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  dayText: {
-    fontSize: 16,
-    color: "#9fa8da",
-  },
-  dayIndicator: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  daySelected: {
-    backgroundColor: "#1a237e",
-    borderColor: "#4F46E5",
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: "#1a237e",
-    borderRadius: 8,
-    marginBottom: 16,
-    backgroundColor: "#162447",
-  },
-  picker: {
-    height: 50,
-  },
-  soundSelector: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  soundName: {
-    fontSize: 16,
-    color: "#9fa8da",
-  },
-  saveButton: {
-    backgroundColor: "#D8D5F5",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  saveButtonText: {
-    color: "#000000",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
+  separator: {
+    height: 0.5,
+    backgroundColor: '#333333',
+    marginLeft: 16,
+    marginRight: 16,
+  }
 });
 
 export default AddAlarmScreen;
