@@ -8,7 +8,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const MathTaskScreen = ({ route, navigation }) => {
-  const { alarm, difficulty, onComplete } = route.params;
+  console.log('MathTaskScreen - route.params:', route.params);
+  const { alarm, difficulty = 'medium', onComplete } = route.params || {};
+  console.log('MathTaskScreen - difficulty:', difficulty);
   const [problem, setProblem] = useState('');
   const [answer, setAnswer] = useState('');
   const [userAnswer, setUserAnswer] = useState('');
@@ -118,7 +120,15 @@ const MathTaskScreen = ({ route, navigation }) => {
       Alert.alert(
         "ถูกต้อง!",
         "คุณตอบถูกต้อง นาฬิกาปลุกจะถูกปิด",
-        [{ text: "OK", onPress: () => onComplete && onComplete() }]
+        [{ text: "OK", onPress: () => {
+          console.log('MathTaskScreen - calling onComplete function');
+          if (typeof onComplete === 'function') {
+            onComplete();
+          } else {
+            console.warn('MathTaskScreen - onComplete is not a function');
+            navigation.navigate("AlarmList");
+          }
+        }}]
       );
     } else {
       // Wrong answer
