@@ -1,786 +1,490 @@
-// AddAlarmScreen.js - หน้าเพิ่มและแก้ไขนาฬิกาปลุก
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   ScrollView,
   Switch,
   Alert,
-  SafeAreaView,
-  StatusBar,
   Platform,
-  Dimensions,
-  Pressable,
-  Animated,
-  PanResponder,
-  FlatList,
-} from "react-native";
-import NetInfo from "@react-native-community/netinfo";
-import { supabase } from "../supabase.config";
-import { UserAuth } from "../models/UserAuth";
-// ใช้ Icon สำหรับปุ่มเพิ่ม/ลดเวลา
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { scheduleAlarmNotification } from "../models/NotificationManager";
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Button, TextInput } from 'react-native-paper';
+import { supabase } from '../supabase.config';
+import { UserAuth } from '../models/UserAuth';
+import * as Notifications from 'expo-notifications';
+import uuid from 'react-native-uuid';
 import { Picker } from '@react-native-picker/picker';
 
-const { width } = Dimensions.get('window');
-const ITEM_HEIGHT = 59;
-const VISIBLE_ITEMS = 6;
-const PICKER_WIDTH = 90;
-const PICKER_GAP = 15;
-const REPEAT_COUNT = 10;
-const VISIBLE_PADDING = 3;
-
-const AddAlarmScreen = ({ route, navigation }) => {
-  // Get alarm data if editing an existing alarm
-  const existingAlarm = route.params?.alarm;
-  const isEditing = !!existingAlarm;
+const AddAlarmScreen = ({ route }) => {
+  const navigation = useNavigation();
   const { user } = UserAuth();
 
-  // State for alarm data
-  const [hour, setHour] = useState(
-    existingAlarm?.hour || new Date().getHours()
+  const editingAlarm = route.params?.alarm;
+  const isEditing = !!editingAlarm;
+
+  // States for alarm settings
+  const [time, setTime] = useState(
+    isEditing
+      ? new Date(editingAlarm.hour * 3600000 + editingAlarm.minute * 60000)
+      : new Date()
   );
-  const [minute, setMinute] = useState(
-    existingAlarm?.minute || new Date().getMinutes()
-  );
-  const [is24Hour, setIs24Hour] = useState(true);
-  const [period, setPeriod] = useState(hour >= 12 ? 'PM' : 'AM');
-  const [label, setLabel] = useState(existingAlarm?.label || "");
-  const [isActive, setIsActive] = useState(existingAlarm?.is_active !== false);
-  const [repeatDays, setRepeatDays] = useState(existingAlarm?.repeat_days || []);
-  const [taskType, setTaskType] = useState(existingAlarm?.task_type || "normal");
-  const [taskDifficulty, setTaskDifficulty] = useState(
-    existingAlarm?.task_difficulty || "medium"
-  );
-  const [soundId, setSoundId] = useState(existingAlarm?.sound_id || "default");
-  const [soundName, setSoundName] = useState(
-    existingAlarm?.sound_name || "Default Alarm"
+  const [hour, setHour] = useState(isEditing ? editingAlarm.hour : time.getHours());
+  const [minute, setMinute] = useState(isEditing ? editingAlarm.minute : time.getMinutes());
+  const [label, setLabel] = useState(isEditing ? editingAlarm.label || '' : '');
+  const [sound, setSound] = useState(isEditing ? editingAlarm.sound || 'default' : 'default');
+  const [isActive, setIsActive] = useState(isEditing ? editingAlarm.is_active : true);
+
+  // Generate hour and minute arrays for the wheel picker
+  const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+  const minutes = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+
+  // Task related states
+  const [taskType, setTaskType] = useState(isEditing ? editingAlarm.task_type || 'none' : 'none');
+  const [mathDifficulty, setMathDifficulty] = useState(
+    isEditing ? editingAlarm.task_difficulty || 'easy' : 'easy'
   );
 
-  // Quick time presets
-  const timePresets = [
-    { label: 'เช้า', hour: 6, minute: 30 },
-    { label: 'ทำงาน', hour: 8, minute: 0 },
-    { label: 'นอน', hour: 22, minute: 0 },
-  ];
+  // Repeat related states
+  const [repeatDays, setRepeatDays] = useState(
+    isEditing && editingAlarm.repeat_days
+      ? JSON.parse(editingAlarm.repeat_days)
+      : [false, false, false, false, false, false, false]
+  );
 
-  // Refs for FlatLists
-  const hourListRef = useRef(null);
-  const minuteListRef = useRef(null);
 
-  // Calculate middle position more accurately
-  const getMiddlePosition = (value, totalItems) => {
-    return Math.floor(VISIBLE_ITEMS / 2) - VISIBLE_PADDING + value;
+
+  const toggleDay = (index) => {
+    const newRepeatDays = [...repeatDays];
+    newRepeatDays[index] = !newRepeatDays[index];
+    setRepeatDays(newRepeatDays);
   };
 
-  // More accurate scroll handling with explicit position
-  const scrollToTime = (type, value, animated = true) => {
+  const dayNames = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+
+  const handleSaveAlarm = async () => {
     try {
-      const listRef = type === 'hour' ? hourListRef : minuteListRef;
-      const offset = (VISIBLE_PADDING + value) * ITEM_HEIGHT;
-      
-      listRef.current?.scrollToOffset({
-        offset,
-        animated,
-      });
-    } catch (error) {
-      console.log('Scroll error:', error);
-    }
-  };
-
-  // Handle direct time selection (when a number is pressed)
-  const handleTimePress = (type, value) => {
-    // Directly set the value and scroll to it
-    if (type === 'hour') {
-      setHour(value);
-    } else {
-      setMinute(value);
-    }
-    scrollToTime(type, value, true);
-  };
-
-  // Handle scrolling with more accurate calculation
-  const handleScroll = (event, type) => {
-    const y = event.nativeEvent.contentOffset.y;
-    const rawIndex = y / ITEM_HEIGHT;
-    const index = Math.round(rawIndex);
-    const adjustedIndex = Math.max(0, index - VISIBLE_PADDING);
-    
-    const totalItems = type === 'hour' ? 24 : 60;
-    const value = Math.min(adjustedIndex, totalItems - 1);
-    
-    if (type === 'hour' && value !== hour) {
-      setHour(value);
-    } else if (type === 'minute' && value !== minute) {
-      setMinute(value);
-    }
-  };
-
-  // Handle momentum scrolling end with corrected positioning
-  const handleMomentumScrollEnd = (event, type) => {
-    const y = event.nativeEvent.contentOffset.y;
-    const rawIndex = y / ITEM_HEIGHT;
-    const index = Math.round(rawIndex);
-    const adjustedIndex = Math.max(0, index - VISIBLE_PADDING);
-    
-    const totalItems = type === 'hour' ? 24 : 60;
-    const value = Math.min(adjustedIndex, totalItems - 1);
-    
-    // Update time and ensure correct scroll position
-    if (type === 'hour') {
-      setHour(value);
-    } else {
-      setMinute(value);
-    }
-    
-    // Ensure alignment with the correct time value
-    scrollToTime(type, value, true);
-  };
-
-  // Create proper data arrays with padding
-  const getTimeData = (totalItems) => {
-    const data = Array.from({ length: totalItems }, (_, i) => i);
-    const paddingBefore = Array(VISIBLE_PADDING).fill(-1);
-    const paddingAfter = Array(VISIBLE_PADDING).fill(-1);
-    return [...paddingBefore, ...data, ...paddingAfter];
-  };
-
-  // Initialize with properly padded arrays
-  const hourData = getTimeData(24);
-  const minuteData = getTimeData(60);
-
-  // Convert from 24h to 12h format for display
-  const get12HourFormat = (hour24) => {
-    if (hour24 === 0) return 12;
-    if (hour24 > 12) return hour24 - 12;
-    return hour24;
-  };
-
-  // Get the display hour based on format
-  const getDisplayHour = (hr) => {
-    return is24Hour ? hr : get12HourFormat(hr);
-  };
-
-  // Toggle between 12h and 24h format
-  const toggleTimeFormat = () => {
-    setIs24Hour(!is24Hour);
-  };
-
-  // Handle AM/PM toggle
-  const togglePeriod = () => {
-    const newPeriod = period === 'AM' ? 'PM' : 'AM';
-    setPeriod(newPeriod);
-    
-    if (!is24Hour) {
-      // Adjust the hour value when changing between AM/PM
-      if (newPeriod === 'AM' && hour >= 12) {
-        setHour(hour - 12);
-      } else if (newPeriod === 'PM' && hour < 12) {
-        setHour(hour + 12);
+      if (!user) {
+        Alert.alert('ข้อผิดพลาด', 'กรุณาเข้าสู่ระบบก่อนสร้างนาฬิกาปลุก');
+        return;
       }
-    }
-  };
 
-  // Handle time preset selection
-  const selectTimePreset = (preset) => {
-    setHour(preset.hour);
-    setMinute(preset.minute);
-    setPeriod(preset.hour >= 12 ? 'PM' : 'AM');
-    
-    scrollToTime('hour', preset.hour, true);
-    scrollToTime('minute', preset.minute, true);
-  };
+      // Use the hour and minute state variables directly
 
-  // Adjust the rendering of time items to ensure proper alignment
-  const renderTimeItem = ({ item, index, type }) => {
-    if (item === -1) {
-      return <View style={styles.timeItem} />;
-    }
-    
-    const value = item;
-    const displayValue = type === 'hour' ? getDisplayHour(value) : value;
-    const selected = value === (type === 'hour' ? hour : minute);
-    
-    // More subtle opacity transition for a smoother look
-    const distanceFromSelected = Math.abs(value - (type === 'hour' ? hour : minute));
-    let opacity = 1;
-    if (distanceFromSelected > 0) {
-      opacity = Math.max(0.3, 1 - (distanceFromSelected * 0.15));
-    }
-    
-    return (
-      <TouchableOpacity 
-        style={styles.timeItem}
-        onPress={() => handleTimePress(type, value)}
-      >
-        <Text style={[
-          styles.timeText,
-          { opacity },
-          selected && styles.selectedTimeText
-        ]}>
-          {displayValue.toString().padStart(2, '0')}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
-  // Initialize scroll to current time with correct padding
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      scrollToTime('hour', hour, false);
-      scrollToTime('minute', minute, false);
-    }, 200);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Get item layout with precise measurement
-  const getItemLayout = (_, index) => ({
-    length: ITEM_HEIGHT,
-    offset: ITEM_HEIGHT * index,
-    index,
-  });
-
-  const handleSaveAndBack = async () => {
-    if (!user?.id) {
-      Alert.alert("ข้อผิดพลาด", "กรุณาเข้าสู่ระบบก่อนบันทึกนาฬิกาปลุก");
-      return;
-    }
-
-    // ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต
-    const networkState = await NetInfo.fetch();
-    const isConnected = networkState.isConnected && networkState.isInternetReachable;
-
-    if (!isConnected) {
-      Alert.alert(
-        "ไม่มีการเชื่อมต่ออินเทอร์เน็ต",
-        "ไม่สามารถบันทึกนาฬิกาปลุกในขณะนี้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง",
-        [{ text: "ตกลง" }]
-      );
-      return;
-    }
-
-    try {
       const alarmData = {
+        user_id: user.id,
         hour,
         minute,
-        label,
+        label: label.trim(),
+        sound,
         is_active: isActive,
-        repeat_days: repeatDays,
+        repeat_days: JSON.stringify(repeatDays),
         task_type: taskType,
-        task_difficulty: taskDifficulty,
-        sound_id: soundId,
-        sound_name: soundName,
-        user_id: user.id,
-        updated_at: new Date(),
+        task_difficulty: mathDifficulty,
       };
 
-      let alarmId;
-
       if (isEditing) {
-        // Update existing alarm
-        const { error: updateError } = await supabase
+        // อัปเดตนาฬิกาปลุกเดิม
+        const { error } = await supabase
           .from('alarms')
           .update(alarmData)
-          .eq('id', existingAlarm.id);
+          .eq('id', editingAlarm.id);
 
-        if (updateError) throw updateError;
-        alarmId = existingAlarm.id;
+        if (error) throw error;
+        Alert.alert('สำเร็จ', 'อัปเดตนาฬิกาปลุกเรียบร้อยแล้ว');
       } else {
-        // Create new alarm
-        alarmData.created_at = new Date();
-        const { data, error: insertError } = await supabase
+        // สร้างนาฬิกาปลุกใหม่
+        const { error } = await supabase
           .from('alarms')
-          .insert([alarmData])
-          .select();
+          .insert(alarmData);
 
-        if (insertError) throw insertError;
-        alarmId = data[0].id;
+        if (error) throw error;
+        Alert.alert('สำเร็จ', 'สร้างนาฬิกาปลุกเรียบร้อยแล้ว');
       }
 
-      // Set up notification if alarm is active
-      if (isActive) {
-        const fullAlarmData = { ...alarmData, id: alarmId };
-        const notificationId = await scheduleAlarmNotification(fullAlarmData);
-
-        if (notificationId) {
-          await supabase
-            .from('alarms')
-            .update({ notification_id: notificationId })
-            .eq('id', alarmId);
-        }
-      }
-
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Alarm" }],
-      });
+      // กลับไปยังหน้า AlarmList
+      navigation.goBack();
 
     } catch (error) {
-      console.error("Error saving alarm:", error);
-      let errorMessage = "ไม่สามารถบันทึกนาฬิกาปลุกได้";
-
-      if (error.message?.includes('offline') || error.message?.includes('network')) {
-        errorMessage = "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง";
-      }
-
-      Alert.alert("ข้อผิดพลาด", errorMessage);
+      console.error('Error saving alarm:', error);
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกนาฬิกาปลุกได้ กรุณาลองอีกครั้ง');
     }
   };
 
-  // Select alarm sound
-  const selectSound = () => {
-    navigation.navigate("SoundLibrary", {
-      onSelect: (sound) => {
-        setSoundId(sound.id);
-        setSoundName(sound.name);
+  const handleCancel = () => {
+    navigation.goBack();
+  };
+
+  const navigateToSoundLibrary = () => {
+    navigation.navigate('SoundLibrary', {
+      currentSound: sound,
+      onSelectSound: (selectedSound) => {
+        setSound(selectedSound);
       },
-      currentSoundId: soundId,
     });
   };
 
-  // Calculate where the colon should be positioned
-  const colonPosition = useMemo(() => {
-    return {
-      top: ITEM_HEIGHT * Math.floor(VISIBLE_ITEMS / 2)
-    };
-  }, []);
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+    <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.cancelButton}>ยกเลิก</Text>
+        <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
+          <Text style={styles.cancelText}>ยกเลิก</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>เพิ่มการตั้งปลุก</Text>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleSaveAndBack}
-        >
-          <Text style={styles.saveButton}>บันทึก</Text>
+        <Text style={styles.headerTitle}>
+          {isEditing ? 'แก้ไขนาฬิกาปลุก' : 'นาฬิกาปลุกใหม่'}
+        </Text>
+        <TouchableOpacity onPress={handleSaveAlarm} style={styles.headerButton}>
+          <Text style={styles.saveText}>บันทึก</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.container}>
-        {/* Time Display Section */}
-        <View style={styles.timePickerContainer}>
-          <View style={styles.timePickerBackground}>
-            <View style={styles.timePickerWrapper}>
-              <View style={styles.pickerSection}>
-                <View style={styles.pickerLabel}>
-                  <Text style={styles.labelText}>ชั่วโมง</Text>
-                </View>
-                <FlatList
-                  ref={hourListRef}
-                  data={hourData}
-                  renderItem={({ item, index }) => renderTimeItem({ item, index, type: 'hour' })}
-                  keyExtractor={(_, index) => `hour-${index}`}
-                  showsVerticalScrollIndicator={false}
-                  snapToInterval={ITEM_HEIGHT}
-                  decelerationRate="fast"
-                  onScroll={(e) => handleScroll(e, 'hour')}
-                  onMomentumScrollEnd={(e) => handleMomentumScrollEnd(e, 'hour')}
-                  getItemLayout={getItemLayout}
-                  style={styles.pickerColumn}
-                  contentContainerStyle={styles.pickerContent}
-                  scrollEventThrottle={16}
-                  removeClippedSubviews={true}
-                  initialNumToRender={VISIBLE_ITEMS * 2}
-                  maxToRenderPerBatch={VISIBLE_ITEMS * 2}
-                />
-              </View>
-
-              <View style={styles.pickerSection}>
-                <View style={styles.pickerLabel}>
-                  <Text style={styles.labelText}>นาที</Text>
-                </View>
-                <FlatList
-                  ref={minuteListRef}
-                  data={minuteData}
-                  renderItem={({ item, index }) => renderTimeItem({ item, index, type: 'minute' })}
-                  keyExtractor={(_, index) => `minute-${index}`}
-                  showsVerticalScrollIndicator={false}
-                  snapToInterval={ITEM_HEIGHT}
-                  decelerationRate="fast"
-                  onScroll={(e) => handleScroll(e, 'minute')}
-                  onMomentumScrollEnd={(e) => handleMomentumScrollEnd(e, 'minute')}
-                  getItemLayout={getItemLayout}
-                  style={styles.pickerColumn}
-                  contentContainerStyle={styles.pickerContent}
-                  scrollEventThrottle={16}
-                  removeClippedSubviews={true}
-                  initialNumToRender={VISIBLE_ITEMS * 2}
-                  maxToRenderPerBatch={VISIBLE_ITEMS * 2}
-                />
-              </View>
-
-              {!is24Hour && (
-                <View style={styles.periodSelector}>
-                  <TouchableOpacity
-                    style={[styles.periodButton, period === 'AM' && styles.periodButtonActive]}
-                    onPress={() => setPeriod('AM')}
-                  >
-                    <Text style={[styles.periodText, period === 'AM' && styles.periodTextActive]}>AM</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.periodButton, period === 'PM' && styles.periodButtonActive]}
-                    onPress={() => setPeriod('PM')}
-                  >
-                    <Text style={[styles.periodText, period === 'PM' && styles.periodTextActive]}>PM</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-            <View style={styles.selectionIndicator} pointerEvents="none" />
-            
-            {/* Time format toggle */}
-            <TouchableOpacity 
-              style={styles.formatToggle}
-              onPress={toggleTimeFormat}
-            >
-              <Text style={styles.formatToggleText}>
-                {is24Hour ? '24 ชั่วโมง' : '12 ชั่วโมง'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick time presets */}
-          <View style={styles.presetContainer}>
-            {timePresets.map((preset, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.presetButton}
-                onPress={() => selectTimePreset(preset)}
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.timeContainer}>
+          <View style={styles.pickerContainer}>
+            <View style={styles.pickerColumn}>
+              <Picker
+                selectedValue={hour}
+                onValueChange={(itemValue) => {
+                  setHour(itemValue);
+                  const newTime = new Date(time);
+                  newTime.setHours(itemValue);
+                  setTime(newTime);
+                }}
+                style={styles.picker}
+                itemStyle={styles.pickerItem}
+                dropdownIconColor="transparent"
               >
-                <Text style={styles.presetButtonText}>{preset.label}</Text>
-                <Text style={styles.presetTimeText}>
-                  {`${getDisplayHour(preset.hour).toString().padStart(2, '0')}:${preset.minute.toString().padStart(2, '0')} ${!is24Hour ? (preset.hour >= 12 ? 'PM' : 'AM') : ''}`}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                {hours.map((h) => (
+                  <Picker.Item key={h} label={h} value={parseInt(h)} color="#FFFFFF" />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.timeSeparator}>:</Text>
+
+            <View style={styles.pickerColumn}>
+              <Picker
+                selectedValue={minute}
+                onValueChange={(itemValue) => {
+                  setMinute(itemValue);
+                  const newTime = new Date(time);
+                  newTime.setMinutes(itemValue);
+                  setTime(newTime);
+                }}
+                style={styles.picker}
+                itemStyle={styles.pickerItem}
+                dropdownIconColor="transparent"
+              >
+                {minutes.map((m) => (
+                  <Picker.Item key={m} label={m} value={parseInt(m)} color="#FFFFFF" />
+                ))}
+              </Picker>
+            </View>
           </View>
         </View>
 
-        {/* Options Container */}
-        <View style={styles.optionsContainer}>
-          {/* Repeat Option */}
-          <TouchableOpacity
-            style={styles.optionRow}
-            onPress={() => navigation.navigate("RepeatDaysScreen", {
-              repeatDays,
-              onSelect: (days) => setRepeatDays(days)
-            })}
-          >
-            <Text style={styles.optionLabel}>ปลุกซ้ำ</Text>
-            <View style={styles.optionValue}>
-              <Text style={styles.optionValueText}>
-                {repeatDays.length === 0 ? "ไม่ปลุกซ้ำ" :
-                 repeatDays.length === 7 ? "ทุกวัน" :
-                 dayNames.filter((_, i) => repeatDays.includes(i)).join(", ")}
-              </Text>
-              <Icon name="chevron-right" size={20} color="#86868B" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Label Option */}
-          <View style={styles.optionRow}>
-            <Text style={styles.optionLabel}>ชื่อ</Text>
+        <View style={styles.section}>
+          <View style={styles.labelRow}>
+            <Icon name="label-outline" size={24} color="#aaa" style={styles.labelIcon} />
             <TextInput
-              style={styles.textInput}
+              label="ชื่อนาฬิกาปลุก"
               value={label}
               onChangeText={setLabel}
-              placeholder="การตั้งปลุก"
-              placeholderTextColor="#86868B"
-              maxLength={30}
+              style={styles.labelInput}
+              mode="outlined"
+              outlineColor="#333"
+              activeOutlineColor="#6C63FF"
+              theme={{ colors: { text: '#fff', placeholder: '#aaa', background: '#12111D' } }}
             />
           </View>
 
-          {/* Sound Option */}
-          <TouchableOpacity
-            style={styles.optionRow}
-            onPress={selectSound}
-          >
-            <Text style={styles.optionLabel}>เสียง</Text>
-            <View style={styles.optionValue}>
-              <Text style={styles.optionValueText}>{soundName}</Text>
-              <Icon name="chevron-right" size={20} color="#86868B" />
+          <View style={styles.repeatSection}>
+            <Text style={styles.sectionLabel}>วันที่ปลุกซ้ำ</Text>
+            <View style={styles.daysContainer}>
+              {dayNames.map((day, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.dayButton,
+                    repeatDays[index] && styles.dayButtonActive,
+                  ]}
+                  onPress={() => toggleDay(index)}
+                >
+                  <Text
+                    style={[
+                      styles.dayText,
+                      repeatDays[index] && styles.dayTextActive,
+                    ]}
+                  >
+                    {day}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={navigateToSoundLibrary}
+          >
+            <Icon name="music-note" size={24} color="#aaa" />
+            <Text style={styles.settingText}>เสียงปลุก</Text>
+            <Text style={styles.settingValue}>{sound}</Text>
+            <Icon name="chevron-right" size={24} color="#aaa" />
           </TouchableOpacity>
 
-          {/* Snooze Option - Changed to Alarm Active Toggle */}
-          <View style={[styles.optionRow, styles.lastOption]}>
-            <Text style={styles.optionLabel}>เปิดใช้งาน</Text>
+          <View style={styles.settingRow}>
+            <Icon name="alarm-check" size={24} color="#aaa" />
+            <Text style={styles.settingText}>เปิดใช้งาน</Text>
             <Switch
               value={isActive}
               onValueChange={setIsActive}
-              trackColor={{ false: "#3A3A3C", true: "#34C759" }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor="#3A3A3C"
+              trackColor={{ false: '#444', true: '#6C63FF' }}
+              thumbColor={isActive ? '#fff' : '#f4f3f4'}
             />
           </View>
+
+          <View style={styles.taskSection}>
+            <Text style={styles.sectionLabel}>กิจกรรมเพื่อปิดการปลุก</Text>
+
+            <View style={styles.taskOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.taskOption,
+                  taskType === 'none' && styles.taskOptionActive,
+                ]}
+                onPress={() => setTaskType('none')}
+              >
+                <Text style={styles.taskOptionText}>ไม่มี</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.taskOption,
+                  taskType === 'math' && styles.taskOptionActive,
+                ]}
+                onPress={() => setTaskType('math')}
+              >
+                <Text style={styles.taskOptionText}>คณิตศาสตร์</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.taskOption,
+                  taskType === 'photo' && styles.taskOptionActive,
+                ]}
+                onPress={() => setTaskType('photo')}
+              >
+                <Text style={styles.taskOptionText}>ถ่ายภาพ</Text>
+              </TouchableOpacity>
+            </View>
+
+            {taskType === 'math' && (
+              <View style={styles.difficultySection}>
+                <Text style={styles.sectionLabel}>ระดับความยาก</Text>
+
+                <View style={styles.taskOptions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.taskOption,
+                      mathDifficulty === 'easy' && styles.taskOptionActive,
+                    ]}
+                    onPress={() => setMathDifficulty('easy')}
+                  >
+                    <Text style={styles.taskOptionText}>ง่าย</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.taskOption,
+                      mathDifficulty === 'medium' && styles.taskOptionActive,
+                    ]}
+                    onPress={() => setMathDifficulty('medium')}
+                  >
+                    <Text style={styles.taskOptionText}>ปานกลาง</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.taskOption,
+                      mathDifficulty === 'hard' && styles.taskOptionActive,
+                    ]}
+                    onPress={() => setMathDifficulty('hard')}
+                  >
+                    <Text style={styles.taskOptionText}>ยาก</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: '#12111D',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#000000",
-    borderBottomWidth: 0,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
   headerButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
   },
   headerTitle: {
-    fontSize: 17,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
   },
-  cancelButton: {
-    fontSize: 17,
-    color: '#FF9F0A',
-    fontWeight: '400',
+  cancelText: {
+    fontSize: 16,
+    color: '#FF6B6B',
   },
-  saveButton: {
-    fontSize: 17,
-    color: '#FF9F0A',
-    fontWeight: '600',
+  saveText: {
+    fontSize: 16,
+    color: '#6C63FF',
+    fontWeight: 'bold',
   },
-  container: {
+  scrollView: {
     flex: 1,
-    backgroundColor: "#000000",
   },
-  timePickerContainer: {
-    marginVertical: 15,
+  timeContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#1A1A2E',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 20,
   },
-  timePickerBackground: {
-    backgroundColor: '#222228',
-    borderRadius: 16,
-    padding: 0,
-    paddingTop: 15,
-    paddingBottom: 25,
-    width: PICKER_WIDTH * 2 + PICKER_GAP + 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-    position: 'relative',
-  },
-  timePickerWrapper: {
+  pickerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    height: ITEM_HEIGHT * VISIBLE_ITEMS,
-  },
-  pickerSection: {
-    height: ITEM_HEIGHT * VISIBLE_ITEMS,
-    width: PICKER_WIDTH,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    marginHorizontal: PICKER_GAP / 2,
-  },
-  pickerLabel: {
-    position: 'absolute',
-    top: -30,
-    width: '100%',
-    alignItems: 'center',
-  },
-  labelText: {
-    fontSize: 14,
-    color: '#999999',
-    fontWeight: '400',
   },
   pickerColumn: {
-    height: ITEM_HEIGHT * VISIBLE_ITEMS,
-    width: PICKER_WIDTH,
+    width: 100,
+    height: 180,
   },
-  pickerContent: {
-    paddingVertical: ITEM_HEIGHT * VISIBLE_PADDING,
-  },
-  timeItem: {
-    height: ITEM_HEIGHT,
-    width: PICKER_WIDTH,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-    paddingTop: 0,
-    paddingBottom: 0,
-  },
-  timeText: {
-    fontSize: 30,
-    color: '#999999',
-    fontWeight: '400',
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'sans-serif',
-    textAlign: 'center',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-    height: ITEM_HEIGHT,
-    width: '100%',
-  },
-  selectedTimeText: {
+  picker: {
+    width: 100,
+    height: 180,
+    backgroundColor: '#1A1A2E',
     color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 32,
   },
-  selectionIndicator: {
-    position: 'absolute',
-    top: '50%',
-    width: '94%',
-    height: ITEM_HEIGHT,
-    backgroundColor: 'transparent',
-    transform: [{ translateY: -ITEM_HEIGHT / 2 }],
-    borderRadius: 8,
-    opacity: 0.4,
-    zIndex: 1,
-    borderWidth: 0,
+  pickerItem: {
+    fontSize: 26,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
   },
-  periodSelector: {
-    position: 'absolute',
-    right: -70,
-    height: 100,
-    width: 50,
-    flexDirection: 'column',
-    justifyContent: 'center',
-    marginLeft: 10,
+  timeSeparator: {
+    fontSize: 36,
+    color: '#fff',
+    fontWeight: 'bold',
+    marginHorizontal: 10,
   },
-  periodButton: {
-    padding: 10,
-    borderRadius: 8,
-    marginVertical: 4,
+  section: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+  },
+  labelRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    marginBottom: 20,
   },
-  periodButtonActive: {
-    backgroundColor: '#3A3A3E',
+  labelIcon: {
+    marginRight: 10,
   },
-  periodText: {
+  labelInput: {
+    flex: 1,
+    backgroundColor: '#1A1A2E',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    paddingVertical: 16,
+  },
+  settingText: {
+    flex: 1,
+    marginLeft: 12,
     fontSize: 16,
-    color: '#999999',
-    fontWeight: '500',
+    color: '#fff',
   },
-  periodTextActive: {
-    color: '#FFFFFF',
+  settingValue: {
+    marginRight: 8,
+    fontSize: 16,
+    color: '#aaa',
   },
-  formatToggle: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    padding: 5,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: 'transparent',
+  repeatSection: {
+    marginTop: 20,
+    marginBottom: 20,
   },
-  formatToggleText: {
-    fontSize: 12,
-    color: '#999999',
-    fontWeight: '400',
+  sectionLabel: {
+    fontSize: 16,
+    color: '#fff',
+    marginBottom: 12,
   },
-  presetContainer: {
+  daysContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 15,
-    width: '92%',
-    maxWidth: 320,
   },
-  presetButton: {
-    backgroundColor: '#2C2C34',
-    borderRadius: 10,
+  dayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1A1A2E',
+  },
+  dayButtonActive: {
+    backgroundColor: '#6C63FF',
+  },
+  dayText: {
+    fontSize: 14,
+    color: '#fff',
+  },
+  dayTextActive: {
+    fontWeight: 'bold',
+  },
+  taskSection: {
+    marginTop: 24,
+  },
+  taskOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  taskOption: {
+    flex: 1,
     padding: 10,
     marginHorizontal: 4,
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    width: 95,
-    height: 52, // Fixed height for consistency
+    backgroundColor: '#1A1A2E',
   },
-  presetButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+  taskOptionActive: {
+    backgroundColor: '#6C63FF',
+  },
+  taskOptionText: {
+    color: '#fff',
     fontWeight: '500',
-    marginBottom: 4,
   },
-  presetTimeText: {
-    color: '#999999',
-    fontSize: 12,
-  },
-  optionsContainer: {
-    backgroundColor: "#1C1C1E",
-    borderRadius: 16,
-    marginHorizontal: 16,
-    overflow: 'hidden',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  optionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#38383A",
-    backgroundColor: "transparent",
-  },
-  lastOption: {
-    borderBottomWidth: 0,
-  },
-  optionLabel: {
-    fontSize: 17,
-    color: "#FFFFFF",
-    fontWeight: '400',
-  },
-  optionValue: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  optionValueText: {
-    fontSize: 17,
-    color: "#86868B",
-    marginRight: 8,
-  },
-  textInput: {
-    fontSize: 17,
-    color: "#86868B",
-    textAlign: "right",
-    paddingVertical: 0,
-    minWidth: 120,
+  difficultySection: {
+    marginTop: 16,
   },
 });
 
-// ใช้ React.memo เพื่อป้องกัน re-render ที่ไม่จำเป็น
-export default React.memo(AddAlarmScreen);
-
+export default AddAlarmScreen;

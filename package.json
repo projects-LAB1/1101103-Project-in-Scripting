@@ -47,6 +47,7 @@
     "react-native-safe-area-context": "^5.3.0",
     "react-native-screens": "^4.9.2",
     "react-native-url-polyfill": "^2.0.0",
+    "react-native-uuid": "^2.0.3",
     "react-native-web": "~0.19.13",
     "react-native-wheel-picker-android": "^2.0.6",
     "react-native-wheely": "^0.6.0",
