@@ -151,7 +151,6 @@ export const AuthProvider = ({ children }) => {
           .upsert({
             id: signInData.user.id,
             email: signInData.user.email,
-            username: isEmail ? email.split('@')[0] : identifier,
             name: signInData.user.user_metadata?.name || email.split('@')[0],
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -172,7 +171,6 @@ export const AuthProvider = ({ children }) => {
         id: signInData.user.id,
         email: signInData.user.email,
         name: profileData?.name || signInData.user.user_metadata?.name || email.split('@')[0],
-        username: profileData?.username || signInData.user.user_metadata?.username || (isEmail ? email.split('@')[0] : identifier),
       };
 
       console.log("Setting user data:", userData);

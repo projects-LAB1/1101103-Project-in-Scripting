@@ -2,8 +2,9 @@
 import * as Notifications from "expo-notifications";
 import { Platform, Alert } from "react-native";
 import Constants from "expo-constants";
-import { supabase } from '../supabase.config';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 
 // Add warning about expo-notifications in Expo Go
 // This addresses the warning about push notifications being removed from Expo Go in SDK 53
@@ -94,13 +95,14 @@ export const registerForPushNotificationsAsync = async () => {
   return token;
 };
 
-// บันทึก token ลงใน Supabase
+// บันทึก token ลงใน Firebase
 export const savePushToken = async (userId, token) => {
   if (!userId || !token) return;
 
   try {
-    const { error } = await supabase
-      .from('profiles')
+    await firestore()
+      .collection('profiles')
+      .doc(userId)
       .update({
         push_token: token,
         device_info: {
@@ -108,10 +110,8 @@ export const savePushToken = async (userId, token) => {
           version: Platform.Version,
           last_updated: new Date(),
         }
-      })
-      .eq('id', userId);
+      });
 
-    if (error) throw error;
     console.log("บันทึก Push Token สำเร็จ");
   } catch (error) {
     console.error("Error saving push token:", error);
