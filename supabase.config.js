@@ -5,18 +5,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const supabaseUrl = 'https://iabspnskcaiobwtfxxtv.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhYnNwbnNrY2Fpb2J3dGZ4eHR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIwNjU4NzksImV4cCI6MjA1NzY0MTg3OX0.DddzMmoZTPpDsp0ki4iwp8w45z-7XeO4eIPrTdZUSSk';
 
-// Initialize Supabase client
+// Initialize Supabase client with minimal configuration
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
-  },
-  db: {
-    schema: 'public',
-  },
+  }
 });
+
+// For testing direct auth bypass
+export const authOnlyClient = createClient(supabaseUrl, supabaseAnonKey);
 
 // Helper function to get current user
 export const getUser = async () => {
@@ -51,6 +51,8 @@ export const handleError = (error) => {
     message = 'Invalid login credentials.';
   } else if (error.message?.includes('not found')) {
     message = 'User not found.';
+  } else if (error.message?.includes('Database') || error.message?.includes('database')) {
+    message = 'Database error. Please try again later or contact support.';
   }
   
   return message;

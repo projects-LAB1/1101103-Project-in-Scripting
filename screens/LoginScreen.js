@@ -19,7 +19,7 @@ import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserAuth } from '../models/UserAuth';
 
-const LoginScreen = ({ navigation }) => {
+const LoginScreen = ({ route, navigation }) => {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,46 +36,86 @@ const LoginScreen = ({ navigation }) => {
     }
   }, [auth]);
 
-  const handleLogin = async () => {
-    if (!identifier || !password) {
-      Alert.alert("ข้อผิดพลาด", "กรุณากรอกชื่อผู้ใช้หรืออีเมล และรหัสผ่าน");
-      return;
+  // Check for test credentials passed from RegisterScreen
+  useEffect(() => {
+    if (route.params?.testCredentials) {
+      const { email, password: testPassword } = route.params.testCredentials;
+      setIdentifier(email);
+      setPassword(testPassword);
+      
+      // Auto login with test credentials after a brief delay
+      const timer = setTimeout(() => {
+        handleLogin(email, testPassword);
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
+  }, [route.params]);
 
-    if (!auth || typeof auth.login !== 'function') {
-      console.error("Auth login function is not available");
-      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเชื่อมต่อกับระบบได้ กรุณาลองใหม่อีกครั้ง");
-      return;
-    }
-
-    setLoading(true);
+  const handleLogin = async (overrideEmail = null, overridePassword = null) => {
     try {
-      const { session } = await auth.login(identifier.trim(), password);
-      // Store session token
-      if (session?.access_token) {
-        await AsyncStorage.setItem('@session_token', session.access_token);
+      const identifierToUse = overrideEmail || identifier;
+      const passwordToUse = overridePassword || password;
+      
+      if (!identifierToUse || !passwordToUse) {
+        Alert.alert("ข้อผิดพลาด", "กรุณากรอกชื่อผู้ใช้หรืออีเมล และรหัสผ่าน");
+        return;
+      }
+
+      setLoading(true);
+      console.log("Attempting login with:", identifierToUse);
+      
+      const { data, error } = await auth.login(identifierToUse, passwordToUse);
+
+      if (error) {
+        console.error("Login error:", error);
+        let errorMessage = "ไม่สามารถเข้าสู่ระบบได้";
+        let showTestAccount = true;
+
+        // Check specific error conditions
+        if (error.message?.toLowerCase().includes("invalid login credentials")) {
+          errorMessage = "รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองอีกครั้ง";
+        } else if (error.message?.toLowerCase().includes("user not found") || error.message?.toLowerCase().includes("ไม่พบชื่อผู้ใช้")) {
+          errorMessage = "ไม่พบบัญชีผู้ใช้ กรุณาตรวจสอบชื่อผู้ใช้หรืออีเมล หรือสมัครสมาชิกก่อนเข้าสู่ระบบ";
+        } else if (error.message?.toLowerCase().includes("email not confirmed")) {
+          errorMessage = "กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ";
+          showTestAccount = false;
+        } else if (error.message?.toLowerCase().includes("too many requests")) {
+          errorMessage = "คุณพยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่";
+          showTestAccount = false;
+        }
+
+        const buttons = [{ text: "ตกลง" }];
+        if (showTestAccount) {
+          buttons.push({
+            text: "ใช้บัญชีทดสอบ",
+            onPress: loginWithTestAccount
+          });
+        }
+
+        Alert.alert("เข้าสู่ระบบไม่สำเร็จ", errorMessage, buttons);
+        return;
+      }
+
+      console.log("Login successful:", data?.user?.id);
+      
+      // Store session if available
+      if (data?.session?.access_token) {
+        await AsyncStorage.setItem('@session_token', data.session.access_token);
       }
     } catch (error) {
-      console.error('Login error:', error);
-      let errorMessage = "เกิดข้อผิดพลาดระหว่างการเข้าสู่ระบบ";
-      
-      switch (error.message) {
-        case 'Invalid login credentials':
-          errorMessage = "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง";
-          break;
-        case 'Email not confirmed':
-          errorMessage = "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ";
-          break;
-        case 'User not found':
-          errorMessage = "ไม่พบบัญชีที่ใช้ชื่อผู้ใช้หรืออีเมลนี้ กรุณาตรวจสอบหรือสมัครสมาชิกก่อน";
-          break;
-        default:
-          if (error.message && error.message.includes('network')) {
-            errorMessage = "เกิดข้อผิดพลาดเครือข่าย กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+      console.error("Login process error:", error);
+      Alert.alert(
+        "เกิดข้อผิดพลาด",
+        "เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง",
+        [
+          { text: "ตกลง" },
+          {
+            text: "ใช้บัญชีทดสอบ",
+            onPress: loginWithTestAccount
           }
-      }
-      
-      Alert.alert("เข้าสู่ระบบไม่สำเร็จ", errorMessage);
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -105,6 +145,26 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
+  const loginWithTestAccount = () => {
+    const testEmail = "test@example.com";
+    const testPassword = "password123";
+    
+    setIdentifier(testEmail);
+    setPassword(testPassword);
+    
+    // Show a loading message
+    Alert.alert(
+      "เข้าสู่ระบบด้วยบัญชีทดสอบ",
+      "กำลังเข้าสู่ระบบด้วยบัญชีทดสอบ...",
+      [{ text: "ตกลง" }]
+    );
+    
+    // Login after dialog is dismissed
+    setTimeout(() => {
+      handleLogin(testEmail, testPassword);
+    }, 500);
+  };
+
   if (!authReady) {
     return (
       <SafeAreaView style={styles.container}>
@@ -130,19 +190,21 @@ const LoginScreen = ({ navigation }) => {
               resizeMode="contain"
             />
             <Text style={styles.title}>เข้าสู่ระบบ</Text>
+            <Text style={styles.subtitle}>
+              ยินดีต้อนรับกลับมา! เข้าสู่ระบบเพื่อใช้งานแอปนาฬิกาปลุก
+            </Text>
           </View>
 
           <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <FontAwesome name="user" size={20} color="#6B7280" style={styles.icon} />
+              <MaterialIcons name="alternate-email" size={20} color="#6B7280" style={styles.icon} />
               <TextInput
                 style={styles.input}
-                placeholder="ชื่อผู้ใช้หรืออีเมล"
-                placeholderTextColor="#6B7280"
                 value={identifier}
                 onChangeText={setIdentifier}
+                placeholder="อีเมลหรือชื่อผู้ใช้"
+                placeholderTextColor="#6B7280"
                 autoCapitalize="none"
-                autoCorrect={false}
               />
             </View>
 
@@ -150,17 +212,24 @@ const LoginScreen = ({ navigation }) => {
               <MaterialIcons name="lock" size={20} color="#6B7280" style={styles.icon} />
               <TextInput
                 style={styles.input}
-                placeholder="รหัสผ่าน"
-                placeholderTextColor="#6B7280"
                 value={password}
                 onChangeText={setPassword}
+                placeholder="รหัสผ่าน"
+                placeholderTextColor="#6B7280"
                 secureTextEntry
               />
             </View>
 
             <TouchableOpacity
+              style={styles.forgotPasswordContainer}
+              onPress={() => navigation.navigate("ForgotPassword")}
+            >
+              <Text style={styles.forgotPasswordText}>ลืมรหัสผ่าน?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.loginButton}
-              onPress={handleLogin}
+              onPress={() => handleLogin()}
               disabled={loading}
             >
               <LinearGradient
@@ -173,50 +242,47 @@ const LoginScreen = ({ navigation }) => {
               </LinearGradient>
             </TouchableOpacity>
 
+            {/* Test Account Login Button */}
             <TouchableOpacity
-              style={styles.forgotButton}
-              onPress={() => navigation.navigate("ForgotPassword")}
+              style={styles.testAccountButton}
+              onPress={loginWithTestAccount}
             >
-              <Text style={styles.forgotButtonText}>ลืมรหัสผ่าน?</Text>
+              <Text style={styles.testAccountButtonText}>
+                ใช้บัญชีทดสอบ
+              </Text>
             </TouchableOpacity>
 
-            <View style={styles.dividerContainer}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>หรือเข้าสู่ระบบด้วย</Text>
-              <View style={styles.divider} />
+            <View style={styles.orContainer}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>หรือ</Text>
+              <View style={styles.orLine} />
             </View>
 
-            <View style={styles.socialButtonsContainer}>
-              <TouchableOpacity style={styles.socialButton}>
-                <FontAwesome name="facebook" size={20} color="#1877F2" />
-                <Text style={styles.socialButtonText}>Facebook</Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+            >
+              <FontAwesome name="google" size={20} color="#EA4335" style={styles.googleIcon} />
+              <Text style={styles.googleButtonText}>เข้าสู่ระบบด้วย Google</Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.socialButton, googleLoading && styles.disabledButton]}
-                onPress={handleGoogleSignIn}
-                disabled={googleLoading}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator size="small" color="#DB4437" />
-                ) : (
-                  <>
-                    <FontAwesome name="google" size={20} color="#DB4437" />
-                    <Text style={styles.socialButtonText}>Google</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>ยังไม่มีบัญชี? </Text>
+            <View style={styles.registerContainer}>
+              <Text style={styles.registerText}>ยังไม่มีบัญชี? </Text>
               <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-                <Text style={styles.signupLink}>สมัครสมาชิก</Text>
+                <Text style={styles.registerLink}>สมัครสมาชิก</Text>
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#6B46E5" />
+          <Text style={styles.loadingText}>กำลังเข้าสู่ระบบ...</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -245,12 +311,12 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginTop: 50,
+    marginTop: 40,
     marginBottom: 30,
   },
   logo: {
-    width: 100,
-    height: 100,
+    width: 80,
+    height: 80,
     tintColor: "#6B46E5",
   },
   title: {
@@ -258,6 +324,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#FFFFFF",
     marginTop: 10,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#A3A3C2",
+    textAlign: "center",
+    marginTop: 5,
   },
   formContainer: {
     marginTop: 20,
@@ -281,6 +353,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
   },
+  forgotPasswordContainer: {
+    alignSelf: "flex-end",
+    marginBottom: 15,
+  },
+  forgotPasswordText: {
+    color: "#A3A3C2",
+    fontSize: 14,
+  },
   loginButton: {
     marginTop: 10,
   },
@@ -294,66 +374,81 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  forgotButton: {
-    alignItems: "center",
+  testAccountButton: {
     marginTop: 15,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#6B46E5",
+    borderRadius: 10,
+    borderStyle: "dashed",
   },
-  forgotButtonText: {
-    color: "#A3A3C2",
+  testAccountButtonText: {
+    color: "#6B46E5",
     fontSize: 14,
+    fontWeight: "500",
   },
-  dividerContainer: {
+  orContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 20,
   },
-  divider: {
+  orLine: {
     flex: 1,
     height: 1,
     backgroundColor: "#3A3A4A",
   },
-  dividerText: {
+  orText: {
     color: "#A3A3C2",
+    paddingHorizontal: 10,
     fontSize: 14,
-    marginHorizontal: 10,
   },
-  socialButtonsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  socialButton: {
+  googleButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#2C2C3A",
+    paddingVertical: 12,
     borderRadius: 10,
-    padding: 10,
-    flex: 0.48,
-    height: 50,
     borderWidth: 1,
     borderColor: "#3A3A4A",
   },
-  socialButtonText: {
-    color: "#FFFFFF",
-    marginLeft: 10,
-    fontSize: 14,
+  googleIcon: {
+    marginRight: 10,
   },
-  signupContainer: {
+  googleButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  registerContainer: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 25,
   },
-  signupText: {
+  registerText: {
     color: "#A3A3C2",
     fontSize: 14,
   },
-  signupLink: {
+  registerLink: {
     color: "#6B46E5",
     fontSize: 14,
     fontWeight: "bold",
   },
-  disabledButton: {
-    opacity: 0.7,
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#FFFFFF",
+    marginTop: 10,
+    fontSize: 16,
   },
 });
 

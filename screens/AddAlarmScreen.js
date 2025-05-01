@@ -1,5 +1,5 @@
 // AddAlarmScreen.js - หน้าเพิ่มและแก้ไขนาฬิกาปลุก
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Pressable,
   Animated,
   PanResponder,
+  FlatList,
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { supabase } from "../supabase.config";
@@ -26,6 +27,12 @@ import { scheduleAlarmNotification } from "../models/NotificationManager";
 import { Picker } from '@react-native-picker/picker';
 
 const { width } = Dimensions.get('window');
+const ITEM_HEIGHT = 59;
+const VISIBLE_ITEMS = 6;
+const PICKER_WIDTH = 90;
+const PICKER_GAP = 15;
+const REPEAT_COUNT = 10;
+const VISIBLE_PADDING = 3;
 
 const AddAlarmScreen = ({ route, navigation }) => {
   // Get alarm data if editing an existing alarm
@@ -40,6 +47,8 @@ const AddAlarmScreen = ({ route, navigation }) => {
   const [minute, setMinute] = useState(
     existingAlarm?.minute || new Date().getMinutes()
   );
+  const [is24Hour, setIs24Hour] = useState(true);
+  const [period, setPeriod] = useState(hour >= 12 ? 'PM' : 'AM');
   const [label, setLabel] = useState(existingAlarm?.label || "");
   const [isActive, setIsActive] = useState(existingAlarm?.is_active !== false);
   const [repeatDays, setRepeatDays] = useState(existingAlarm?.repeat_days || []);
@@ -52,118 +61,189 @@ const AddAlarmScreen = ({ route, navigation }) => {
     existingAlarm?.sound_name || "Default Alarm"
   );
 
-  // Animation values for time wheel effect
-  const hourScrollY = useRef(new Animated.Value(0)).current;
-  const minuteScrollY = useRef(new Animated.Value(0)).current;
+  // Quick time presets
+  const timePresets = [
+    { label: 'เช้า', hour: 6, minute: 30 },
+    { label: 'ทำงาน', hour: 8, minute: 0 },
+    { label: 'นอน', hour: 22, minute: 0 },
+  ];
 
-  // Create PanResponder for hour wheel
-  const hourPanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        hourScrollY.setValue(gestureState.dy);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const direction = gestureState.dy > 0 ? -1 : 1;
-        // Only adjust time if the gesture is significant enough
-        if (Math.abs(gestureState.dy) > 10) {
-          adjustTime('hour', direction);
-          Animated.spring(hourScrollY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 100,
-            friction: 10
-          }).start();
-        } else {
-          Animated.spring(hourScrollY, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      }
-    })
-  ).current;
+  // Refs for FlatLists
+  const hourListRef = useRef(null);
+  const minuteListRef = useRef(null);
 
-  // Create PanResponder for minute wheel
-  const minutePanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        minuteScrollY.setValue(gestureState.dy);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const direction = gestureState.dy > 0 ? -1 : 1;
-        // Only adjust time if the gesture is significant enough
-        if (Math.abs(gestureState.dy) > 10) {
-          adjustTime('minute', direction);
-          Animated.spring(minuteScrollY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 100,
-            friction: 10
-          }).start();
-        } else {
-          Animated.spring(minuteScrollY, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      }
-    })
-  ).current;
+  // Calculate middle position more accurately
+  const getMiddlePosition = (value, totalItems) => {
+    return Math.floor(VISIBLE_ITEMS / 2) - VISIBLE_PADDING + value;
+  };
 
-  // Handler for incrementing/decrementing time
-  const adjustTime = (type, increment) => {
-    if (type === 'hour') {
-      let newHour = (hour + increment) % 24;
-      if (newHour < 0) newHour = 23;
+  // More accurate scroll handling with explicit position
+  const scrollToTime = (type, value, animated = true) => {
+    try {
+      const listRef = type === 'hour' ? hourListRef : minuteListRef;
+      const offset = (VISIBLE_PADDING + value) * ITEM_HEIGHT;
       
-      // Add haptic feedback if available
-      if (Platform.OS === 'ios' && window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'haptic', style: 'selection' }));
-      }
-      
-      setHour(newHour);
-    } else {
-      let newMinute = (minute + increment) % 60;
-      if (newMinute < 0) newMinute = 59;
-      
-      // Add haptic feedback if available
-      if (Platform.OS === 'ios' && window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'haptic', style: 'selection' }));
-      }
-      
-      setMinute(newMinute);
+      listRef.current?.scrollToOffset({
+        offset,
+        animated,
+      });
+    } catch (error) {
+      console.log('Scroll error:', error);
     }
   };
 
-  // Format number to 2 digits
-  const formatNumber = (number) => number.toString().padStart(2, '0');
-
-  // Generate surrounding hours for wheel effect
-  const generateHourNumbers = () => {
-    const prevHour = (hour - 1 + 24) % 24;
-    const nextHour = (hour + 1) % 24;
-    return [prevHour, hour, nextHour];
+  // Handle direct time selection (when a number is pressed)
+  const handleTimePress = (type, value) => {
+    // Directly set the value and scroll to it
+    if (type === 'hour') {
+      setHour(value);
+    } else {
+      setMinute(value);
+    }
+    scrollToTime(type, value, true);
   };
 
-  // Generate surrounding minutes for wheel effect
-  const generateMinuteNumbers = () => {
-    const prevMinute = (minute - 1 + 60) % 60;
-    const nextMinute = (minute + 1) % 60;
-    return [prevMinute, minute, nextMinute];
+  // Handle scrolling with more accurate calculation
+  const handleScroll = (event, type) => {
+    const y = event.nativeEvent.contentOffset.y;
+    const rawIndex = y / ITEM_HEIGHT;
+    const index = Math.round(rawIndex);
+    const adjustedIndex = Math.max(0, index - VISIBLE_PADDING);
+    
+    const totalItems = type === 'hour' ? 24 : 60;
+    const value = Math.min(adjustedIndex, totalItems - 1);
+    
+    if (type === 'hour' && value !== hour) {
+      setHour(value);
+    } else if (type === 'minute' && value !== minute) {
+      setMinute(value);
+    }
   };
 
-  // Day names for repeat selection
-  const dayNames = [
-    "จันทร์",
-    "อังคาร",
-    "พุธ",
-    "พฤหัสบดี",
-    "ศุกร์",
-    "เสาร์",
-    "อาทิตย์",
-  ];
+  // Handle momentum scrolling end with corrected positioning
+  const handleMomentumScrollEnd = (event, type) => {
+    const y = event.nativeEvent.contentOffset.y;
+    const rawIndex = y / ITEM_HEIGHT;
+    const index = Math.round(rawIndex);
+    const adjustedIndex = Math.max(0, index - VISIBLE_PADDING);
+    
+    const totalItems = type === 'hour' ? 24 : 60;
+    const value = Math.min(adjustedIndex, totalItems - 1);
+    
+    // Update time and ensure correct scroll position
+    if (type === 'hour') {
+      setHour(value);
+    } else {
+      setMinute(value);
+    }
+    
+    // Ensure alignment with the correct time value
+    scrollToTime(type, value, true);
+  };
+
+  // Create proper data arrays with padding
+  const getTimeData = (totalItems) => {
+    const data = Array.from({ length: totalItems }, (_, i) => i);
+    const paddingBefore = Array(VISIBLE_PADDING).fill(-1);
+    const paddingAfter = Array(VISIBLE_PADDING).fill(-1);
+    return [...paddingBefore, ...data, ...paddingAfter];
+  };
+
+  // Initialize with properly padded arrays
+  const hourData = getTimeData(24);
+  const minuteData = getTimeData(60);
+
+  // Convert from 24h to 12h format for display
+  const get12HourFormat = (hour24) => {
+    if (hour24 === 0) return 12;
+    if (hour24 > 12) return hour24 - 12;
+    return hour24;
+  };
+
+  // Get the display hour based on format
+  const getDisplayHour = (hr) => {
+    return is24Hour ? hr : get12HourFormat(hr);
+  };
+
+  // Toggle between 12h and 24h format
+  const toggleTimeFormat = () => {
+    setIs24Hour(!is24Hour);
+  };
+
+  // Handle AM/PM toggle
+  const togglePeriod = () => {
+    const newPeriod = period === 'AM' ? 'PM' : 'AM';
+    setPeriod(newPeriod);
+    
+    if (!is24Hour) {
+      // Adjust the hour value when changing between AM/PM
+      if (newPeriod === 'AM' && hour >= 12) {
+        setHour(hour - 12);
+      } else if (newPeriod === 'PM' && hour < 12) {
+        setHour(hour + 12);
+      }
+    }
+  };
+
+  // Handle time preset selection
+  const selectTimePreset = (preset) => {
+    setHour(preset.hour);
+    setMinute(preset.minute);
+    setPeriod(preset.hour >= 12 ? 'PM' : 'AM');
+    
+    scrollToTime('hour', preset.hour, true);
+    scrollToTime('minute', preset.minute, true);
+  };
+
+  // Adjust the rendering of time items to ensure proper alignment
+  const renderTimeItem = ({ item, index, type }) => {
+    if (item === -1) {
+      return <View style={styles.timeItem} />;
+    }
+    
+    const value = item;
+    const displayValue = type === 'hour' ? getDisplayHour(value) : value;
+    const selected = value === (type === 'hour' ? hour : minute);
+    
+    // More subtle opacity transition for a smoother look
+    const distanceFromSelected = Math.abs(value - (type === 'hour' ? hour : minute));
+    let opacity = 1;
+    if (distanceFromSelected > 0) {
+      opacity = Math.max(0.3, 1 - (distanceFromSelected * 0.15));
+    }
+    
+    return (
+      <TouchableOpacity 
+        style={styles.timeItem}
+        onPress={() => handleTimePress(type, value)}
+      >
+        <Text style={[
+          styles.timeText,
+          { opacity },
+          selected && styles.selectedTimeText
+        ]}>
+          {displayValue.toString().padStart(2, '0')}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  // Initialize scroll to current time with correct padding
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToTime('hour', hour, false);
+      scrollToTime('minute', minute, false);
+    }, 200);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Get item layout with precise measurement
+  const getItemLayout = (_, index) => ({
+    length: ITEM_HEIGHT,
+    offset: ITEM_HEIGHT * index,
+    index,
+  });
 
   const handleSaveAndBack = async () => {
     if (!user?.id) {
@@ -263,6 +343,13 @@ const AddAlarmScreen = ({ route, navigation }) => {
     });
   };
 
+  // Calculate where the colon should be positioned
+  const colonPosition = useMemo(() => {
+    return {
+      top: ITEM_HEIGHT * Math.floor(VISIBLE_ITEMS / 2)
+    };
+  }, []);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
@@ -284,103 +371,101 @@ const AddAlarmScreen = ({ route, navigation }) => {
 
       <View style={styles.container}>
         {/* Time Display Section */}
-        <View style={styles.timePickerWrapper}>
-          <View style={styles.timePickerContainer}>
-            {/* Hour Selector */}
-            <View style={styles.wheelContainer}>
-              <TouchableOpacity 
-                style={styles.timeArrowButton}
-                onPress={() => adjustTime('hour', 1)}
-              >
-                <Icon name="chevron-up" size={24} color="#86868B" />
-              </TouchableOpacity>
-              
-              <View style={styles.timeWheelContainer} {...hourPanResponder.panHandlers}>
-                <View style={styles.timeWheelGradient} />
-                <View style={styles.timeNumberContainer}>
-                  {generateHourNumbers().map((num, index) => (
-                    <Animated.Text
-                      key={index}
-                      style={[
-                        styles.timeNumber,
-                        index === 1 && styles.currentTimeNumber,
-                        index === 1 ? null : styles.dimmedTimeNumber,
-                        {
-                          transform: [
-                            {
-                              translateY: hourScrollY.interpolate({
-                                inputRange: [-100, 100],
-                                outputRange: [20, -20],
-                                extrapolate: 'clamp'
-                              })
-                            }
-                          ]
-                        }
-                      ]}
-                    >
-                      {formatNumber(num)}
-                    </Animated.Text>
-                  ))}
+        <View style={styles.timePickerContainer}>
+          <View style={styles.timePickerBackground}>
+            <View style={styles.timePickerWrapper}>
+              <View style={styles.pickerSection}>
+                <View style={styles.pickerLabel}>
+                  <Text style={styles.labelText}>ชั่วโมง</Text>
                 </View>
-                <View style={styles.timeWheelGradient} />
+                <FlatList
+                  ref={hourListRef}
+                  data={hourData}
+                  renderItem={({ item, index }) => renderTimeItem({ item, index, type: 'hour' })}
+                  keyExtractor={(_, index) => `hour-${index}`}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  decelerationRate="fast"
+                  onScroll={(e) => handleScroll(e, 'hour')}
+                  onMomentumScrollEnd={(e) => handleMomentumScrollEnd(e, 'hour')}
+                  getItemLayout={getItemLayout}
+                  style={styles.pickerColumn}
+                  contentContainerStyle={styles.pickerContent}
+                  scrollEventThrottle={16}
+                  removeClippedSubviews={true}
+                  initialNumToRender={VISIBLE_ITEMS * 2}
+                  maxToRenderPerBatch={VISIBLE_ITEMS * 2}
+                />
               </View>
-              
-              <TouchableOpacity 
-                style={styles.timeArrowButton}
-                onPress={() => adjustTime('hour', -1)}
-              >
-                <Icon name="chevron-down" size={24} color="#86868B" />
-              </TouchableOpacity>
-            </View>
 
-            <Text style={styles.colonText}>:</Text>
-
-            {/* Minute Selector */}
-            <View style={styles.wheelContainer}>
-              <TouchableOpacity 
-                style={styles.timeArrowButton}
-                onPress={() => adjustTime('minute', 1)}
-              >
-                <Icon name="chevron-up" size={24} color="#86868B" />
-              </TouchableOpacity>
-              
-              <View style={styles.timeWheelContainer} {...minutePanResponder.panHandlers}>
-                <View style={styles.timeWheelGradient} />
-                <View style={styles.timeNumberContainer}>
-                  {generateMinuteNumbers().map((num, index) => (
-                    <Animated.Text
-                      key={index}
-                      style={[
-                        styles.timeNumber,
-                        index === 1 && styles.currentTimeNumber,
-                        index === 1 ? null : styles.dimmedTimeNumber,
-                        {
-                          transform: [
-                            {
-                              translateY: minuteScrollY.interpolate({
-                                inputRange: [-100, 100],
-                                outputRange: [20, -20],
-                                extrapolate: 'clamp'
-                              })
-                            }
-                          ]
-                        }
-                      ]}
-                    >
-                      {formatNumber(num)}
-                    </Animated.Text>
-                  ))}
+              <View style={styles.pickerSection}>
+                <View style={styles.pickerLabel}>
+                  <Text style={styles.labelText}>นาที</Text>
                 </View>
-                <View style={styles.timeWheelGradient} />
+                <FlatList
+                  ref={minuteListRef}
+                  data={minuteData}
+                  renderItem={({ item, index }) => renderTimeItem({ item, index, type: 'minute' })}
+                  keyExtractor={(_, index) => `minute-${index}`}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  decelerationRate="fast"
+                  onScroll={(e) => handleScroll(e, 'minute')}
+                  onMomentumScrollEnd={(e) => handleMomentumScrollEnd(e, 'minute')}
+                  getItemLayout={getItemLayout}
+                  style={styles.pickerColumn}
+                  contentContainerStyle={styles.pickerContent}
+                  scrollEventThrottle={16}
+                  removeClippedSubviews={true}
+                  initialNumToRender={VISIBLE_ITEMS * 2}
+                  maxToRenderPerBatch={VISIBLE_ITEMS * 2}
+                />
               </View>
-              
-              <TouchableOpacity 
-                style={styles.timeArrowButton}
-                onPress={() => adjustTime('minute', -1)}
-              >
-                <Icon name="chevron-down" size={24} color="#86868B" />
-              </TouchableOpacity>
+
+              {!is24Hour && (
+                <View style={styles.periodSelector}>
+                  <TouchableOpacity
+                    style={[styles.periodButton, period === 'AM' && styles.periodButtonActive]}
+                    onPress={() => setPeriod('AM')}
+                  >
+                    <Text style={[styles.periodText, period === 'AM' && styles.periodTextActive]}>AM</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.periodButton, period === 'PM' && styles.periodButtonActive]}
+                    onPress={() => setPeriod('PM')}
+                  >
+                    <Text style={[styles.periodText, period === 'PM' && styles.periodTextActive]}>PM</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
+            <View style={styles.selectionIndicator} pointerEvents="none" />
+            
+            {/* Time format toggle */}
+            <TouchableOpacity 
+              style={styles.formatToggle}
+              onPress={toggleTimeFormat}
+            >
+              <Text style={styles.formatToggleText}>
+                {is24Hour ? '24 ชั่วโมง' : '12 ชั่วโมง'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick time presets */}
+          <View style={styles.presetContainer}>
+            {timePresets.map((preset, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={styles.presetButton}
+                onPress={() => selectTimePreset(preset)}
+              >
+                <Text style={styles.presetButtonText}>{preset.label}</Text>
+                <Text style={styles.presetTimeText}>
+                  {`${getDisplayHour(preset.hour).toString().padStart(2, '0')}:${preset.minute.toString().padStart(2, '0')} ${!is24Hour ? (preset.hour >= 12 ? 'PM' : 'AM') : ''}`}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -430,9 +515,9 @@ const AddAlarmScreen = ({ route, navigation }) => {
             </View>
           </TouchableOpacity>
 
-          {/* Snooze Option */}
+          {/* Snooze Option - Changed to Alarm Active Toggle */}
           <View style={[styles.optionRow, styles.lastOption]}>
-            <Text style={styles.optionLabel}>เลื่อนปลุก</Text>
+            <Text style={styles.optionLabel}>เปิดใช้งาน</Text>
             <Switch
               value={isActive}
               onValueChange={setIsActive}
@@ -484,78 +569,167 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000000",
   },
-  timePickerWrapper: {
-    backgroundColor: "#1C1C1E",
+  timePickerContainer: {
+    marginVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timePickerBackground: {
+    backgroundColor: '#222228',
     borderRadius: 16,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 24,
-    overflow: 'hidden',
-    shadowColor: "#000",
+    padding: 0,
+    paddingTop: 15,
+    paddingBottom: 25,
+    width: PICKER_WIDTH * 2 + PICKER_GAP + 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+    position: 'relative',
   },
-  timePickerContainer: {
+  timePickerWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 36,
-    paddingHorizontal: 16,
+    width: '100%',
+    height: ITEM_HEIGHT * VISIBLE_ITEMS,
   },
-  wheelContainer: {
+  pickerSection: {
+    height: ITEM_HEIGHT * VISIBLE_ITEMS,
+    width: PICKER_WIDTH,
     alignItems: 'center',
-    width: 100,
-  },
-  timeArrowButton: {
-    padding: 8,
-    borderRadius: 20,
-    marginVertical: 8,
-  },
-  timeWheelContainer: {
-    height: 140,
     justifyContent: 'center',
-    alignItems: 'center',
     overflow: 'hidden',
-    position: 'relative',
+    marginHorizontal: PICKER_GAP / 2,
   },
-  timeWheelGradient: {
+  pickerLabel: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 50,
-    backgroundColor: 'rgba(28, 28, 30, 0.7)',
-    zIndex: 1,
-  },
-  timeNumberContainer: {
-    justifyContent: 'center',
+    top: -30,
+    width: '100%',
     alignItems: 'center',
-    height: 140,
   },
-  timeNumber: {
-    fontSize: 50,
+  labelText: {
+    fontSize: 14,
+    color: '#999999',
     fontWeight: '400',
-    color: '#FFFFFF',
-    marginVertical: 4,
+  },
+  pickerColumn: {
+    height: ITEM_HEIGHT * VISIBLE_ITEMS,
+    width: PICKER_WIDTH,
+  },
+  pickerContent: {
+    paddingVertical: ITEM_HEIGHT * VISIBLE_PADDING,
+  },
+  timeItem: {
+    height: ITEM_HEIGHT,
+    width: PICKER_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  timeText: {
+    fontSize: 30,
+    color: '#999999',
+    fontWeight: '400',
+    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'sans-serif',
     textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    height: ITEM_HEIGHT,
+    width: '100%',
   },
-  currentTimeNumber: {
-    fontSize: 64,
+  selectedTimeText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 32,
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: '50%',
+    width: '94%',
+    height: ITEM_HEIGHT,
+    backgroundColor: 'transparent',
+    transform: [{ translateY: -ITEM_HEIGHT / 2 }],
+    borderRadius: 8,
+    opacity: 0.4,
+    zIndex: 1,
+    borderWidth: 0,
+  },
+  periodSelector: {
+    position: 'absolute',
+    right: -70,
+    height: 100,
+    width: 50,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+  periodButton: {
+    padding: 10,
+    borderRadius: 8,
+    marginVertical: 4,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  periodButtonActive: {
+    backgroundColor: '#3A3A3E',
+  },
+  periodText: {
+    fontSize: 16,
+    color: '#999999',
     fontWeight: '500',
+  },
+  periodTextActive: {
     color: '#FFFFFF',
   },
-  dimmedTimeNumber: {
-    color: 'rgba(255, 255, 255, 0.3)',
+  formatToggle: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    padding: 5,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
-  colonText: {
+  formatToggleText: {
+    fontSize: 12,
+    color: '#999999',
+    fontWeight: '400',
+  },
+  presetContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 15,
+    width: '92%',
+    maxWidth: 320,
+  },
+  presetButton: {
+    backgroundColor: '#2C2C34',
+    borderRadius: 10,
+    padding: 10,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 95,
+    height: 52, // Fixed height for consistency
+  },
+  presetButtonText: {
     color: '#FFFFFF',
-    fontSize: 50,
-    fontWeight: '300',
-    marginHorizontal: 10,
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  presetTimeText: {
+    color: '#999999',
+    fontSize: 12,
   },
   optionsContainer: {
     backgroundColor: "#1C1C1E",
@@ -609,3 +783,4 @@ const styles = StyleSheet.create({
 
 // ใช้ React.memo เพื่อป้องกัน re-render ที่ไม่จำเป็น
 export default React.memo(AddAlarmScreen);
+

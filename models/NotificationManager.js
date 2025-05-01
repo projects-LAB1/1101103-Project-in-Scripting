@@ -216,6 +216,24 @@ export const scheduleAlarmNotification = async (alarm) => {
     const secondsRemaining = Math.floor((timeRemaining % 60000) / 1000);
 
     console.log(`เวลาที่ตั้งห่างจากเวลาปัจจุบัน: ${minutesRemaining} นาที ${secondsRemaining} วินาที`);
+    console.log(`เวลาแจ้งเตือนโดยประมาณ: ${new Date(currentTime.getTime() + timeRemaining).toLocaleString()}`);
+
+    // ตรวจสอบเพื่อป้องกันการแจ้งเตือนทันที
+    // ถ้าตั้งเวลาแจ้งเตือนใกล้กับเวลาปัจจุบันมากเกินไป (น้อยกว่า 2 นาที)
+    // และไม่ใช่การทดสอบตั้งเวลาใกล้ๆ (timeRemaining < 120000 และ !alarm.is_test)
+    // ให้เลื่อนเวลาออกไปเป็นวันพรุ่งนี้
+    if (timeRemaining < 120000 && !alarm.is_test) {
+      console.log("เวลาที่ตั้งใกล้เกินไป ปรับเป็นวันพรุ่งนี้เพื่อป้องกันการแจ้งเตือนทันที");
+      alarmTime.setDate(alarmTime.getDate() + 1);
+      
+      // คำนวณเวลาใหม่
+      const newTimeRemaining = alarmTime.getTime() - currentTime.getTime();
+      const newMinutesRemaining = Math.floor(newTimeRemaining / 60000);
+      const newSecondsRemaining = Math.floor((newTimeRemaining % 60000) / 1000);
+      
+      console.log(`เวลาใหม่ที่ปรับแล้ว: ${alarmTime.toLocaleString()}`);
+      console.log(`เวลาที่ตั้งห่างจากเวลาปัจจุบัน (หลังปรับ): ${newMinutesRemaining} นาที ${newSecondsRemaining} วินาที`);
+    }
 
     // เก็บ timestamp ปัจจุบันเพื่อตรวจสอบว่าเป็นการตั้งค่าใหม่
     const setupTimestamp = new Date().getTime();
@@ -301,36 +319,44 @@ export const setupNotificationListeners = (navigation) => {
   const foregroundSubscription = Notifications.addNotificationReceivedListener(
     async (notification) => {
       const data = notification.request.content.data;
-      console.log("ได้รับการแจ้งเตือนในขณะที่แอปทำงาน:", data);
+      console.log("[Foreground Listener] Received notification. Data:", data);
       
       try {
-        // ตรวจสอบว่านี่เป็นการแจ้งเตือนจากนาฬิกาปลุกหรือไม่
-        if (!data.alarm_id || data.alarm_type !== "scheduled") {
-          console.log("ไม่ใช่การแจ้งเตือนจากนาฬิกาปลุก ข้ามการนำทาง");
+        // --- Revised Listener Logic ---
+        if (!data || !data.alarm_id || data.alarm_type !== "scheduled" || !data.setup_time || !data.scheduled_time) {
+          console.log("[Foreground Listener] Invalid or incomplete notification data. Skipping.", data);
           return;
         }
-        
-        // ดึงข้อมูลการตั้งค่าจาก AsyncStorage
-        const setupInfoString = await AsyncStorage.getItem(`alarm_setup_${data.alarm_id}`);
-        if (!setupInfoString) {
-          console.log("ไม่พบข้อมูลการตั้งค่า นำทางไปหน้าปลุก");
-        } else {
-          const setupInfo = JSON.parse(setupInfoString);
-          const now = new Date().getTime();
-          
-          // ตรวจสอบว่าเป็นเวลาของการแจ้งเตือนจริงหรือไม่
-          // ถ้าเวลาที่ตั้งค่าห่างจากเวลาปัจจุบันเกิน 30 วินาที และเวลาที่ตั้งจริงใกล้เคียงกับเวลาปัจจุบัน
-          const isSetupTimeDistant = now - setupInfo.setupTime > 30000; // เวลาตั้งค่าห่างเกิน 30 วินาที
-          const isScheduledTimeClose = Math.abs(now - setupInfo.scheduledTime) < 60000; // เวลาที่ตั้งจริงใกล้เคียงปัจจุบัน
-          
-          if (!isSetupTimeDistant || !isScheduledTimeClose) {
-            console.log("ข้ามการนำทางเพราะอาจเป็นการแจ้งเตือนที่เพิ่งตั้งค่า หรือเวลาไม่ตรงกับที่ตั้งไว้");
-            console.log(`isSetupTimeDistant: ${isSetupTimeDistant}, isScheduledTimeClose: ${isScheduledTimeClose}`);
-            return;
-          }
+
+        const now = new Date().getTime();
+        const setupTimeFromData = data.setup_time;
+        const scheduledTimeFromData = data.scheduled_time;
+
+        console.log(`[Foreground Listener] Check: now=${now}, setupTime=${setupTimeFromData}, scheduledTime=${scheduledTimeFromData}`);
+
+        // Check 1: Is the current time near the scheduled time? (Primary check)
+        const timeDifferenceFromScheduled = Math.abs(now - scheduledTimeFromData);
+        // Using a 60-second window for foreground check to be safe
+        const isTimeNearScheduled = timeDifferenceFromScheduled < 60000; 
+        console.log(`[Foreground Listener] Check: timeDifferenceFromScheduled=${timeDifferenceFromScheduled}ms, isTimeNearScheduled=${isTimeNearScheduled}`);
+
+        if (!isTimeNearScheduled) {
+          console.log("[Foreground Listener] Skipping: Current time is not near scheduled time.");
+          return;
         }
+
+        // Check 2: If time is near, was the setup ALSO extremely recent? (Secondary check for echoes)
+        const setupAge = now - setupTimeFromData;
+        const isSetupExtremelyRecent = setupAge < 5000; // Use a shorter window (5 seconds) to detect echoes
+        console.log(`[Foreground Listener] Check: setupAge=${setupAge}ms, isSetupExtremelyRecent=${isSetupExtremelyRecent}`);
+
+        if (isSetupExtremelyRecent) {
+           console.log("[Foreground Listener] Skipping: Time is near scheduled, but setup was extremely recent (likely an echo).");
+           return;
+        }
+        // --- End Revised Listener Logic ---
         
-        console.log("*** เป็นการแจ้งเตือนจริง! กำลังแสดงหน้าจอปลุก ***");
+        console.log("*** [Foreground Listener] Conditions met! Proceeding with navigation. ***");
 
         // สร้างข้อมูลนาฬิกาปลุกที่ถูกต้อง
         const alarmData = {
@@ -346,7 +372,7 @@ export const setupNotificationListeners = (navigation) => {
 
         // ถ้าแอปกำลังทำงานอยู่แล้ว ให้นำทางไปยังหน้าปลุกทันที
         if (navigation) {
-          console.log("นำทางไปยังหน้าปลุก:", alarmData);
+          console.log("[Foreground Listener] Navigating to AlarmRinging:", alarmData);
 
           // ใช้ reset แทน navigate
           navigation.reset({
@@ -357,7 +383,7 @@ export const setupNotificationListeners = (navigation) => {
           });
         }
       } catch (error) {
-        console.error("เกิดข้อผิดพลาดในการประมวลผลการแจ้งเตือน:", error);
+        console.error("[Foreground Listener] Error processing notification:", error);
       }
     }
   );
@@ -366,35 +392,49 @@ export const setupNotificationListeners = (navigation) => {
   const responseSubscription =
     Notifications.addNotificationResponseReceivedListener(async (response) => {
       const data = response.notification.request.content.data;
-      console.log("ผู้ใช้กดที่การแจ้งเตือน:", data);
+      console.log("[Response Listener] User interacted with notification. Data:", data);
 
       try {
-        // ตรวจสอบว่านี่เป็นการแจ้งเตือนจากนาฬิกาปลุกหรือไม่
-        if (!data.alarm_id || data.alarm_type !== "scheduled") {
-          console.log("ไม่ใช่การแจ้งเตือนจากนาฬิกาปลุก ข้ามการนำทาง");
+        // --- Revised Listener Logic ---
+        if (!data || !data.alarm_id || data.alarm_type !== "scheduled" || !data.setup_time || !data.scheduled_time) {
+          console.log("[Response Listener] Invalid or incomplete notification data. Skipping.", data);
           return;
         }
+
+        const now = new Date().getTime();
+        const setupTimeFromData = data.setup_time;
+        const scheduledTimeFromData = data.scheduled_time;
+
+        console.log(`[Response Listener] Check: now=${now}, setupTime=${setupTimeFromData}, scheduledTime=${scheduledTimeFromData}`);
         
-        // ดึงข้อมูลการตั้งค่าจาก AsyncStorage
-        const setupInfoString = await AsyncStorage.getItem(`alarm_setup_${data.alarm_id}`);
-        if (!setupInfoString) {
-          console.log("ไม่พบข้อมูลการตั้งค่า นำทางไปหน้าปลุก");
-        } else {
-          const setupInfo = JSON.parse(setupInfoString);
-          const now = new Date().getTime();
-          
-          // ตรวจสอบว่าเป็นเวลาของการแจ้งเตือนจริงหรือไม่
-          const isSetupTimeDistant = now - setupInfo.setupTime > 30000; // เวลาตั้งค่าห่างเกิน 30 วินาที
-          const isScheduledTimeClose = Math.abs(now - setupInfo.scheduledTime) < 60000; // เวลาที่ตั้งจริงใกล้เคียงปัจจุบัน
-          
-          if (!isSetupTimeDistant || !isScheduledTimeClose) {
-            console.log("ข้ามการนำทางเพราะอาจเป็นการแจ้งเตือนที่เพิ่งตั้งค่า หรือเวลาไม่ตรงกับที่ตั้งไว้");
-            console.log(`isSetupTimeDistant: ${isSetupTimeDistant}, isScheduledTimeClose: ${isScheduledTimeClose}`);
-            return;
+        // Check 1: Is the interaction time near or slightly past the scheduled time?
+        const timeDifferenceFromScheduled = now - scheduledTimeFromData;
+        // Allow from 30s before up to 90s after for user interaction delay
+        const isTimeNearOrPastScheduled = timeDifferenceFromScheduled > -30000 && timeDifferenceFromScheduled < 90000; 
+        console.log(`[Response Listener] Check: timeDifferenceFromScheduled=${timeDifferenceFromScheduled}ms, isTimeNearOrPastScheduled=${isTimeNearOrPastScheduled}`);
+        
+        if (!isTimeNearOrPastScheduled) {
+          console.log("[Response Listener] Skipping: Interaction time is not close enough to scheduled time.");
+          return;
+        }
+
+        // Check 2: If time is near, was the setup ALSO extremely recent?
+        const setupAge = now - setupTimeFromData;
+        const isSetupExtremelyRecent = setupAge < 5000; // 5 seconds
+        console.log(`[Response Listener] Check: setupAge=${setupAge}ms, isSetupExtremelyRecent=${isSetupExtremelyRecent}`);
+
+        if (isSetupExtremelyRecent) {
+          // Even if setup was recent, if the user tapped significantly *after* the scheduled time, allow it.
+          if (timeDifferenceFromScheduled > 10000) { // Tapped > 10 seconds after scheduled time
+             console.log("[Response Listener] Warning: Setup was recent, but user tapped well after scheduled time. Proceeding.");
+          } else {
+             console.log("[Response Listener] Skipping: Time is near scheduled, but setup was extremely recent and tap was close to it.");
+             return;
           }
         }
+        // --- End Revised Listener Logic ---
         
-        console.log("*** ผู้ใช้กดที่การแจ้งเตือนจริง! กำลังแสดงหน้าจอปลุก ***");
+        console.log("*** [Response Listener] Conditions met! Proceeding with navigation. ***");
 
         // สร้างข้อมูลนาฬิกาปลุกที่ถูกต้อง
         const alarmData = {
@@ -410,7 +450,7 @@ export const setupNotificationListeners = (navigation) => {
 
         // นำทางไปยังหน้าปลุก
         if (navigation) {
-          console.log("ผู้ใช้กดที่การแจ้งเตือน - นำทางไปยังหน้าปลุก:", alarmData);
+          console.log("[Response Listener] Navigating to AlarmRinging:", alarmData);
 
           // ใช้ reset แทน navigate
           navigation.reset({
@@ -421,7 +461,7 @@ export const setupNotificationListeners = (navigation) => {
           });
         }
       } catch (error) {
-        console.error("เกิดข้อผิดพลาดในการประมวลผลการตอบสนองการแจ้งเตือน:", error);
+        console.error("[Response Listener] Error processing notification response:", error);
       }
     });
 

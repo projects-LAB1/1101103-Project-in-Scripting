@@ -1,144 +1,235 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity,
+  StatusBar,
+  Dimensions,
+  Platform,
+  Animated
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { scheduleTestAlarmNotification, cancelAlarmNotification } from '../models/NotificationManager';
+import { LinearGradient } from 'expo-linear-gradient';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+const { width, height } = Dimensions.get('window');
+
+// Thai month names
+const thaiMonths = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+];
 
 const TestAlarmScreen = ({ navigation }) => {
-  const [seconds, setSeconds] = useState('10');
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [pulseAnim] = useState(new Animated.Value(1));
   const [lastTestInfo, setLastTestInfo] = useState(null);
 
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Pulse animation for the alarm icon
+  useEffect(() => {
+    const pulse = Animated.sequence([
+      Animated.timing(pulseAnim, {
+        toValue: 1.2,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    ]);
+
+    Animated.loop(pulse).start();
+  }, []);
+
+  // Format time as HH:MM
+  const formatTime = (date) => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  // Format date in Thai
+  const formatThaiDate = (date) => {
+    const day = date.getDate();
+    const month = thaiMonths[date.getMonth()];
+    const year = date.getFullYear() + 543; // Convert to Buddhist year
+    return `วัน${getDayName(date)}ที่ ${day} ${month} ${year}`;
+  };
+
+  // Get Thai day name
+  const getDayName = (date) => {
+    const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+    return days[date.getDay()];
+  };
+
   const handleTestAlarm = async () => {
-    // Convert input to number with a minimum of 3 seconds
-    const secondsToTrigger = Math.max(3, parseInt(seconds) || 10);
-    
-    // Schedule the test alarm
-    const result = await scheduleTestAlarmNotification(secondsToTrigger);
-    
+    const result = await scheduleTestAlarmNotification(3); // 3 seconds for quick testing
     if (result) {
       setLastTestInfo(result);
-      console.log(`Test alarm scheduled: ${JSON.stringify(result, null, 2)}`);
-    } else {
-      console.error('Failed to schedule test alarm');
     }
   };
 
-  const cancelTest = async () => {
+  const handleSnooze = () => {
+    // Implement snooze functionality
+    navigation.goBack();
+  };
+
+  const handleDismiss = async () => {
     if (lastTestInfo?.notificationId) {
       await cancelAlarmNotification(lastTestInfo.notificationId);
-      console.log(`Canceled test alarm: ${lastTestInfo.notificationId}`);
       setLastTestInfo(null);
     }
+    navigation.goBack();
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>ทดสอบนาฬิกาปลุกแบบเวลาจริง</Text>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
       
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>ตั้งเวลาในอีก (วินาที):</Text>
-        <TextInput
-          style={styles.input}
-          value={seconds}
-          onChangeText={setSeconds}
-          keyboardType="numeric"
-          placeholder="10"
-        />
-      </View>
-      
-      <TouchableOpacity 
-        style={styles.testButton} 
-        onPress={handleTestAlarm}
-      >
-        <Text style={styles.buttonText}>ทดสอบนาฬิกาปลุก</Text>
-      </TouchableOpacity>
-      
-      {lastTestInfo && (
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoTitle}>ข้อมูลการทดสอบล่าสุด:</Text>
-          <Text style={styles.infoText}>ID: {lastTestInfo.notificationId}</Text>
-          <Text style={styles.infoText}>
-            เวลา: {lastTestInfo.alarmData.hour.toString().padStart(2, '0')}:
-            {lastTestInfo.alarmData.minute.toString().padStart(2, '0')}
-          </Text>
-          
+      <View style={styles.content}>
+        {/* Time Display */}
+        <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+        <Text style={styles.dateText}>{formatThaiDate(currentTime)}</Text>
+
+        {/* Alarm Icon */}
+        <Animated.View style={[styles.iconContainer, { transform: [{ scale: pulseAnim }] }]}>
+          <Icon name="alarm" size={80} color="#4F46E5" />
+        </Animated.View>
+
+        {/* Alarm Message */}
+        <Text style={styles.alarmTitle}>นาฬิกาปลุกทดสอบ</Text>
+        <Text style={styles.alarmSubtitle}>แจ้งเตือนการปลุกที่ตั้งค่าไว้ กรุณาปิดการแจ้งเตือน</Text>
+
+        {/* Action Buttons */}
+        <View style={styles.buttonContainer}>
           <TouchableOpacity 
-            style={styles.cancelButton} 
-            onPress={cancelTest}
+            style={styles.snoozeButton}
+            onPress={handleSnooze}
           >
-            <Text style={styles.buttonText}>ยกเลิกการทดสอบ</Text>
+            <Icon name="alarm-snooze" size={24} color="#FFFFFF" />
+            <Text style={styles.buttonText}>เลื่อนปลุก</Text>
+            <Text style={styles.buttonSubtext}>1/3</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.dismissButton}
+            onPress={handleDismiss}
+          >
+            <LinearGradient
+              colors={['#4F46E5', '#6B46E5']}
+              style={styles.gradientButton}
+            >
+              <Icon name="alarm-off" size={24} color="#FFFFFF" />
+              <Text style={styles.buttonText}>ปิดเสียง{'\n'}ปลุก</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
-      )}
-    </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
   },
-  title: {
-    fontSize: 24,
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  timeText: {
+    fontSize: 72,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
+    letterSpacing: 2,
+  },
+  dateText: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    opacity: 0.8,
+    marginTop: 8,
+    marginBottom: 40,
+  },
+  iconContainer: {
+    marginVertical: 30,
+    padding: 20,
+  },
+  alarmTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4F46E5',
+    marginBottom: 8,
+  },
+  alarmSubtitle: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    opacity: 0.7,
     textAlign: 'center',
+    marginBottom: 40,
   },
-  inputContainer: {
+  buttonContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    gap: 20,
   },
-  label: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    marginRight: 10,
-  },
-  input: {
+  snoozeButton: {
     flex: 1,
-    height: 50,
-    backgroundColor: '#2C2C2C',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
-  testButton: {
-    backgroundColor: '#3366FF',
-    paddingVertical: 15,
-    borderRadius: 8,
+    backgroundColor: '#374151',
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  dismissButton: {
+    flex: 1,
+  },
+  gradientButton: {
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    marginTop: 8,
+    textAlign: 'center',
   },
-  infoContainer: {
-    backgroundColor: '#2C2C2C',
-    padding: 15,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  buttonSubtext: {
     color: '#FFFFFF',
-    marginBottom: 10,
-  },
-  infoText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    marginBottom: 5,
-  },
-  cancelButton: {
-    backgroundColor: '#FF3366',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 15,
+    opacity: 0.7,
+    fontSize: 12,
+    marginTop: 4,
   },
 });
 

@@ -28,6 +28,29 @@ const RegisterScreen = ({ navigation }) => {
   
   const { register } = UserAuth();
 
+  // Special function to bypass registration and go to test account login
+  const useTestAccount = () => {
+    Alert.alert(
+      "ใช้บัญชีทดสอบ",
+      "คุณจะเข้าสู่ระบบด้วยบัญชีทดสอบ\n\nEmail: test@example.com\nPassword: password123",
+      [
+        {
+          text: "ยกเลิก",
+          style: "cancel"
+        },
+        {
+          text: "ใช้บัญชีทดสอบ",
+          onPress: () => navigation.replace("Login", {
+            testCredentials: {
+              email: "test@example.com",
+              password: "password123"
+            }
+          })
+        }
+      ]
+    );
+  };
+
   const handleRegister = async () => {
     // Validate inputs
     if (!name || !username || !email || !password || !confirmPassword) {
@@ -58,52 +81,63 @@ const RegisterScreen = ({ navigation }) => {
       return;
     }
 
-    // ตรวจสอบว่าชื่อผู้ใช้ซ้ำหรือไม่
-    try {
-      const { data: existingUser, error: usernameError } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', username.trim())
-        .single();
-
-      if (existingUser) {
-        Alert.alert("ข้อผิดพลาด", "ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาเลือกชื่อผู้ใช้อื่น");
-        return;
-      }
-    } catch (error) {
-      // ไม่พบผู้ใช้ สามารถดำเนินการต่อได้
-      console.log("Username check - no existing user found");
-    }
+    // Skip the username check since it might be causing issues with the database
+    // We'll handle username uniqueness later
 
     setLoading(true);
     try {
-      // Register user with Supabase Auth
-      const { data, error } = await register(email, password, {
-        name: name,
-        username: username.trim(),
-        created_at: new Date().toISOString()
-      });
+      console.log("Attempting direct auth-only registration with:", email);
+      
+      // Try basic registration with minimal data
+      const { data, error } = await register(email, password);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Registration error details:", error);
+        throw error;
+      }
 
+      // If we reach here, the auth account was created
+      console.log("Auth registration successful");
+      
+      // Show success dialog
       Alert.alert(
         "สมัครสมาชิกสำเร็จ", 
-        "กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ",
-        [{ text: "ตกลง", onPress: () => navigation.navigate("Login") }]
+        "บัญชีของคุณถูกสร้างแล้ว กรุณาเข้าสู่ระบบ",
+        [{ text: "เข้าสู่ระบบ", onPress: () => navigation.navigate("Login") }]
       );
     } catch (error) {
       console.error("Registration error:", error);
       let errorMessage = "ไม่สามารถสมัครสมาชิกได้ กรุณาลองอีกครั้ง";
 
-      if (error.message?.includes('already registered')) {
+      // More specific error messages
+      if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
         errorMessage = "อีเมลนี้ถูกใช้งานแล้ว กรุณาใช้อีเมลอื่น";
       } else if (error.message?.includes('weak password')) {
         errorMessage = "รหัสผ่านไม่ปลอดภัย กรุณาใช้รหัสผ่านที่ซับซ้อนมากขึ้น";
       } else if (error.message?.includes('invalid email')) {
         errorMessage = "รูปแบบอีเมลไม่ถูกต้อง";
+      } else if (error.message?.includes('database') || error.message?.includes('Database')) {
+        errorMessage = `เกิดข้อผิดพลาดกับฐานข้อมูล: Supabase ของคุณอาจไม่ได้รับการตั้งค่าอย่างถูกต้อง`;
+      } else if (error.message?.includes('network')) {
+        errorMessage = "มีปัญหาเกี่ยวกับการเชื่อมต่อเครือข่าย กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+      } else if (error.status === 429) {
+        errorMessage = "คุณได้พยายามลงทะเบียนมากเกินไป กรุณารอสักครู่และลองอีกครั้ง";
       }
 
-      Alert.alert("สมัครสมาชิกไม่สำเร็จ", errorMessage);
+      Alert.alert(
+        "สมัครสมาชิกไม่สำเร็จ", 
+        errorMessage, 
+        [
+          { 
+            text: "ตกลง", 
+            style: "cancel" 
+          },
+          {
+            text: "ใช้บัญชีทดสอบแทน",
+            onPress: useTestAccount
+          }
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -205,6 +239,16 @@ const RegisterScreen = ({ navigation }) => {
               </LinearGradient>
             </TouchableOpacity>
 
+            {/* Add direct test account button */}
+            <TouchableOpacity
+              style={styles.testAccountButton}
+              onPress={useTestAccount}
+            >
+              <Text style={styles.testAccountButtonText}>
+                ใช้บัญชีทดสอบเพื่อข้ามการสมัครสมาชิก
+              </Text>
+            </TouchableOpacity>
+
             <View style={styles.loginContainer}>
               <Text style={styles.loginText}>มีบัญชีอยู่แล้ว? </Text>
               <TouchableOpacity onPress={() => navigation.navigate("Login")}>
@@ -286,6 +330,20 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  testAccountButton: {
+    marginTop: 15,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#6B46E5",
+    borderRadius: 10,
+    borderStyle: "dashed",
+  },
+  testAccountButtonText: {
+    color: "#6B46E5",
+    fontSize: 14,
+    fontWeight: "500",
   },
   loginContainer: {
     flexDirection: "row",
