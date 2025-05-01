@@ -1,5 +1,5 @@
 // 1. หน้าล็อกอิน (LoginScreen.js)
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,49 +20,101 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserAuth } from '../models/UserAuth';
 
 const LoginScreen = ({ navigation }) => {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = UserAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const auth = UserAuth();
+
+  useEffect(() => {
+    // ตรวจสอบว่า auth พร้อมใช้งานหรือไม่
+    if (auth) {
+      setAuthReady(true);
+    } else {
+      console.error("Auth context is not available");
+    }
+  }, [auth]);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please enter your email and password");
+    if (!identifier || !password) {
+      Alert.alert("ข้อผิดพลาด", "กรุณากรอกชื่อผู้ใช้หรืออีเมล และรหัสผ่าน");
+      return;
+    }
+
+    if (!auth || typeof auth.login !== 'function') {
+      console.error("Auth login function is not available");
+      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเชื่อมต่อกับระบบได้ กรุณาลองใหม่อีกครั้ง");
       return;
     }
 
     setLoading(true);
     try {
-      const { session } = await login(email.trim(), password);
+      const { session } = await auth.login(identifier.trim(), password);
       // Store session token
       if (session?.access_token) {
         await AsyncStorage.setItem('@session_token', session.access_token);
       }
     } catch (error) {
       console.error('Login error:', error);
-      let errorMessage = "An error occurred during login.";
+      let errorMessage = "เกิดข้อผิดพลาดระหว่างการเข้าสู่ระบบ";
       
       switch (error.message) {
         case 'Invalid login credentials':
-          errorMessage = "The email or password is incorrect. Please try again.";
+          errorMessage = "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง กรุณาลองอีกครั้ง";
           break;
         case 'Email not confirmed':
-          errorMessage = "Please verify your email address before logging in.";
+          errorMessage = "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ";
           break;
         case 'User not found':
-          errorMessage = "No account exists with this email. Please register first.";
+          errorMessage = "ไม่พบบัญชีที่ใช้ชื่อผู้ใช้หรืออีเมลนี้ กรุณาตรวจสอบหรือสมัครสมาชิกก่อน";
           break;
         default:
-          if (error.message.includes('network')) {
-            errorMessage = "Network error. Please check your internet connection.";
+          if (error.message && error.message.includes('network')) {
+            errorMessage = "เกิดข้อผิดพลาดเครือข่าย กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
           }
       }
       
-      Alert.alert("Login Failed", errorMessage);
+      Alert.alert("เข้าสู่ระบบไม่สำเร็จ", errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleGoogleSignIn = async () => {
+    if (!auth || typeof auth.signInWithGoogle !== 'function') {
+      console.error("Google sign-in function is not available");
+      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเชื่อมต่อกับระบบล็อกอิน Google ได้");
+      return;
+    }
+
+    setGoogleLoading(true);
+    try {
+      const data = await auth.signInWithGoogle();
+      if (data?.session?.access_token) {
+        await AsyncStorage.setItem('@session_token', data.session.access_token);
+      }
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      Alert.alert(
+        "เข้าสู่ระบบด้วย Google ไม่สำเร็จ",
+        "เกิดข้อผิดพลาดขณะเข้าสู่ระบบด้วย Google กรุณาลองอีกครั้ง"
+      );
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  if (!authReady) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6B46E5" />
+          <Text style={styles.loadingText}>กำลังโหลด...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -76,7 +129,7 @@ const LoginScreen = ({ navigation }) => {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>Login</Text>
+            <Text style={styles.title}>เข้าสู่ระบบ</Text>
           </View>
 
           <View style={styles.formContainer}>
@@ -84,11 +137,12 @@ const LoginScreen = ({ navigation }) => {
               <FontAwesome name="user" size={20} color="#6B7280" style={styles.icon} />
               <TextInput
                 style={styles.input}
-                placeholder="User Name or Email"
-                value={email}
-                onChangeText={setEmail}
+                placeholder="ชื่อผู้ใช้หรืออีเมล"
+                placeholderTextColor="#6B7280"
+                value={identifier}
+                onChangeText={setIdentifier}
                 autoCapitalize="none"
-                keyboardType="email-address"
+                autoCorrect={false}
               />
             </View>
 
@@ -96,7 +150,8 @@ const LoginScreen = ({ navigation }) => {
               <MaterialIcons name="lock" size={20} color="#6B7280" style={styles.icon} />
               <TextInput
                 style={styles.input}
-                placeholder="Password"
+                placeholder="รหัสผ่าน"
+                placeholderTextColor="#6B7280"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -113,7 +168,7 @@ const LoginScreen = ({ navigation }) => {
                 style={styles.gradientButton}
               >
                 <Text style={styles.loginButtonText}>
-                  {loading ? "Logging in..." : "Login"}
+                  {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -122,12 +177,12 @@ const LoginScreen = ({ navigation }) => {
               style={styles.forgotButton}
               onPress={() => navigation.navigate("ForgotPassword")}
             >
-              <Text style={styles.forgotButtonText}>Forgot your password?</Text>
+              <Text style={styles.forgotButtonText}>ลืมรหัสผ่าน?</Text>
             </TouchableOpacity>
 
             <View style={styles.dividerContainer}>
               <View style={styles.divider} />
-              <Text style={styles.dividerText}>or connect with</Text>
+              <Text style={styles.dividerText}>หรือเข้าสู่ระบบด้วย</Text>
               <View style={styles.divider} />
             </View>
 
@@ -137,16 +192,26 @@ const LoginScreen = ({ navigation }) => {
                 <Text style={styles.socialButtonText}>Facebook</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.socialButton}>
-                <FontAwesome name="google" size={20} color="#DB4437" />
-                <Text style={styles.socialButtonText}>Google</Text>
+              <TouchableOpacity 
+                style={[styles.socialButton, googleLoading && styles.disabledButton]}
+                onPress={handleGoogleSignIn}
+                disabled={googleLoading}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator size="small" color="#DB4437" />
+                ) : (
+                  <>
+                    <FontAwesome name="google" size={20} color="#DB4437" />
+                    <Text style={styles.socialButtonText}>Google</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
 
             <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>Don’t have an account? </Text>
+              <Text style={styles.signupText}>ยังไม่มีบัญชี? </Text>
               <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-                <Text style={styles.signupLink}>Sign up</Text>
+                <Text style={styles.signupLink}>สมัครสมาชิก</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -168,6 +233,16 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    marginTop: 20,
+    fontSize: 16,
+  },
   logoContainer: {
     alignItems: "center",
     marginTop: 50,
@@ -176,9 +251,10 @@ const styles = StyleSheet.create({
   logo: {
     width: 100,
     height: 100,
+    tintColor: "#6B46E5",
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
     color: "#FFFFFF",
     marginTop: 10,
@@ -193,6 +269,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 10,
     marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#3A3A4A",
   },
   icon: {
     marginRight: 10,
@@ -200,7 +278,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: "#FFFFFF",
-    paddingVertical: 10,
+    paddingVertical: 14,
+    fontSize: 16,
   },
   loginButton: {
     marginTop: 10,
@@ -217,10 +296,10 @@ const styles = StyleSheet.create({
   },
   forgotButton: {
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 15,
   },
   forgotButtonText: {
-    color: "#6B7280",
+    color: "#A3A3C2",
     fontSize: 14,
   },
   dividerContainer: {
@@ -234,7 +313,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#3A3A4A",
   },
   dividerText: {
-    color: "#6B7280",
+    color: "#A3A3C2",
     fontSize: 14,
     marginHorizontal: 10,
   },
@@ -245,27 +324,36 @@ const styles = StyleSheet.create({
   socialButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#2C2C3A",
     borderRadius: 10,
     padding: 10,
-    flex: 1,
-    marginHorizontal: 5,
+    flex: 0.48,
+    height: 50,
+    borderWidth: 1,
+    borderColor: "#3A3A4A",
   },
   socialButtonText: {
     color: "#FFFFFF",
     marginLeft: 10,
+    fontSize: 14,
   },
   signupContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: 25,
   },
   signupText: {
-    color: "#6B7280",
+    color: "#A3A3C2",
+    fontSize: 14,
   },
   signupLink: {
-    color: "#4F46E5",
+    color: "#6B46E5",
+    fontSize: 14,
     fontWeight: "bold",
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
 });
 

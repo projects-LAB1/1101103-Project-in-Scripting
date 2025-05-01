@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "myproj",
     "extra": {
       "eas": {
         "projectId": "c3b68283-9f4b-4fa7-9389-d76b1e5dc6e2"
@@ -18,18 +19,42 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.papon254.myproj",
+      "associatedDomains": ["applinks:myproj.app"]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.papon254.myproj"
+      "package": "com.papon254.myproj",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "*.supabase.co",
+              "pathPrefix": "/auth/v1/callback"
+            },
+            {
+              "scheme": "https",
+              "host": "myproj.app"
+            },
+            {
+              "scheme": "myproj"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "owner": "papon254"
+    "owner": "papon254",
+    "plugins": []
   }
 }

@@ -150,10 +150,10 @@ export const scheduleAlarmNotification = async (alarm) => {
     const minutesDiff = timeDifference / 60000; // แปลงเป็นนาที
     console.log(`ความแตกต่างของเวลา: ${timeDifference} มิลลิวินาที (${minutesDiff.toFixed(2)} นาที)`);
 
-    // ถ้าเวลาปลุกผ่านไปแล้ว หรือใกล้เกินไป (น้อยกว่า 5 วินาที) ให้ตั้งเป็นวันถัดไป
-    if (timeDifference < 5000) { // น้อยกว่า 5 วินาที
+    // ถ้าเวลาปลุกผ่านไปแล้ว ให้ตั้งเป็นวันถัดไป
+    if (timeDifference <= 0) {
       alarmTime.setDate(alarmTime.getDate() + 1);
-      console.log(`เวลาปลุกผ่านไปแล้วหรือใกล้เกินไป ตั้งเป็นวันถัดไป: ${alarmTime.toString()}`);
+      console.log(`เวลาปลุกผ่านไปแล้ว ตั้งเป็นวันถัดไป: ${alarmTime.toString()}`);
     }
 
     // ตรวจสอบว่าเป็นการปลุกซ้ำหรือไม่
@@ -165,35 +165,39 @@ export const scheduleAlarmNotification = async (alarm) => {
       console.log(`วันนี้คือวันที่: ${today} (ปรับเป็น ${adjustedToday})`);
       console.log(`วันที่ต้องการปลุกซ้ำ: ${alarm.repeat_days.join(', ')}`);
 
-      // ถ้าวันนี้ไม่ได้อยู่ในวันที่ต้องการปลุกซ้ำ ให้หาวันถัดไปที่ต้องปลุก
-      if (!alarm.repeat_days.includes(adjustedToday)) {
+      // ตรวจสอบว่าวันนี้อยู่ในวันที่ต้องการปลุกซ้ำหรือไม่
+      const isTodayRepeatDay = alarm.repeat_days.includes(adjustedToday);
+      console.log(`วันนี้อยู่ในวันที่ต้องการปลุกซ้ำหรือไม่: ${isTodayRepeatDay}`);
+
+      // ตรวจสอบว่าเวลาปลุกผ่านไปแล้วหรือไม่
+      const isPastAlarmTime = alarmTime <= now;
+      console.log(`เวลาปลุกผ่านไปแล้วหรือไม่: ${isPastAlarmTime}`);
+
+      // กรณีที่วันนี้ไม่ได้อยู่ในวันที่ต้องการปลุกซ้ำ หรือ วันนี้อยู่ในวันที่ต้องการปลุกซ้ำแต่เวลาผ่านไปแล้ว
+      if (!isTodayRepeatDay || (isTodayRepeatDay && isPastAlarmTime)) {
+        // หาวันถัดไปที่ต้องปลุก
         let daysToAdd = 1;
         let nextDay = (adjustedToday + 1) % 7;
 
+        // วนหาวันถัดไปที่ต้องปลุก
         while (!alarm.repeat_days.includes(nextDay)) {
           daysToAdd++;
           nextDay = (nextDay + 1) % 7;
         }
 
+        // ปรับเวลาให้เป็นวันถัดไปที่ต้องปลุก
         alarmTime.setDate(now.getDate() + daysToAdd);
-        console.log(`วันนี้ไม่ได้อยู่ในวันที่ต้องการปลุกซ้ำ เลื่อนไป ${daysToAdd} วัน: ${alarmTime.toString()}`);
+        console.log(`ตั้งปลุกสำหรับวันถัดไป: ${nextDay} (อีก ${daysToAdd} วัน) - ${alarmTime.toString()}`);
       } else {
-        // ถ้าวันนี้อยู่ในวันที่ต้องการปลุกซ้ำ แต่เวลาผ่านไปแล้ว
-        if (alarmTime <= now) {
-          // หาวันถัดไปที่ต้องปลุก
-          let daysToAdd = 1;
-          let nextDay = (adjustedToday + 1) % 7;
-
-          while (!alarm.repeat_days.includes(nextDay)) {
-            daysToAdd++;
-            nextDay = (nextDay + 1) % 7;
-          }
-
-          alarmTime.setDate(now.getDate() + daysToAdd);
-          console.log(`วันนี้อยู่ในวันที่ต้องการปลุกซ้ำ แต่เวลาผ่านไปแล้ว เลื่อนไป ${daysToAdd} วัน: ${alarmTime.toString()}`);
-        } else {
-          console.log(`วันนี้อยู่ในวันที่ต้องการปลุกซ้ำ และเวลายังไม่ผ่าน: ${alarmTime.toString()}`);
-        }
+        console.log(`ตั้งปลุกสำหรับวันนี้ เวลา: ${alarmTime.toString()}`);
+      }
+    } else {
+      // กรณีที่ไม่ได้ตั้งปลุกซ้ำ ให้ตรวจสอบว่าเวลาผ่านไปแล้วหรือไม่
+      if (alarmTime <= now) {
+        alarmTime.setDate(alarmTime.getDate() + 1);
+        console.log(`ไม่ได้ตั้งปลุกซ้ำ และเวลาผ่านไปแล้ว ตั้งเป็นวันถัดไป: ${alarmTime.toString()}`);
+      } else {
+        console.log(`ไม่ได้ตั้งปลุกซ้ำ และเวลายังไม่ผ่าน ตั้งสำหรับวันนี้: ${alarmTime.toString()}`);
       }
     }
 
@@ -213,6 +217,15 @@ export const scheduleAlarmNotification = async (alarm) => {
 
     console.log(`เวลาที่ตั้งห่างจากเวลาปัจจุบัน: ${minutesRemaining} นาที ${secondsRemaining} วินาที`);
 
+    // เก็บ timestamp ปัจจุบันเพื่อตรวจสอบว่าเป็นการตั้งค่าใหม่
+    const setupTimestamp = new Date().getTime();
+
+    // บันทึกข้อมูลการตั้งค่าลง AsyncStorage เพื่อใช้ในการตรวจสอบภายหลัง
+    await AsyncStorage.setItem(`alarm_setup_${alarm.id}`, JSON.stringify({
+      setupTime: setupTimestamp,
+      scheduledTime: alarmTime.getTime(),
+    }));
+
     // สร้างข้อมูลสำหรับการแจ้งเตือน
     const notificationContent = {
       title: alarm.label || "นาฬิกาปลุก",
@@ -223,22 +236,27 @@ export const scheduleAlarmNotification = async (alarm) => {
       priority: Notifications.AndroidNotificationPriority.MAX,
       vibrate: [0, 250, 250, 250],
       data: {
-        alarm,
-        id: alarm.id,
+        alarm_id: alarm.id,
         hour: alarm.hour,
         minute: alarm.minute,
         label: alarm.label,
         repeat_days: alarm.repeat_days,
         task_type: alarm.task_type,
         task_difficulty: alarm.task_difficulty,
-        is_active: true
+        is_active: true,
+        scheduled_time: alarmTime.getTime(),  
+        setup_time: setupTimestamp,
+        alarm_type: "scheduled"  // เพิ่มเพื่อระบุชัดเจนว่าเป็นการแจ้งเตือนที่ตั้งเวลาไว้
       },
       autoDismiss: false,
     };
 
-    // ตั้งค่าการแจ้งเตือน
+    // ตั้งค่าการแจ้งเตือน - เพิ่ม categoryIdentifier เพื่อระบุว่าเป็นการแจ้งเตือนประเภทไหน
     const notificationId = await Notifications.scheduleNotificationAsync({
-      content: notificationContent,
+      content: {
+        ...notificationContent,
+        categoryIdentifier: 'alarm' // ระบุประเภทเป็น alarm
+      },
       trigger: {
         date: alarmTime,
         channelId: "alarms",
@@ -248,17 +266,17 @@ export const scheduleAlarmNotification = async (alarm) => {
     // แสดงข้อมูลการตั้งนาฬิกาปลุกในคอนโซล
     console.log(`ตั้งนาฬิกาปลุกสำเร็จ ID: ${notificationId}`);
     console.log(`เวลาที่ตั้ง: ${alarmTime.toString()}`);
-    console.log(`ข้อมูลนาฬิกาปลุก: ${JSON.stringify({
-      id: alarm.id,
-      hour: alarm.hour,
-      minute: alarm.minute,
-      label: alarm.label || "นาฬิกาปลุก",
-      repeat_days: alarm.repeat_days,
-      task_type: alarm.task_type,
-      is_active: true
-    })}`);
-
-    // ไม่ต้องแสดง Alert เพื่อไม่ให้รบกวนผู้ใช้
+    
+    // คำนวณเวลาที่เหลือจนถึงการแจ้งเตือนอีกครั้ง (ตรวจสอบความถูกต้อง)
+    const finalTimeCheck = new Date();
+    const finalTimeDiff = alarmTime.getTime() - finalTimeCheck.getTime();
+    const finalHoursDiff = Math.floor(finalTimeDiff / (1000 * 60 * 60));
+    const finalMinutesDiff = Math.floor((finalTimeDiff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    console.log(`เวลาที่เหลือจนถึงการแจ้งเตือน: ${finalHoursDiff} ชั่วโมง ${finalMinutesDiff} นาที`);
+    console.log(`เวลาแจ้งเตือนโดยประมาณ: ${new Date(finalTimeCheck.getTime() + finalTimeDiff).toLocaleString()}`);
+    
+    // บันทึก notification ID ไว้ในข้อมูลการแจ้งเตือน
     return notificationId;
   } catch (error) {
     console.error("Error scheduling notification:", error);
@@ -281,68 +299,129 @@ export const cancelAlarmNotification = async (notificationId) => {
 export const setupNotificationListeners = (navigation) => {
   // เมื่อได้รับการแจ้งเตือนและแอปกำลังทำงาน
   const foregroundSubscription = Notifications.addNotificationReceivedListener(
-    (notification) => {
+    async (notification) => {
       const data = notification.request.content.data;
       console.log("ได้รับการแจ้งเตือนในขณะที่แอปทำงาน:", data);
+      
+      try {
+        // ตรวจสอบว่านี่เป็นการแจ้งเตือนจากนาฬิกาปลุกหรือไม่
+        if (!data.alarm_id || data.alarm_type !== "scheduled") {
+          console.log("ไม่ใช่การแจ้งเตือนจากนาฬิกาปลุก ข้ามการนำทาง");
+          return;
+        }
+        
+        // ดึงข้อมูลการตั้งค่าจาก AsyncStorage
+        const setupInfoString = await AsyncStorage.getItem(`alarm_setup_${data.alarm_id}`);
+        if (!setupInfoString) {
+          console.log("ไม่พบข้อมูลการตั้งค่า นำทางไปหน้าปลุก");
+        } else {
+          const setupInfo = JSON.parse(setupInfoString);
+          const now = new Date().getTime();
+          
+          // ตรวจสอบว่าเป็นเวลาของการแจ้งเตือนจริงหรือไม่
+          // ถ้าเวลาที่ตั้งค่าห่างจากเวลาปัจจุบันเกิน 30 วินาที และเวลาที่ตั้งจริงใกล้เคียงกับเวลาปัจจุบัน
+          const isSetupTimeDistant = now - setupInfo.setupTime > 30000; // เวลาตั้งค่าห่างเกิน 30 วินาที
+          const isScheduledTimeClose = Math.abs(now - setupInfo.scheduledTime) < 60000; // เวลาที่ตั้งจริงใกล้เคียงปัจจุบัน
+          
+          if (!isSetupTimeDistant || !isScheduledTimeClose) {
+            console.log("ข้ามการนำทางเพราะอาจเป็นการแจ้งเตือนที่เพิ่งตั้งค่า หรือเวลาไม่ตรงกับที่ตั้งไว้");
+            console.log(`isSetupTimeDistant: ${isSetupTimeDistant}, isScheduledTimeClose: ${isScheduledTimeClose}`);
+            return;
+          }
+        }
+        
+        console.log("*** เป็นการแจ้งเตือนจริง! กำลังแสดงหน้าจอปลุก ***");
 
-      // สร้างข้อมูลนาฬิกาปลุกที่ถูกต้อง
-      const alarmData = {
-        id: data.id,
-        hour: data.hour,
-        minute: data.minute,
-        label: data.label || "นาฬิกาปลุก",
-        repeat_days: data.repeat_days || [],
-        task_type: data.task_type || "normal",
-        task_difficulty: data.task_difficulty || "medium",
-        is_active: true,
-        ...data.alarm // รวมข้อมูลเพิ่มเติมจาก alarm ถ้ามี
-      };
+        // สร้างข้อมูลนาฬิกาปลุกที่ถูกต้อง
+        const alarmData = {
+          id: data.alarm_id,
+          hour: data.hour,
+          minute: data.minute,
+          label: data.label || "นาฬิกาปลุก",
+          repeat_days: data.repeat_days || [],
+          task_type: data.task_type || "normal",
+          task_difficulty: data.task_difficulty || "medium",
+          is_active: true
+        };
 
-      // ถ้าแอปกำลังทำงานอยู่แล้ว ให้นำทางไปยังหน้าปลุกทันที
-      if (navigation) {
-        console.log("นำทางไปยังหน้าปลุก:", alarmData);
+        // ถ้าแอปกำลังทำงานอยู่แล้ว ให้นำทางไปยังหน้าปลุกทันที
+        if (navigation) {
+          console.log("นำทางไปยังหน้าปลุก:", alarmData);
 
-        // ใช้ reset แทน navigate เพื่อให้แน่ใจว่าหน้าจอจะแสดงเต็มหน้าจอและไม่มีหน้าจออื่นซ้อนทับ
-        navigation.reset({
-          index: 0,
-          routes: [
-            { name: 'AlarmRinging', params: { alarm: alarmData } },
-          ],
-        });
+          // ใช้ reset แทน navigate
+          navigation.reset({
+            index: 0,
+            routes: [
+              { name: 'AlarmRinging', params: { alarm: alarmData } },
+            ],
+          });
+        }
+      } catch (error) {
+        console.error("เกิดข้อผิดพลาดในการประมวลผลการแจ้งเตือน:", error);
       }
     }
   );
 
   // เมื่อผู้ใช้กดที่การแจ้งเตือน
   const responseSubscription =
-    Notifications.addNotificationResponseReceivedListener((response) => {
+    Notifications.addNotificationResponseReceivedListener(async (response) => {
       const data = response.notification.request.content.data;
       console.log("ผู้ใช้กดที่การแจ้งเตือน:", data);
 
-      // สร้างข้อมูลนาฬิกาปลุกที่ถูกต้อง
-      const alarmData = {
-        id: data.id,
-        hour: data.hour,
-        minute: data.minute,
-        label: data.label || "นาฬิกาปลุก",
-        repeat_days: data.repeat_days || [],
-        task_type: data.task_type || "normal",
-        task_difficulty: data.task_difficulty || "medium",
-        is_active: true,
-        ...data.alarm // รวมข้อมูลเพิ่มเติมจาก alarm ถ้ามี
-      };
+      try {
+        // ตรวจสอบว่านี่เป็นการแจ้งเตือนจากนาฬิกาปลุกหรือไม่
+        if (!data.alarm_id || data.alarm_type !== "scheduled") {
+          console.log("ไม่ใช่การแจ้งเตือนจากนาฬิกาปลุก ข้ามการนำทาง");
+          return;
+        }
+        
+        // ดึงข้อมูลการตั้งค่าจาก AsyncStorage
+        const setupInfoString = await AsyncStorage.getItem(`alarm_setup_${data.alarm_id}`);
+        if (!setupInfoString) {
+          console.log("ไม่พบข้อมูลการตั้งค่า นำทางไปหน้าปลุก");
+        } else {
+          const setupInfo = JSON.parse(setupInfoString);
+          const now = new Date().getTime();
+          
+          // ตรวจสอบว่าเป็นเวลาของการแจ้งเตือนจริงหรือไม่
+          const isSetupTimeDistant = now - setupInfo.setupTime > 30000; // เวลาตั้งค่าห่างเกิน 30 วินาที
+          const isScheduledTimeClose = Math.abs(now - setupInfo.scheduledTime) < 60000; // เวลาที่ตั้งจริงใกล้เคียงปัจจุบัน
+          
+          if (!isSetupTimeDistant || !isScheduledTimeClose) {
+            console.log("ข้ามการนำทางเพราะอาจเป็นการแจ้งเตือนที่เพิ่งตั้งค่า หรือเวลาไม่ตรงกับที่ตั้งไว้");
+            console.log(`isSetupTimeDistant: ${isSetupTimeDistant}, isScheduledTimeClose: ${isScheduledTimeClose}`);
+            return;
+          }
+        }
+        
+        console.log("*** ผู้ใช้กดที่การแจ้งเตือนจริง! กำลังแสดงหน้าจอปลุก ***");
 
-      // นำทางไปยังหน้าปลุก
-      if (navigation) {
-        console.log("ผู้ใช้กดที่การแจ้งเตือน - นำทางไปยังหน้าปลุก:", alarmData);
+        // สร้างข้อมูลนาฬิกาปลุกที่ถูกต้อง
+        const alarmData = {
+          id: data.alarm_id,
+          hour: data.hour,
+          minute: data.minute,
+          label: data.label || "นาฬิกาปลุก",
+          repeat_days: data.repeat_days || [],
+          task_type: data.task_type || "normal",
+          task_difficulty: data.task_difficulty || "medium",
+          is_active: true
+        };
 
-        // ใช้ reset แทน navigate เพื่อให้แน่ใจว่าหน้าจอจะแสดงเต็มหน้าจอและไม่มีหน้าจออื่นซ้อนทับ
-        navigation.reset({
-          index: 0,
-          routes: [
-            { name: 'AlarmRinging', params: { alarm: alarmData } },
-          ],
-        });
+        // นำทางไปยังหน้าปลุก
+        if (navigation) {
+          console.log("ผู้ใช้กดที่การแจ้งเตือน - นำทางไปยังหน้าปลุก:", alarmData);
+
+          // ใช้ reset แทน navigate
+          navigation.reset({
+            index: 0,
+            routes: [
+              { name: 'AlarmRinging', params: { alarm: alarmData } },
+            ],
+          });
+        }
+      } catch (error) {
+        console.error("เกิดข้อผิดพลาดในการประมวลผลการตอบสนองการแจ้งเตือน:", error);
       }
     });
 
@@ -368,4 +447,96 @@ export const checkNotificationPermissions = async () => {
   }
 
   return true;
+};
+
+// เพิ่มฟังก์ชันสำหรับทดสอบนาฬิกาปลุกแบบเวลาจริง
+export const scheduleTestAlarmNotification = async (secondsFromNow = 10) => {
+  try {
+    // ตรวจสอบสิทธิ์การแจ้งเตือนก่อน
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") {
+      console.log("ไม่ได้รับสิทธิ์การแจ้งเตือน กำลังขอสิทธิ์...");
+      const { status: newStatus } = await Notifications.requestPermissionsAsync();
+      if (newStatus !== "granted") {
+        console.error("ไม่ได้รับสิทธิ์การแจ้งเตือน ไม่สามารถตั้งนาฬิกาปลุกได้");
+        return null;
+      }
+    }
+
+    // คำนวณเวลาที่จะปลุก (ปัจจุบัน + secondsFromNow วินาที)
+    const now = new Date();
+    const testAlarmTime = new Date(now.getTime() + (secondsFromNow * 1000));
+    
+    const hours = testAlarmTime.getHours();
+    const minutes = testAlarmTime.getMinutes();
+    const seconds = testAlarmTime.getSeconds();
+    
+    console.log(`กำลังตั้งนาฬิกาปลุกทดสอบสำหรับเวลา: ${hours}:${minutes}:${seconds} (อีก ${secondsFromNow} วินาที)`);
+
+    // สร้าง ID สำหรับการทดสอบ
+    const testAlarmId = `test-alarm-${Date.now()}`;
+    
+    // บันทึกข้อมูลการตั้งค่าลง AsyncStorage โดยตั้งเวลาย้อนหลัง 1 นาที เพื่อให้แน่ใจว่าผ่านการตรวจสอบ
+    const setupTime = new Date().getTime() - 60000; // ย้อนเวลาไป 1 นาที
+    await AsyncStorage.setItem(`alarm_setup_${testAlarmId}`, JSON.stringify({
+      setupTime: setupTime, // ตั้งให้เป็นเวลาเมื่อ 1 นาทีที่แล้ว เพื่อให้ผ่านการตรวจสอบ
+      scheduledTime: testAlarmTime.getTime(),
+    }));
+
+    // สร้างข้อมูลสำหรับการแจ้งเตือน
+    const notificationContent = {
+      title: "นาฬิกาปลุกทดสอบ",
+      body: `เวลา ${hours}:${minutes}:${seconds}`,
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.MAX,
+      vibrate: [0, 250, 250, 250],
+      data: {
+        alarm_id: testAlarmId,
+        hour: hours,
+        minute: minutes,
+        label: "นาฬิกาปลุกทดสอบ",
+        repeat_days: [],
+        task_type: "normal",
+        task_difficulty: "medium",
+        is_active: true,
+        scheduled_time: testAlarmTime.getTime(),
+        setup_time: setupTime, // ตั้งให้เป็นเวลาเมื่อ 1 นาทีที่แล้ว
+        alarm_type: "scheduled",
+        is_test: true // เพิ่มเพื่อระบุว่าเป็นการทดสอบ
+      },
+      autoDismiss: false,
+    };
+
+    // ตั้งค่าการแจ้งเตือน
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        ...notificationContent,
+        categoryIdentifier: 'alarm'
+      },
+      trigger: {
+        date: testAlarmTime,
+        channelId: "alarms",
+      },
+    });
+
+    console.log(`ตั้งนาฬิกาปลุกทดสอบสำเร็จ ID: ${notificationId}`);
+    console.log(`การแจ้งเตือนจะทำงานในอีกประมาณ ${secondsFromNow} วินาที`);
+    
+    return {
+      notificationId,
+      alarmData: {
+        id: testAlarmId,
+        hour: hours,
+        minute: minutes,
+        label: "นาฬิกาปลุกทดสอบ",
+        task_type: "normal",
+        task_difficulty: "medium",
+        is_active: true,
+        is_test: true
+      }
+    };
+  } catch (error) {
+    console.error("Error scheduling test notification:", error);
+    return null;
+  }
 };

@@ -7,7 +7,7 @@ import { supabase } from "./supabase.config";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Provider as PaperProvider } from "react-native-paper";
-import { StatusBar, TouchableOpacity, Alert } from "react-native";
+import { StatusBar, TouchableOpacity, Alert, Linking } from "react-native";
 import { AuthProvider, UserAuth } from "./models/UserAuth";
 import 'react-native-url-polyfill/auto';
 import * as Notifications from "expo-notifications";
@@ -16,16 +16,40 @@ import { setupNotificationListeners, checkNotificationPermissions } from "./mode
 // Screens
 import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
+import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
+import ResetPasswordScreen from "./screens/ResetPasswordScreen";
 import AlarmListScreen from "./screens/AlarmListScreen";
 import AddAlarmScreen from "./screens/AddAlarmScreen";
 import AlarmRingingScreen from "./screens/AlarmRingingScreen";
 import MathTaskScreen from "./screens/tasks/MathTaskScreen";
 import PhotoTaskScreen from "./screens/tasks/PhotoTaskScreen";
 import SoundLibraryScreen from "./screens/SoundLibraryScreen";
+import TestAlarmScreen from "./screens/TestAlarmScreen";
+import HelpScreen from "./screens/HelpScreen";
 
 const AuthStack = createStackNavigator();
 const MainTab = createBottomTabNavigator();
 const AlarmStack = createStackNavigator();
+
+// สร้างการกำหนดค่า linking สำหรับการทำ deep linking
+const linking = {
+  prefixes: ['myproj://', 'https://myproj.app', 'https://iabspnskcaiobwtfxxtv.supabase.co'],
+  config: {
+    screens: {
+      Login: 'login',
+      Register: 'register',
+      ForgotPassword: 'forgot-password',
+      ResetPassword: 'reset-password',
+      // ระบุ path สำหรับการเรียกใช้งานจาก OAuth callback
+      Auth: {
+        path: 'auth/callback'
+      },
+      ResetPasswordAuth: {
+        path: 'auth/v1/callback'
+      }
+    },
+  },
+};
 
 const AppContent = () => {
   const { user } = UserAuth();
@@ -55,13 +79,35 @@ const AppContent = () => {
   }, []);
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       {user ? <MainNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );
 };
 
 export default function App() {
+  // ตั้งค่าตรวจสอบ deep link ตั้งแต่เริ่มต้นแอป
+  useEffect(() => {
+    // ตรวจสอบว่าแอปถูกเปิดจาก deep link หรือไม่
+    const getInitialURL = async () => {
+      const initialURL = await Linking.getInitialURL();
+      if (initialURL) {
+        console.log('App opened with URL:', initialURL);
+      }
+    };
+
+    getInitialURL();
+
+    // ลงทะเบียนสำหรับข้อมูล URL ที่เข้ามาเมื่อแอปกำลังทำงาน
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log('Incoming URL:', url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <PaperProvider>
@@ -85,6 +131,8 @@ const AuthNavigator = () => (
   >
     <AuthStack.Screen name="Login" component={LoginScreen} />
     <AuthStack.Screen name="Register" component={RegisterScreen} />
+    <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+    <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
   </AuthStack.Navigator>
 );
 
@@ -192,6 +240,23 @@ const AlarmStackNavigator = () => {
         name="SoundLibrary"
         component={SoundLibraryScreen}
         options={{ title: "เลือกเสียงปลุก" }}
+      />
+      <AlarmStack.Screen
+        name="TestAlarm"
+        component={TestAlarmScreen}
+        options={{ title: "ทดสอบนาฬิกาปลุก" }}
+      />
+      <AlarmStack.Screen
+        name="Help"
+        component={HelpScreen}
+        options={{ 
+          title: "วิธีใช้งาน",
+          headerStyle: {
+            backgroundColor: "#FFFFFF",
+          },
+          headerTintColor: "#000000",
+          cardStyle: { backgroundColor: "#FFFFFF" },
+        }}
       />
     </AlarmStack.Navigator>
   );

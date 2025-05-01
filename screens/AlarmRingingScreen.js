@@ -10,6 +10,9 @@ import {
   AppState,
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from '../supabase.config';
@@ -17,6 +20,8 @@ import { UserAuth } from '../models/UserAuth';
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useFocusEffect } from '@react-navigation/native';
+
+const { width, height } = Dimensions.get('window');
 
 const AlarmRingingScreen = ({ route, navigation }) => {
   const { alarm } = route.params;
@@ -27,6 +32,10 @@ const AlarmRingingScreen = ({ route, navigation }) => {
   const { user } = UserAuth();
   const [isActive, setIsActive] = useState(true);
   const alarmRef = useRef(null);
+  
+  // Animation values
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // ใช้ useFocusEffect เพื่อให้แน่ใจว่าหน้าจอจะยังคงแสดงอยู่
   useFocusEffect(
@@ -46,6 +55,32 @@ const AlarmRingingScreen = ({ route, navigation }) => {
       };
     }, [])
   );
+
+  // Start animations
+  useEffect(() => {
+    // Pulse animation for the alarm icon
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Fade in animation for the entire screen
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   // ป้องกันการกดปุ่มย้อนกลับ
   useEffect(() => {
@@ -248,7 +283,7 @@ const AlarmRingingScreen = ({ route, navigation }) => {
       return;
     }
 
-    // Stop sound and vibration temporarily
+    // Stop sound temporarily
     if (sound) {
       try {
         await sound.stopAsync();
@@ -256,29 +291,13 @@ const AlarmRingingScreen = ({ route, navigation }) => {
         console.error("Error stopping sound:", error);
       }
     }
+
+    // Stop vibration
     Vibration.cancel();
 
-    // Update snooze count in state and Supabase
+    // Update snooze count
     const newSnoozeCount = snoozeCount + 1;
     setSnoozeCount(newSnoozeCount);
-
-    try {
-      // Update alarm statistics in Supabase
-      if (alarm.id && user?.id) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            'statistics': {
-              alarmsSnooze: increment('statistics.alarmsSnooze', 1)
-            }
-          })
-          .eq('id', user.id);
-
-        if (error) throw error;
-      }
-    } catch (error) {
-      console.error("Error updating snooze statistics:", error);
-    }
 
     // Show confirmation to user
     Alert.alert(
@@ -429,149 +448,220 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     return `${hours}:${minutes}`;
   };
 
+  // Format date with custom Thai format
+  const formatThaiDate = (date) => {
+    try {
+      return date.toLocaleDateString("th-TH", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "";
+    }
+  };
+
   return (
     <SafeAreaView style={styles.fullScreenContainer}>
-      <View style={styles.overlay}>
+      <StatusBar backgroundColor="#000000" barStyle="light-content" />
+      <Animated.View 
+        style={[
+          styles.overlay, 
+          { opacity: fadeAnim }
+        ]}
+      >
         <View style={styles.content}>
+          {/* Current Time Display */}
           <View style={styles.timeContainer}>
             <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-            <Text style={styles.dateText}>
-              {currentTime.toLocaleDateString("th-TH", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </Text>
+            <Text style={styles.dateText}>{formatThaiDate(currentTime)}</Text>
           </View>
-
+          
+          {/* Alarm Icon and Info */}
           <View style={styles.alarmInfoContainer}>
-            <Icon
-              name="alarm"
-              size={70}
-              color="#4F46E5"
-              style={styles.alarmIcon}
-            />
+            <Animated.View
+              style={{
+                transform: [{ scale: pulseAnim }],
+              }}
+            >
+              <View style={styles.iconCircle}>
+                <Icon
+                  name="alarm"
+                  size={60}
+                  color="#FFFFFF"
+                />
+              </View>
+            </Animated.View>
             <Text style={styles.alarmLabel}>{alarm.label || "นาฬิกาปลุก"}</Text>
             <Text style={styles.alarmMessage}>นาฬิกาปลุกกำลังทำงาน กรุณาปิดการแจ้งเตือน</Text>
           </View>
 
+          {/* Action Buttons */}
           <View style={styles.buttonsContainer}>
             <TouchableOpacity
-              style={[styles.button, styles.snoozeButton]}
+              style={styles.snoozeButton}
               onPress={handleSnooze}
             >
-              <Icon name="alarm-snooze" size={28} color="white" />
+              <Icon name="alarm-snooze" size={24} color="white" />
               <Text style={styles.buttonText}>เลื่อนปลุก</Text>
-              <Text style={styles.snoozeCount}>
-                {snoozeCount}/{maxSnooze}
-              </Text>
+              <View style={styles.snoozeCountContainer}>
+                <Text style={styles.snoozeCount}>
+                  {snoozeCount}/{maxSnooze}
+                </Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.button, styles.dismissButton]}
+              style={styles.dismissButton}
               onPress={handleDismiss}
             >
-              <Icon name="alarm-off" size={28} color="white" />
+              <Icon name="alarm-off" size={24} color="white" />
               <Text style={styles.buttonText}>
                 {alarm.task_type === "normal" ? "ปิดเสียงปลุก" : "ทำภารกิจ"}
               </Text>
             </TouchableOpacity>
           </View>
+          
+          {/* Bottom Tab Bar */}
+          <View style={styles.tabBar}>
+            <Icon name="alarm" size={26} color="#FFFFFF" />
+            <Text style={styles.tabText}>ปลุก</Text>
+          </View>
         </View>
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5F5F5",
-  },
   fullScreenContainer: {
     flex: 1,
-    backgroundColor: "#12111D", // สีพื้นหลังเข้มขึ้น
+    backgroundColor: "#000000",
   },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)", // เพิ่มความทึบของพื้นหลัง
+    backgroundColor: "#000000",
     width: "100%",
     height: "100%",
   },
   content: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
+    padding: 0,
   },
   timeContainer: {
     alignItems: "center",
-    marginBottom: 50,
+    marginTop: height * 0.08,
+    width: "100%",
   },
   timeText: {
-    fontSize: 80, // เพิ่มขนาดตัวอักษร
-    fontWeight: "bold",
-    color: "#FFFFFF", // เปลี่ยนเป็นสีขาว
+    fontSize: 64,
+    fontWeight: "500",
+    color: "#FFFFFF",
+    letterSpacing: 2,
   },
   dateText: {
-    fontSize: 20, // เพิ่มขนาดตัวอักษร
-    color: "#E5E7EB", // สีอ่อนลง
-    marginTop: 10,
+    fontSize: 16,
+    color: "#A0A0A0",
+    marginTop: 8,
   },
   alarmInfoContainer: {
     alignItems: "center",
-    marginBottom: 50,
+    paddingHorizontal: 24,
+    marginBottom: height * 0.05,
   },
-  alarmIcon: {
-    marginBottom: 15,
+  iconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#4F46E5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    elevation: 8,
+    shadowColor: "#5046e5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
   alarmLabel: {
-    fontSize: 28, // เพิ่มขนาดตัวอักษร
+    fontSize: 24,
     fontWeight: "600",
-    color: "#4F46E5",
-    marginBottom: 10,
+    color: "#FFFFFF",
+    marginBottom: 12,
+    textAlign: "center",
   },
   alarmMessage: {
-    fontSize: 16,
-    color: "#E5E7EB",
+    fontSize: 15,
+    color: "#A0A0A0",
     textAlign: "center",
+    lineHeight: 22,
   },
   buttonsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
-    paddingHorizontal: 20,
-  },
-  button: {
-    flex: 1,
-    borderRadius: 15,
-    padding: 25, // เพิ่มขนาดปุ่ม
-    alignItems: "center",
-    marginHorizontal: 10,
-    elevation: 5, // เพิ่มเงา
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
   snoozeButton: {
+    width: "48%",
+    height: 72,
     backgroundColor: "#6B7280",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   dismissButton: {
+    width: "48%",
+    height: 72,
     backgroundColor: "#4F46E5",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   buttonText: {
     color: "white",
-    fontSize: 18, // เพิ่มขนาดตัวอักษร
+    fontSize: 16,
     fontWeight: "600",
-    marginTop: 8,
+    marginTop: 6,
+  },
+  snoozeCountContainer: {
+    marginTop: 2,
   },
   snoozeCount: {
-    color: "white",
-    fontSize: 14, // เพิ่มขนาดตัวอักษร
-    marginTop: 5,
+    color: "rgba(255, 255, 255, 0.7)",
+    fontSize: 12,
   },
+  tabBar: {
+    width: "100%",
+    height: 56,
+    backgroundColor: "#1C1C1E",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#2C2C2E",
+  },
+  tabText: {
+    color: "#FFFFFF",
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "500",
+  }
 });
 
 export default AlarmRingingScreen;

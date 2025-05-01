@@ -1,5 +1,5 @@
 // AddAlarmScreen.js - หน้าเพิ่มและแก้ไขนาฬิกาปลุก
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import {
   Platform,
   Dimensions,
   Pressable,
+  Animated,
+  PanResponder,
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { supabase } from "../supabase.config";
@@ -22,6 +24,8 @@ import { UserAuth } from "../models/UserAuth";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { scheduleAlarmNotification } from "../models/NotificationManager";
 import { Picker } from '@react-native-picker/picker';
+
+const { width } = Dimensions.get('window');
 
 const AddAlarmScreen = ({ route, navigation }) => {
   // Get alarm data if editing an existing alarm
@@ -48,21 +52,107 @@ const AddAlarmScreen = ({ route, navigation }) => {
     existingAlarm?.sound_name || "Default Alarm"
   );
 
+  // Animation values for time wheel effect
+  const hourScrollY = useRef(new Animated.Value(0)).current;
+  const minuteScrollY = useRef(new Animated.Value(0)).current;
+
+  // Create PanResponder for hour wheel
+  const hourPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gestureState) => {
+        hourScrollY.setValue(gestureState.dy);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const direction = gestureState.dy > 0 ? -1 : 1;
+        // Only adjust time if the gesture is significant enough
+        if (Math.abs(gestureState.dy) > 10) {
+          adjustTime('hour', direction);
+          Animated.spring(hourScrollY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 100,
+            friction: 10
+          }).start();
+        } else {
+          Animated.spring(hourScrollY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      }
+    })
+  ).current;
+
+  // Create PanResponder for minute wheel
+  const minutePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gestureState) => {
+        minuteScrollY.setValue(gestureState.dy);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const direction = gestureState.dy > 0 ? -1 : 1;
+        // Only adjust time if the gesture is significant enough
+        if (Math.abs(gestureState.dy) > 10) {
+          adjustTime('minute', direction);
+          Animated.spring(minuteScrollY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 100,
+            friction: 10
+          }).start();
+        } else {
+          Animated.spring(minuteScrollY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      }
+    })
+  ).current;
+
   // Handler for incrementing/decrementing time
   const adjustTime = (type, increment) => {
     if (type === 'hour') {
       let newHour = (hour + increment) % 24;
       if (newHour < 0) newHour = 23;
+      
+      // Add haptic feedback if available
+      if (Platform.OS === 'ios' && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'haptic', style: 'selection' }));
+      }
+      
       setHour(newHour);
     } else {
       let newMinute = (minute + increment) % 60;
       if (newMinute < 0) newMinute = 59;
+      
+      // Add haptic feedback if available
+      if (Platform.OS === 'ios' && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'haptic', style: 'selection' }));
+      }
+      
       setMinute(newMinute);
     }
   };
 
   // Format number to 2 digits
   const formatNumber = (number) => number.toString().padStart(2, '0');
+
+  // Generate surrounding hours for wheel effect
+  const generateHourNumbers = () => {
+    const prevHour = (hour - 1 + 24) % 24;
+    const nextHour = (hour + 1) % 24;
+    return [prevHour, hour, nextHour];
+  };
+
+  // Generate surrounding minutes for wheel effect
+  const generateMinuteNumbers = () => {
+    const prevMinute = (minute - 1 + 60) % 60;
+    const nextMinute = (minute + 1) % 60;
+    return [prevMinute, minute, nextMinute];
+  };
 
   // Day names for repeat selection
   const dayNames = [
@@ -194,39 +284,103 @@ const AddAlarmScreen = ({ route, navigation }) => {
 
       <View style={styles.container}>
         {/* Time Display Section */}
-        <View style={styles.timePickerContainer}>
-          <View style={styles.timeSection}>
-            <TouchableOpacity 
-              style={styles.timeButton}
-              onPress={() => adjustTime('hour', 1)}
-            >
-              <Icon name="chevron-up" size={24} color="#86868B" />
-            </TouchableOpacity>
-            <Text style={styles.timeText}>{formatNumber(hour)}</Text>
-            <TouchableOpacity 
-              style={styles.timeButton}
-              onPress={() => adjustTime('hour', -1)}
-            >
-              <Icon name="chevron-down" size={24} color="#86868B" />
-            </TouchableOpacity>
-          </View>
+        <View style={styles.timePickerWrapper}>
+          <View style={styles.timePickerContainer}>
+            {/* Hour Selector */}
+            <View style={styles.wheelContainer}>
+              <TouchableOpacity 
+                style={styles.timeArrowButton}
+                onPress={() => adjustTime('hour', 1)}
+              >
+                <Icon name="chevron-up" size={24} color="#86868B" />
+              </TouchableOpacity>
+              
+              <View style={styles.timeWheelContainer} {...hourPanResponder.panHandlers}>
+                <View style={styles.timeWheelGradient} />
+                <View style={styles.timeNumberContainer}>
+                  {generateHourNumbers().map((num, index) => (
+                    <Animated.Text
+                      key={index}
+                      style={[
+                        styles.timeNumber,
+                        index === 1 && styles.currentTimeNumber,
+                        index === 1 ? null : styles.dimmedTimeNumber,
+                        {
+                          transform: [
+                            {
+                              translateY: hourScrollY.interpolate({
+                                inputRange: [-100, 100],
+                                outputRange: [20, -20],
+                                extrapolate: 'clamp'
+                              })
+                            }
+                          ]
+                        }
+                      ]}
+                    >
+                      {formatNumber(num)}
+                    </Animated.Text>
+                  ))}
+                </View>
+                <View style={styles.timeWheelGradient} />
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.timeArrowButton}
+                onPress={() => adjustTime('hour', -1)}
+              >
+                <Icon name="chevron-down" size={24} color="#86868B" />
+              </TouchableOpacity>
+            </View>
 
-          <Text style={styles.colonText}>:</Text>
+            <Text style={styles.colonText}>:</Text>
 
-          <View style={styles.timeSection}>
-            <TouchableOpacity 
-              style={styles.timeButton}
-              onPress={() => adjustTime('minute', 1)}
-            >
-              <Icon name="chevron-up" size={24} color="#86868B" />
-            </TouchableOpacity>
-            <Text style={styles.timeText}>{formatNumber(minute)}</Text>
-            <TouchableOpacity 
-              style={styles.timeButton}
-              onPress={() => adjustTime('minute', -1)}
-            >
-              <Icon name="chevron-down" size={24} color="#86868B" />
-            </TouchableOpacity>
+            {/* Minute Selector */}
+            <View style={styles.wheelContainer}>
+              <TouchableOpacity 
+                style={styles.timeArrowButton}
+                onPress={() => adjustTime('minute', 1)}
+              >
+                <Icon name="chevron-up" size={24} color="#86868B" />
+              </TouchableOpacity>
+              
+              <View style={styles.timeWheelContainer} {...minutePanResponder.panHandlers}>
+                <View style={styles.timeWheelGradient} />
+                <View style={styles.timeNumberContainer}>
+                  {generateMinuteNumbers().map((num, index) => (
+                    <Animated.Text
+                      key={index}
+                      style={[
+                        styles.timeNumber,
+                        index === 1 && styles.currentTimeNumber,
+                        index === 1 ? null : styles.dimmedTimeNumber,
+                        {
+                          transform: [
+                            {
+                              translateY: minuteScrollY.interpolate({
+                                inputRange: [-100, 100],
+                                outputRange: [20, -20],
+                                extrapolate: 'clamp'
+                              })
+                            }
+                          ]
+                        }
+                      ]}
+                    >
+                      {formatNumber(num)}
+                    </Animated.Text>
+                  ))}
+                </View>
+                <View style={styles.timeWheelGradient} />
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.timeArrowButton}
+                onPress={() => adjustTime('minute', -1)}
+              >
+                <Icon name="chevron-down" size={24} color="#86868B" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -277,7 +431,7 @@ const AddAlarmScreen = ({ route, navigation }) => {
           </TouchableOpacity>
 
           {/* Snooze Option */}
-          <View style={styles.optionRow}>
+          <View style={[styles.optionRow, styles.lastOption]}>
             <Text style={styles.optionLabel}>เลื่อนปลุก</Text>
             <Switch
               value={isActive}
@@ -330,49 +484,105 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000000",
   },
-  timePickerContainer: {
+  timePickerWrapper: {
     backgroundColor: "#1C1C1E",
-    paddingVertical: 30,
-    marginBottom: 16,
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 24,
+    overflow: 'hidden',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  },
+  timePickerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 16,
   },
-  timeSection: {
+  wheelContainer: {
     alignItems: 'center',
-    width: 80,
+    width: 100,
   },
-  timeButton: {
-    padding: 12,
+  timeArrowButton: {
+    padding: 8,
     borderRadius: 20,
+    marginVertical: 8,
   },
-  timeText: {
-    color: '#FFFFFF',
-    fontSize: 40,
+  timeWheelContainer: {
+    height: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  timeWheelGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 50,
+    backgroundColor: 'rgba(28, 28, 30, 0.7)',
+    zIndex: 1,
+  },
+  timeNumberContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 140,
+  },
+  timeNumber: {
+    fontSize: 50,
     fontWeight: '400',
-    marginVertical: 5,
+    color: '#FFFFFF',
+    marginVertical: 4,
+    textAlign: 'center',
+  },
+  currentTimeNumber: {
+    fontSize: 64,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  dimmedTimeNumber: {
+    color: 'rgba(255, 255, 255, 0.3)',
   },
   colonText: {
     color: '#FFFFFF',
-    fontSize: 40,
-    marginHorizontal: 15,
-    fontWeight: '400',
+    fontSize: 50,
+    fontWeight: '300',
+    marginHorizontal: 10,
   },
   optionsContainer: {
     backgroundColor: "#1C1C1E",
-    borderRadius: 10,
+    borderRadius: 16,
     marginHorizontal: 16,
     overflow: 'hidden',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
   optionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     borderBottomWidth: 0.5,
     borderBottomColor: "#38383A",
     backgroundColor: "transparent",
+  },
+  lastOption: {
+    borderBottomWidth: 0,
   },
   optionLabel: {
     fontSize: 17,

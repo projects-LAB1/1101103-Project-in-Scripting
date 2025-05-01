@@ -176,21 +176,42 @@ const AlarmListScreen = ({ navigation }) => {
       if (newStatus) {
         // ส่งข้อมูลที่ถูกต้องไปยัง scheduleAlarmNotification
         console.log(`กำลังตั้งการแจ้งเตือนสำหรับนาฬิกาปลุก ID: ${alarmId}`);
-        const notificationId = await scheduleAlarmNotification({
-          ...alarm,
-          id: alarm.id,
-          hour: alarm.hour,
-          minute: alarm.minute,
-          repeat_days: alarm.repeat_days,
-          is_active: true
-        });
+        
+        // ตรวจสอบว่ามีข้อมูลครบถ้วนก่อนส่งไปยัง scheduleAlarmNotification
+        if (alarm && alarm.hour !== undefined && alarm.minute !== undefined) {
+          // บันทึกเวลาเริ่มต้นก่อนตั้งค่านาฬิกาปลุก
+          console.log(`เริ่มตั้งค่านาฬิกาปลุกเวลา: ${new Date().toLocaleTimeString()}`);
+          
+          const notificationId = await scheduleAlarmNotification({
+            ...alarm,
+            id: alarm.id,
+            hour: alarm.hour,
+            minute: alarm.minute,
+            repeat_days: alarm.repeat_days || [],
+            is_active: true
+          });
 
-        if (notificationId) {
-          console.log(`ได้รับ notification ID: ${notificationId}`);
-          await supabase
-            .from('alarms')
-            .update({ notification_id: notificationId })
-            .eq('id', alarmId);
+          if (notificationId) {
+            console.log(`ได้รับ notification ID: ${notificationId}`);
+            await supabase
+              .from('alarms')
+              .update({ notification_id: notificationId })
+              .eq('id', alarmId);
+            
+            console.log("ตั้งค่านาฬิกาปลุกเรียบร้อยแล้ว กลับไปที่หน้ารายการนาฬิกาปลุก");
+          } else {
+            console.error("ไม่สามารถตั้งการแจ้งเตือนได้");
+            // อัปเดตสถานะกลับเป็นปิด ถ้าไม่สามารถตั้งการแจ้งเตือนได้
+            await supabase
+              .from('alarms')
+              .update({ is_active: false })
+              .eq('id', alarmId);
+            
+            // ดึงข้อมูลใหม่เพื่ออัปเดต UI
+            fetchAlarms();
+          }
+        } else {
+          console.error("ข้อมูลนาฬิกาปลุกไม่ครบถ้วน:", alarm);
         }
       } else if (alarm.notification_id) {
         console.log(`กำลังยกเลิกการแจ้งเตือน ID: ${alarm.notification_id}`);
@@ -345,6 +366,24 @@ const AlarmListScreen = ({ navigation }) => {
         </View>
       )}
 
+      <View style={styles.headerButtonsContainer}>
+        <TouchableOpacity
+          style={styles.testButton}
+          onPress={() => navigation.navigate("TestAlarm")}
+        >
+          <Icon name="test-tube" size={16} color="#FFFFFF" />
+          <Text style={styles.testButtonText}>ทดสอบนาฬิกาปลุก</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.helpButton}
+          onPress={() => navigation.navigate("Help")}
+        >
+          <Icon name="help-circle" size={16} color="#FFFFFF" />
+          <Text style={styles.helpButtonText}>ช่วยเหลือ</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4F46E5" />
@@ -382,6 +421,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#12111D",
+  },
+  headerButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 10, // Spacing between buttons
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4F46E5',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  testButtonText: {
+    color: '#FFFFFF',
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  helpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6B7280',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  helpButtonText: {
+    color: '#FFFFFF',
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
