@@ -28,6 +28,7 @@ import {
   clearAllAlarms,
 } from '../utils/alarmStorage';
 import { scheduleAlarmNotification, cancelAlarmNotification } from "../models/NotificationManager";
+import { useAuth } from '../contexts/AuthContext';
 
 const AlarmListScreen = ({ navigation }) => {
   const [alarms, setAlarms] = useState([]);
@@ -38,6 +39,7 @@ const AlarmListScreen = ({ navigation }) => {
   const swipeableRef = useRef(null);
   const debugTapCount = useRef(0);  // For debug menu
   const debugTapTimer = useRef(null);
+  const { logout } = useAuth();
 
   // Monitor network connectivity
   useEffect(() => {
@@ -194,12 +196,20 @@ const AlarmListScreen = ({ navigation }) => {
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('AddAlarm')}
-        >
-          <Icon name="plus" size={24} color="#FF9500" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row' }}>
+          <TouchableOpacity
+            style={[styles.headerButton, { marginRight: 8 }]}
+            onPress={handleLogout}
+          >
+            <Icon name="logout" size={24} color="#FF3B30" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('AddAlarm')}
+          >
+            <Icon name="plus" size={24} color="#FF9500" />
+          </TouchableOpacity>
+        </View>
       ),
       headerStyle: {
         backgroundColor: '#000000',
@@ -212,6 +222,39 @@ const AlarmListScreen = ({ navigation }) => {
       ),
     });
   }, [navigation]);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'ยืนยันการออกจากระบบ',
+      'คุณต้องการออกจากระบบใช่หรือไม่?',
+      [
+        {
+          text: 'ยกเลิก',
+          style: 'cancel'
+        },
+        {
+          text: 'ออกจากระบบ',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const result = await logout();
+              if (result.success) {
+                // การ logout สำเร็จ จะถูก redirect ไปหน้า login โดยอัตโนมัติ
+                // เนื่องจาก AuthContext จะจัดการเรื่องนี้ให้
+              } else {
+                Alert.alert('ข้อผิดพลาด', 'ไม่สามารถออกจากระบบได้ กรุณาลองใหม่อีกครั้ง');
+              }
+            } catch (error) {
+              Alert.alert('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการออกจากระบบ');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   // Pull to refresh handler
   const onRefresh = () => {
@@ -580,6 +623,12 @@ const styles = StyleSheet.create({
     color: "#FF3B30",
     fontSize: 17,
     fontWeight: "600",
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

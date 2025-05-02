@@ -1,16 +1,11 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { connectToMongoDB } from '../config/mongoConfig';
-import {
-  register as mongoRegister,
-  login as mongoLogin,
-  logout as mongoLogout,
-  getCurrentUser as mongoGetCurrentUser,
-  updateUser as mongoUpdateUser,
-  changePassword as mongoChangePassword,
-  sendResetPasswordEmail as mongoSendResetEmail
-} from '../utils/mongoAuthService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import bcrypt from 'react-native-bcrypt';
+import * as Notifications from 'expo-notifications';
 
 const AuthContext = createContext(null);
+const USERS_KEY = '@users';
+const CURRENT_USER_KEY = '@currentUser';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -23,40 +18,22 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [dbInitializing, setDbInitializing] = useState(true);
 
-  // Initialize MongoDB and check login state
+  // Initialize app and check login state
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        console.log('Initializing auth context...');
-        
-        // Attempt to connect to MongoDB
-        console.log('Connecting to MongoDB...');
-        const connected = await connectToMongoDB();
-        
-        if (!connected) {
-          console.error('MongoDB connection failed during app initialization');
-          setDbInitializing(false);
-        } else {
-          console.log('MongoDB connected successfully');
-          setDbInitializing(false);
-        }
-        
-        // Check current user regardless of MongoDB connection
-        // (user might be cached in AsyncStorage)
         console.log('Checking for current user...');
-        const userData = await mongoGetCurrentUser();
-        
-        if (userData) {
+        const userJson = await AsyncStorage.getItem(CURRENT_USER_KEY);
+        if (userJson) {
+          const userData = JSON.parse(userJson);
           console.log('User found:', userData.email);
           setUser(userData);
         } else {
-          console.log('No user found in AsyncStorage');
+          console.log('No user found in storage');
         }
       } catch (error) {
         console.error('Error initializing app:', error);
-        setDbInitializing(false);
       } finally {
         setLoading(false);
       }
@@ -70,17 +47,36 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      // Attempt to connect to MongoDB first
-      const connected = await connectToMongoDB();
-      if (!connected) {
-        return { 
-          success: false, 
-          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
-        };
-      }
+      // Check if user exists
+      const usersJson = await AsyncStorage.getItem(USERS_KEY);
+      const users = usersJson ? JSON.parse(usersJson) : [];
       
-      const newUser = await mongoRegister(email, password);
-      setUser(newUser);
+      if (users.find(u => u.email === email)) {
+        throw new Error('อีเมลนี้ถูกใช้งานแล้ว');
+      }
+
+      // Create new user
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      const newUser = {
+        id: Date.now().toString(),
+        email,
+        password: hashedPassword,
+        displayName: email.split('@')[0],
+        createdAt: new Date().toISOString()
+      };
+
+      // Save user
+      await AsyncStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
+      
+      // Set current user
+      const userData = {
+        id: newUser.id,
+        email: newUser.email,
+        displayName: newUser.displayName
+      };
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+      setUser(userData);
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -94,17 +90,24 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      // Attempt to connect to MongoDB first
-      const connected = await connectToMongoDB();
-      if (!connected) {
-        return { 
-          success: false, 
-          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
-        };
-      }
+      // Find user
+      const usersJson = await AsyncStorage.getItem(USERS_KEY);
+      const users = usersJson ? JSON.parse(usersJson) : [];
+      const user = users.find(u => u.email === email);
       
-      const loggedInUser = await mongoLogin(email, password);
-      setUser(loggedInUser);
+      if (!user || !bcrypt.compareSync(password, user.password)) {
+        throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      }
+
+      // Set current user
+      const userData = {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName
+      };
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+      setUser(userData);
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -117,7 +120,8 @@ export const AuthProvider = ({ children }) => {
   const handleLogout = async () => {
     try {
       setLoading(true);
-      await mongoLogout();
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      await AsyncStorage.removeItem(CURRENT_USER_KEY);
       setUser(null);
       return { success: true };
     } catch (error) {
@@ -132,17 +136,19 @@ export const AuthProvider = ({ children }) => {
     try {
       if (!user) throw new Error('ยังไม่มีการเข้าสู่ระบบ');
       
-      // Attempt to connect to MongoDB first
-      const connected = await connectToMongoDB();
-      if (!connected) {
-        return { 
-          success: false, 
-          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
-        };
-      }
-      
-      const updatedUser = await mongoUpdateUser(user.id, userData);
+      // Update user in users list
+      const usersJson = await AsyncStorage.getItem(USERS_KEY);
+      const users = usersJson ? JSON.parse(usersJson) : [];
+      const updatedUsers = users.map(u => 
+        u.id === user.id ? { ...u, ...userData } : u
+      );
+      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
+
+      // Update current user
+      const updatedUser = { ...user, ...userData };
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
       setUser(updatedUser);
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -154,65 +160,39 @@ export const AuthProvider = ({ children }) => {
     try {
       if (!user) throw new Error('ยังไม่มีการเข้าสู่ระบบ');
       
-      // Attempt to connect to MongoDB first
-      const connected = await connectToMongoDB();
-      if (!connected) {
-        return { 
-          success: false, 
-          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
-        };
-      }
+      // Verify current password
+      const usersJson = await AsyncStorage.getItem(USERS_KEY);
+      const users = usersJson ? JSON.parse(usersJson) : [];
+      const currentUser = users.find(u => u.id === user.id);
       
-      const result = await mongoChangePassword(user.id, currentPassword, newPassword);
-      return result;
+      if (!currentUser || !bcrypt.compareSync(currentPassword, currentUser.password)) {
+        throw new Error('รหัสผ่านปัจจุบันไม่ถูกต้อง');
+      }
+
+      // Update password
+      const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
+      const updatedUsers = users.map(u => 
+        u.id === user.id ? { ...u, password: hashedNewPassword } : u
+      );
+      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
+      
+      return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }
   };
 
-  // Send password reset email
-  const handleResetPassword = async (email) => {
-    try {
-      // Attempt to connect to MongoDB first
-      const connected = await connectToMongoDB();
-      if (!connected) {
-        return { 
-          success: false, 
-          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
-        };
-      }
-      
-      const result = await mongoSendResetEmail(email);
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  };
-
-  // Context value
   const value = {
     user,
     loading,
-    dbInitializing,
     register: handleRegister,
     login: handleLogin,
     logout: handleLogout,
     updateUser: handleUpdateUser,
     changePassword: handleChangePassword,
-    resetPassword: handleResetPassword,
     isAuthenticated: !!user
   };
 
-  // Return loading state
-  if (loading) {
-    return (
-      <AuthContext.Provider value={value}>
-        {null}
-      </AuthContext.Provider>
-    );
-  }
-
-  // Return fully initialized context
   return (
     <AuthContext.Provider value={value}>
       {children}
