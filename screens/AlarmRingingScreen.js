@@ -46,13 +46,11 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     };
   }, []);
 
-  // Load and play alarm sound
+  // Load and play alarm sound with enhanced error handling
   const loadSound = async () => {
     try {
       // Select sound file based on alarm.soundId
       let soundSource;
-
-      // Handle different sound files based on soundId
       switch (alarm.soundId) {
         case "bell":
           soundSource = require("../assets/sounds/bell-alarm.mp3");
@@ -63,44 +61,49 @@ const AlarmRingingScreen = ({ route, navigation }) => {
         case "rooster":
           soundSource = require("../assets/sounds/rooster-alarm.mp3");
           break;
-        case "default":
         default:
           soundSource = require("../assets/sounds/default-alarm.mp3");
-          break;
       }
 
-      // Set audio mode to play even when device is silent
+      // Set audio mode for alarm
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
+        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
       });
 
-      // Create and play the sound with maximum volume
+      // Create and play sound
       const { sound: audioSound } = await Audio.Sound.createAsync(soundSource, {
         isLooping: true,
-        volume: alarm.volume / 100 || 0.8,
-        shouldPlay: true, // Start playing immediately
+        volume: alarm.volume / 100 || 1.0,
+        shouldPlay: true,
       });
 
       setSound(audioSound);
+      
+      // Make sure sound plays at maximum volume
+      await audioSound.setVolumeAsync(alarm.volume / 100 || 1.0);
       await audioSound.playAsync();
 
-      // Make sure sound plays at the specified volume
-      await audioSound.setVolumeAsync(alarm.volume / 100 || 0.8);
     } catch (error) {
       console.error("Error loading sound:", error);
-      // Fallback to vibration only if sound fails to load
-      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเล่นเสียงปลุกได้ ใช้การสั่นแทน");
+      Alert.alert(
+        "ข้อผิดพลาด",
+        "ไม่สามารถเล่นเสียงปลุกได้ จะใช้การสั่นแทน",
+        [{ text: "ตกลง" }]
+      );
+      startVibration();
     }
   };
 
-  // Start vibration pattern
+  // Enhanced vibration pattern
   const startVibration = () => {
-    // Vibration pattern: vibrate for 500ms, pause for 500ms, repeat
-    // Increased intensity with longer vibration periods
-    const pattern = [0, 500, 500, 700, 500, 900, 500];
+    const pattern = Platform.OS === 'android' 
+      ? [0, 500, 200, 500, 200, 500] // Android pattern
+      : [0, 500, 500, 500, 500, 500]; // iOS pattern
     Vibration.vibrate(pattern, true);
   };
 

@@ -1,89 +1,63 @@
 /**
- * MongoDB Configuration
- * This file handles the connection to MongoDB using Mongoose
+ * Local Storage Configuration
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import 'react-native-get-random-values';
-// Import mongoose directly
-import mongoose from 'mongoose';
 
-// MongoDB connection URI
-const MONGO_URI = 'mongodb+srv://dbUser:lZNiCp1GOzoCfUu2@cluster0.wzrvmbj.mongodb.net/clockApp?retryWrites=true&w=majority&appName=Cluster0';
-
-// Connection options
-const CONNECTION_OPTIONS = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+// Storage Keys
+export const STORAGE_KEYS = {
+  USERS: '@users',
+  ALARMS: '@alarms',
+  SETTINGS: '@settings',
+  CURRENT_USER: '@currentUser'
 };
 
-// Track connection state
-let isConnecting = false;
-let mongooseConnected = false;
+// For compatibility with existing code that checks connection status
+export const connectToMongoDB = async () => true;
+export const isConnected = () => true;
+
+// Export AsyncStorage for direct use when needed
+export { AsyncStorage };
 
 /**
- * Initialize MongoDB connection
+ * Save data to storage
  */
-export const connectToMongoDB = async () => {
-  console.log('Attempting to connect to MongoDB...');
-
-  // Return early if already connected
-  if (mongooseConnected && mongoose.connection && mongoose.connection.readyState === 1) {
-    console.log('MongoDB already connected.');
-    return true;
-  }
-
-  // Prevent multiple connection attempts
-  if (isConnecting) {
-    console.log('Connection to MongoDB already in progress...');
-    return false;
-  }
-
-  isConnecting = true;
-
+export const saveData = async (key, data) => {
   try {
-    // Check if mongoose is properly imported
-    if (!mongoose || typeof mongoose.connect !== 'function') {
-      console.error('Mongoose import failed - mongoose not available or connect not a function');
-      isConnecting = false;
-      return false;
-    }
-
-    // Connect to MongoDB
-    console.log('Connecting to MongoDB URI:', MONGO_URI);
-    await mongoose.connect(MONGO_URI, CONNECTION_OPTIONS);
-    
-    console.log('✓ Successfully connected to MongoDB!');
-    mongooseConnected = true;
-    
-    // Cache connection status
-    await AsyncStorage.setItem('@mongodb_connected', 'true');
-    
+    await AsyncStorage.setItem(key, JSON.stringify(data));
     return true;
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('Storage save error:', error);
+    Alert.alert(
+      'Storage Error',
+      'Failed to save data',
+      [{ text: 'OK' }]
+    );
     return false;
-  } finally {
-    isConnecting = false;
   }
 };
 
 /**
- * Check if MongoDB is connected
+ * Get data from storage
  */
-export const isConnected = () => {
-  return mongooseConnected && mongoose && mongoose.connection && mongoose.connection.readyState === 1;
+export const getData = async (key) => {
+  try {
+    const data = await AsyncStorage.getItem(key);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('Storage read error:', error);
+    return null;
+  }
 };
 
 /**
- * Get mongoose instance
+ * Clear all data from storage
  */
-export const getMongoose = async () => {
-  // Try to connect if not already connected
-  if (!isConnected()) {
-    await connectToMongoDB();
+export const clearStorage = async () => {
+  try {
+    await AsyncStorage.clear();
+    return true;
+  } catch (error) {
+    console.error('Storage clear error:', error);
+    return false;
   }
-  return mongoose;
 };
-
-// Export mongoose
-export default mongoose;
