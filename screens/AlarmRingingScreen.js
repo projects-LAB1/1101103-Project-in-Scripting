@@ -15,6 +15,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
 import { getFirestore, doc, updateDoc, increment } from "firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+// เพิ่มการนำเข้า NotificationManager เพื่อจัดการการแจ้งเตือน
+import * as NotificationManager from '../models/NotificationManager';
 
 const AlarmRingingScreen = ({ route, navigation }) => {
   const { alarm } = route.params;
