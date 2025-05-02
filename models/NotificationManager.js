@@ -1,3 +1,4 @@
+// NotificationManager.js - จัดการการแจ้งเตือนแบบพุชในแอปพลิเคชัน
 import * as Notifications from "expo-notifications";
 import { Platform, Alert, Linking } from "react-native";
 import Constants from "expo-constants";
@@ -5,782 +6,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { Asset } from 'expo-asset';
 import * as Device from 'expo-device';
-import * as TaskManager from 'expo-task-manager';
-
-// Define constants
-const EXACT_ALARM_TASK = 'EXACT_ALARM_TASK';
-
-// Helper functions
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Add warning about expo-notifications in Expo Go
-function notificationsWarning() {
+// This addresses the warning about push notifications being removed from Expo Go in SDK 53
+const notificationsWarning = () => {
   if (__DEV__) {
+    // Suppress the built-in warning by providing our own controlled warning
     console.warn(
       "Note: Push notifications functionality provided by expo-notifications will be removed from Expo Go in SDK 53. " +
-      "For full notification support, use a development build instead."
+        "For full notification support, use a development build instead."
     );
   }
-}
+};
 
 // Call the warning function once when the module is imported
 notificationsWarning();
 
-// Helper function to store notification metadata
-async function storeNotificationMetadata(identifier, metadata) {
-  try {
-    const existingMetadataJson = await AsyncStorage.getItem('@notification_metadata');
-    const existingMetadata = existingMetadataJson ? JSON.parse(existingMetadataJson) : {};
-    existingMetadata[identifier] = metadata;
-    await AsyncStorage.setItem('@notification_metadata', JSON.stringify(existingMetadata));
-    return true;
-  } catch (error) {
-    console.error('Error storing notification metadata:', error);
-    return false;
-  }
-}
-
-// Helper function to verify time settings
-function verifyTimeSettings() {
-  const now = new Date();
-  console.log(`[SYSTEM] เวลาปัจจุบันของระบบ: ${now.toLocaleString()}`);
-  console.log(`[SYSTEM] Timezone offset: ${now.getTimezoneOffset()} นาที`);
-  return {
-    currentTime: now.toLocaleString(),
-    timezoneOffset: now.getTimezoneOffset()
-  };
-}
-
-// Implementation functions
-
-// Request exact alarm permission on Android
-async function requestExactAlarmPermissionAndroid() {
-  try {
-    if (Platform.OS === 'android') {
-      const hasPermission = await Notifications.getPermissionsAsync();
-      console.log('Current notification permissions:', hasPermission);
-      
-      // Store the permission status
-      await AsyncStorage.setItem('@exact_alarm_permission', JSON.stringify({
-        checked: true,
-        status: hasPermission.granted ? 'granted' : 'denied',
-        timestamp: new Date().toISOString()
-      }));
-
-      if (!hasPermission.granted) {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status === 'granted') {
-          await AsyncStorage.setItem('@exact_alarm_permission', JSON.stringify({
-            checked: true,
-            status: 'granted',
-            timestamp: new Date().toISOString()
-          }));
-          return true;
-        }
-        return false;
-      }
-
-      return hasPermission.granted;
-    }
-    return true; // Non-Android platforms don't need this permission
-  } catch (error) {
-    console.error('Error checking exact alarm permission:', error);
-    return false;
-  }
-}
-
-// Register for push notifications
-async function registerForPushNotificationsAsync() {
-  try {
-    // ตรวจสอบว่าเป็นอุปกรณ์จริงหรือไม่
-    if (!Device.isDevice) {
-      console.warn('การแจ้งเตือนอาจไม่ทำงานบน simulator หรือ emulator');
-    }
-
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== "granted") {
-      Alert.alert(
-        "ไม่ได้รับสิทธิ์",
-        "กรุณาเปิดการแจ้งเตือนในการตั้งค่าเพื่อให้นาฬิกาปลุกทำงานได้",
-        [
-          { text: "ปิด", style: "cancel" },
-          { text: "ไปที่การตั้งค่า", onPress: () => Linking.openSettings() }
-        ]
-      );
-      return null;
-    }
-
-    // ตั้งค่าช่องทางการแจ้งเตือนสำหรับ Android
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("alarms", {
-        name: "การปลุก",
-        description: "แจ้งเตือนสำหรับนาฬิกาปลุก",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#FF231F7C",
-        sound: "default",
-        enableVibrate: true,
-        enableLights: true,
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        bypassDnd: true,
-      });
-
-      await Notifications.setNotificationChannelAsync("critical_alarms", {
-        name: "การปลุกแบบสำคัญ",
-        description: "แจ้งเตือนสำหรับนาฬิกาปลุกที่สำคัญ",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 500, 250, 500],
-        lightColor: "#FF0000",
-        sound: "default",
-        enableVibrate: true,
-        enableLights: true,
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        bypassDnd: true,
-      });
-    }
-
-    return true;
-  } catch (error) {
-    console.error("Error setting up notifications:", error);
-    return false;
-  }
-}
-
-// Export all functions
-export {
-  requestExactAlarmPermissionAndroid,
-  registerForPushNotificationsAsync,
-  scheduleAlarmNotification,
-  cancelAlarmNotification,
-  checkScheduledNotifications,
-  resetAllAlarmNotifications,
-  setupNotificationListeners,
-  initializeNotifications,
-  startBackgroundAlarmCheck,
-  setupNotificationChannel,
-  checkNotificationPermissions,
-  getNextAlarmTime,
-  scheduleNotification,
-  cancelNotification,
-  cancelAllNotifications,
-  getScheduledNotifications,
-  getNotificationMetadata,
-  showImmediateNotification,
-  registerBackgroundTask
-};
-
-// Schedule an alarm notification
-async function scheduleAlarmNotification(alarm) {
-  if (!alarm || !alarm.isActive) return null;
-
-  try {
-    const nextAlarmTime = getNextAlarmTime(alarm);
-    if (!nextAlarmTime) return null;
-
-    const content = {
-      title: alarm.label || 'นาฬิกาปลุก',
-      body: `เวลา ${alarm.hour.toString().padStart(2, '0')}:${alarm.minute.toString().padStart(2, '0')} น.`,
-      sound: true,
-      priority: 'max',
-      data: { 
-        alarm,
-        alarmId: alarm.id,
-        taskType: alarm.taskType || 'none',
-        snooze: alarm.snooze || false,
-        created: new Date().getTime()
-      },
-      channelId: Platform.OS === 'android' ? 'alarms' : undefined,
-    };
-
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content,
-      trigger: { date: nextAlarmTime }
-    });
-
-    return notificationId;
-  } catch (error) {
-    console.error('Error scheduling alarm notification:', error);
-    return null;
-  }
-}
-
-// Get next alarm time
-function getNextAlarmTime(alarm) {
-  if (!alarm || !alarm.isActive) return null;
-
-  const now = new Date();
-  let nextAlarm = new Date();
-  nextAlarm.setHours(parseInt(alarm.hour, 10));
-  nextAlarm.setMinutes(parseInt(alarm.minute, 10));
-  nextAlarm.setSeconds(0);
-  nextAlarm.setMilliseconds(0);
-
-  if (!alarm.repeatDays || alarm.repeatDays.length === 0) {
-    if (nextAlarm <= now) {
-      nextAlarm.setDate(nextAlarm.getDate() + 1);
-    }
-    return nextAlarm;
-  }
-
-  const repeatDaysJS = alarm.repeatDays.map(day => day === 6 ? 0 : day + 1);
-  const todayJS = now.getDay();
-  const orderedDays = Array.from({ length: 7 }, (_, i) => (todayJS + i) % 7);
-
-  for (const day of orderedDays) {
-    if (repeatDaysJS.includes(day)) {
-      const candidateDate = new Date(now);
-      const daysToAdd = (day - todayJS + 7) % 7;
-      candidateDate.setDate(candidateDate.getDate() + daysToAdd);
-      candidateDate.setHours(parseInt(alarm.hour, 10));
-      candidateDate.setMinutes(parseInt(alarm.minute, 10));
-      candidateDate.setSeconds(0);
-      candidateDate.setMilliseconds(0);
-
-      if (daysToAdd === 0 && candidateDate <= now) {
-        continue;
-      }
-      return candidateDate;
-    }
-  }
-
-  const fallbackDate = new Date(now);
-  fallbackDate.setDate(fallbackDate.getDate() + 1);
-  fallbackDate.setHours(parseInt(alarm.hour, 10));
-  fallbackDate.setMinutes(parseInt(alarm.minute, 10));
-  fallbackDate.setSeconds(0);
-  fallbackDate.setMilliseconds(0);
-  return fallbackDate;
-}
-
-// Initialize notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    priority: Notifications.AndroidNotificationPriority.MAX,
-  }),
-});
-
-// Schedule a task for exact timing (Android)
-async function scheduleExactTask(date, alarmData) {
-  try {
-    if (Platform.OS !== 'android') return;
-    
-    console.log(`Scheduling exact alarm task for ${date.toISOString()}`);
-    
-    await TaskManager.registerTaskAsync(EXACT_ALARM_TASK, {
-      frequency: TaskManager.TaskManager.Frequency.ONCE,
-      startOnBoot: true,
-    });
-    
-    console.log('Exact alarm task registered, will execute at target time');
-    
-    await AsyncStorage.setItem('@last_exact_task_scheduled', JSON.stringify({
-      date: date.toISOString(),
-      data: alarmData,
-      scheduledAt: new Date().toISOString()
-    }));
-    
-    return true;
-  } catch (error) {
-    console.error('Error scheduling exact alarm task:', error);
-    return false;
-  }
-}
-
-// Cancel alarm notification
-async function cancelAlarmNotification(notificationIdOrIds) {
-  if (!notificationIdOrIds) return false;
-
-  try {
-    if (Array.isArray(notificationIdOrIds)) {
-      for (const id of notificationIdOrIds) {
-        if (typeof id === 'string') {
-          await Notifications.cancelScheduledNotificationAsync(id);
-        }
-      }
-      return true;
-    }
-
-    if (typeof notificationIdOrIds === 'string') {
-      await Notifications.cancelScheduledNotificationAsync(notificationIdOrIds);
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    console.error("Error canceling notification:", error);
-    return false;
-  }
-}
-
-// Setup notification channel
-async function setupNotificationChannel() {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('alarms', {
-      name: 'การแจ้งเตือนนาฬิกาปลุก',
-      description: 'แจ้งเตือนเมื่อถึงเวลาปลุก',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
-      sound: 'default',
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      bypassDnd: true,
-    });
-  }
-}
-
-// Setup notification listeners
-function setupNotificationListeners(navigation) {
-  const foregroundSubscription = Notifications.addNotificationReceivedListener(
-    (notification) => {
-      const alarmData = notification.request.content.data.alarm;
-      if (alarmData && navigation) {
-        navigation.navigate("AlarmRinging", { alarm: alarmData });
-      }
-    }
-  );
-
-  const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-    const alarmData = response.notification.request.content.data.alarm;
-    if (alarmData && navigation) {
-      navigation.navigate("AlarmRinging", { alarm: alarmData });
-    }
-  });
-
-  return () => {
-    foregroundSubscription.remove();
-    responseSubscription.remove();
-  };
-}
-
-// Check scheduled notifications
-async function checkScheduledNotifications() {
-  try {
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    console.log('การแจ้งเตือนที่ตั้งไว้:', scheduledNotifications.length, 'รายการ');
-    return scheduledNotifications;
-  } catch (error) {
-    console.error('Error checking scheduled notifications:', error);
-    return [];
-  }
-}
-
-// Reset all alarm notifications
-async function resetAllAlarmNotifications() {
-  try {
-    // ยกเลิกการแจ้งเตือนทั้งหมดที่มีอยู่
-    console.log('กำลังยกเลิกการแจ้งเตือนทั้งหมด...');
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    
-    // ดึงข้อมูลนาฬิกาปลุกจาก AsyncStorage
-    const alarmsJson = await AsyncStorage.getItem('alarms');
-    if (!alarmsJson) return [];
-
-    const alarms = JSON.parse(alarmsJson);
-    const activeAlarms = alarms.filter(alarm => alarm.isActive);
-    
-    console.log(`กำลังตั้งค่าการแจ้งเตือนใหม่ ${activeAlarms.length} รายการ`);
-    
-    // รอให้ข้อมูลพร้อมก่อนดำเนินการต่อ (ให้เวลาระบบได้ยกเลิกการแจ้งเตือนเดิมให้หมด)
-    await delay(500);
-    
-    // ตั้งการแจ้งเตือนใหม่สำหรับทุกนาฬิกาปลุกที่เปิดใช้งาน
-    const notifications = [];
-    const updatedAlarms = [];
-    
-    for (const alarm of activeAlarms) {
-      // รอให้แต่ละการตั้งค่าเสร็จสิ้นเพื่อหลีกเลี่ยงการแข่งขันกัน
-      const notificationId = await scheduleAlarmNotification(alarm);
-      
-      if (notificationId) {
-        // บันทึก notificationId 
-        const updatedAlarm = {
-          ...alarm,
-          notificationId: notificationId
-        };
-        
-        updatedAlarms.push(updatedAlarm);
-        notifications.push({
-          id: alarm.id,
-          notificationId: notificationId
-        });
-      } else {
-        // ถ้าไม่สามารถตั้งค่าการแจ้งเตือนได้ ให้คงข้อมูลเดิมไว้
-        updatedAlarms.push(alarm);
-      }
-    }
-    
-    // เพิ่มกลับนาฬิกาปลุกที่ไม่ได้เปิดใช้งาน
-    const inactiveAlarms = alarms.filter(alarm => !alarm.isActive);
-    updatedAlarms.push(...inactiveAlarms);
-    
-    // บันทึกข้อมูลที่อัปเดต
-    await AsyncStorage.setItem('alarms', JSON.stringify(updatedAlarms));
-    
-    console.log(`รีเซ็ตการแจ้งเตือนสำเร็จ ${notifications.length} รายการ`);
-    return notifications;
-  } catch (error) {
-    console.error('Error resetting notifications:', error);
-    return [];
-  }
-}
-
-// Initialize notifications system
-async function initializeNotifications() {
-  try {
-    console.log('Initializing notification system at:', new Date().toLocaleString());
-    
-    // Configure notification behavior
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        priority: Notifications.AndroidNotificationPriority.MAX,
-      }),
-    });
-    
-    // 1. ตรวจสอบและขอสิทธิ์การแจ้งเตือน
-    const hasPermission = await checkNotificationPermissions();
-    if (!hasPermission) {
-      console.warn('ไม่ได้รับสิทธิ์การแจ้งเตือน นาฬิกาปลุกอาจทำงานไม่ถูกต้อง');
-      return { success: false, error: 'Permission denied' };
-    }
-    
-    // 2. กำหนดช่องทางการแจ้งเตือนทั้งหมดที่จำเป็น
-    await setupNotificationChannel();
-    
-    // Configure how notifications appear when the app is in the foreground
-    await Notifications.setNotificationCategoryAsync('timer', [
-      {
-        identifier: 'stop',
-        buttonTitle: 'Stop',
-        options: {
-          isDestructive: true,
-        },
-      },
-      {
-        identifier: 'snooze',
-        buttonTitle: 'Snooze',
-        options: {
-          isAuthenticationRequired: false,
-        },
-      },
-    ]);
-    
-    // 3. ตรวจสอบเวลาระบบและ timezone
-    const timeSettings = verifyTimeSettings();
-    
-    // บันทึกการเริ่มต้นระบบการแจ้งเตือน
-    await AsyncStorage.setItem('@notification_system_init', JSON.stringify({
-      timestamp: new Date().toISOString(),
-      timeSettings: timeSettings,
-      platform: Platform.OS,
-      deviceInfo: {
-        brand: Device.brand,
-        modelName: Device.modelName,
-        osVersion: Device.osVersion
-      }
-    }));
-    
-    // 4. ตรวจสอบและแก้ไขการแจ้งเตือนที่มีปัญหา
-    // กำหนดให้ตรวจสอบเร็วขึ้น (500ms) เพื่อให้แน่ใจว่าไม่พลาดการแจ้งเตือน
-    setTimeout(async () => {
-      await checkAndFixAlarmNotifications();
-      console.log('ตรวจสอบและแก้ไขการแจ้งเตือนครั้งแรกเสร็จสิ้น');
-      
-      // ตรวจสอบอีกครั้งหลังจาก 5 วินาทีเพื่อให้แน่ใจว่าระบบพร้อมทำงาน
-      setTimeout(async () => {
-        await checkAndFixAlarmNotifications();
-        console.log('ตรวจสอบและแก้ไขการแจ้งเตือนครั้งที่สองเสร็จสิ้น');
-      }, 5000);
-    }, 500);
-    
-    // 5. ตั้งค่าการตรวจสอบเป็นระยะเพื่อให้แน่ใจว่าการแจ้งเตือนทำงานได้
-    const checkInterval = setInterval(async () => {
-      await checkAndFixAlarmNotifications();
-      console.log('ตรวจสอบการแจ้งเตือนตามรอบเวลา:', new Date().toLocaleString());
-    }, 60000); // ตรวจสอบทุก 1 นาที
-    
-    // บันทึก interval ID เพื่อให้สามารถยกเลิกได้ในภายหลังถ้าจำเป็น
-    global._notificationCheckInterval = checkInterval;
-    
-    // 6. สำหรับ Android ตั้งค่าให้แอปทำงานในพื้นหลังได้อย่างต่อเนื่อง
-    if (Platform.OS === 'android') {
-      try {
-        // ลงทะเบียน background task
-        await registerBackgroundTask();
-        console.log('ลงทะเบียนงานพื้นหลังสำเร็จ');
-      } catch (error) {
-        console.error('เกิดข้อผิดพลาดในการลงทะเบียนงานพื้นหลัง:', error);
-      }
-    }
-    
-    console.log('การเริ่มต้นระบบการแจ้งเตือนเสร็จสมบูรณ์');
-    return { success: true };
-  } catch (error) {
-    console.error('Error initializing notifications:', error);
-    
-    // บันทึกข้อผิดพลาดเพื่อการแก้ไขปัญหา
-    await AsyncStorage.setItem('@notification_system_error', JSON.stringify({
-      timestamp: new Date().toISOString(),
-      error: error.message,
-      stack: error.stack
-    }));
-    
-    return { success: false, error: error.message };
-  }
-}
-
-// Check notification permissions
-async function checkNotificationPermissions() {
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-
-  if (existingStatus !== "granted") {
-    console.log("ไม่ได้รับสิทธิ์การแจ้งเตือน กำลังขอสิทธิ์...");
-    const { status } = await Notifications.requestPermissionsAsync();
-
-    if (status !== "granted") {
-      console.log("ไม่ได้รับสิทธิ์การแจ้งเตือน");
-      return false;
-    }
-  }
-
-  return true;
-}
-
-// Start background alarm check
-async function startBackgroundAlarmCheck() {
-  try {
-    return true;
-  } catch (error) {
-    console.error('Error starting background alarm check:', error);
-    return false;
-  }
-}
-
-// Register background task
-async function registerBackgroundTask() {
-  try {
-    console.log('ลงทะเบียนการตรวจสอบนาฬิกาปลุกในพื้นหลัง');
-    return true;
-  } catch (error) {
-    console.error('ไม่สามารถลงทะเบียนการตรวจสอบในพื้นหลัง:', error);
-    return false;
-  }
-}
-
-// Check and fix alarm notifications
-async function checkAndFixAlarmNotifications() {
-  try {
-    // ดึงข้อมูลนาฬิกาปลุกจาก storage
-    const alarmsJson = await AsyncStorage.getItem('alarms');
-    if (!alarmsJson) return;
-
-    const alarms = JSON.parse(alarmsJson);
-    const activeAlarms = alarms.filter(alarm => alarm.isActive);
-    
-    // ดึงข้อมูลการแจ้งเตือนที่ตั้งไว้
-    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    
-    let needUpdate = false;
-    const updatedAlarms = alarms.map(alarm => {
-      // ตรวจสอบเฉพาะนาฬิกาปลุกที่เปิดใช้งาน
-      if (alarm.isActive) {
-        // หาการแจ้งเตือนทั้งหมดที่เกี่ยวข้องกับนาฬิกาปลุกนี้
-        const notifications = scheduledNotifications.filter(n => 
-          n.content?.data?.alarmId === alarm.id || 
-          n.content?.data?.alarm?.id === alarm.id
-        );
-        
-        // คำนวณเวลาถัดไปของการปลุก
-        const nextAlarmTime = getNextAlarmTime(alarm);
-        const now = new Date();
-        const timeDiff = nextAlarmTime ? nextAlarmTime.getTime() - now.getTime() : 0;
-        
-        // ถ้าไม่มีการแจ้งเตือนหรือไม่ครบจำนวน หรือเวลาไม่ถูกต้อง
-        const notificationMissing = !notifications.length;
-        const notificationIdMismatch = alarm.notificationId && !notifications.some(n => n.identifier === alarm.notificationId);
-        
-        // ถ้าการแจ้งเตือนหายไป หรือรหัสไม่ตรงกัน และเวลาที่ต้องเตือนอยู่ในอนาคต
-        if ((notificationMissing || notificationIdMismatch) && timeDiff > 0) {
-          console.log(`การแจ้งเตือนสำหรับนาฬิกาปลุก ${alarm.id} สูญหายหรือไม่ถูกต้อง กำลังสร้างใหม่...`);
-          
-          // ตั้งการแจ้งเตือนใหม่
-          scheduleAlarmNotification(alarm).then(notificationId => {
-            if (notificationId) {
-              alarm.notificationId = notificationId;
-              needUpdate = true;
-            }
-          });
-        }
-      }
-      return alarm;
-    });
-    
-    // บันทึกข้อมูลที่อัปเดต
-    if (needUpdate) {
-      await AsyncStorage.setItem('alarms', JSON.stringify(updatedAlarms));
-      console.log('อัพเดตข้อมูลนาฬิกาปลุกและการแจ้งเตือนสำเร็จ');
-    }
-  } catch (error) {
-    console.error('Error checking and fixing alarm notifications:', error);
-  }
-}
-
-// Schedule notification
-async function scheduleNotification({
-  title,
-  body,
-  data = {},
-  date,
-  repeats = false,
-  channelId = 'default'
-}) {
-  try {
-    // Ensure the date is valid
-    if (!(date instanceof Date) || isNaN(date.getTime())) {
-      throw new Error('Invalid date for notification scheduling');
-    }
-    
-    // Log the scheduling attempt
-    console.log(`Scheduling notification "${title}" for ${date.toISOString()}`);
-    
-    // Create the notification
-    const identifier = await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data: {
-          ...data,
-          scheduledAt: new Date().toISOString(),
-          targetDate: date.toISOString(),
-        },
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.MAX,
-        vibrate: [0, 250, 250, 250],
-        channelId,
-      },
-      trigger: {
-        date,
-        repeats,
-      },
-    });
-    
-    // Store notification metadata for tracking
-    await storeNotificationMetadata(identifier, {
-      title,
-      body,
-      data,
-      scheduledDate: date.toISOString(),
-      scheduledAt: new Date().toISOString(),
-      identifier,
-    });
-    
-    // For time-critical notifications on Android, also schedule a background task
-    if (Platform.OS === 'android' && data.type?.includes('timer')) {
-      await scheduleExactTask(date, { title, body, ...data });
-    }
-    
-    return { success: true, identifier };
-  } catch (error) {
-    console.error('Error scheduling notification:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Cancel notification
-async function cancelNotification(identifier) {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(identifier);
-    
-    // Also remove from metadata storage
-    const storedData = await AsyncStorage.getItem('@notification_metadata');
-    if (storedData) {
-      let allMetadata = JSON.parse(storedData);
-      if (allMetadata[identifier]) {
-        delete allMetadata[identifier];
-        await AsyncStorage.setItem('@notification_metadata', JSON.stringify(allMetadata));
-      }
-    }
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error canceling notification:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Cancel all notifications
-async function cancelAllNotifications() {
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    
-    // Clear metadata storage
-    await AsyncStorage.removeItem('@notification_metadata');
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error canceling all notifications:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Get scheduled notifications
-async function getScheduledNotifications() {
-  try {
-    const notifications = await Notifications.getAllScheduledNotificationsAsync();
-    return { success: true, notifications };
-  } catch (error) {
-    console.error('Error getting scheduled notifications:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Get notification metadata
-async function getNotificationMetadata() {
-  try {
-    const storedData = await AsyncStorage.getItem('@notification_metadata');
-    const metadata = storedData ? JSON.parse(storedData) : {};
-    return { success: true, metadata };
-  } catch (error) {
-    console.error('Error getting notification metadata:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Show immediate notification
-async function showImmediateNotification(title, body, data = {}) {
-  try {
-    const identifier = await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data: {
-          ...data,
-          triggeredAt: new Date().toISOString(),
-          immediate: true
-        },
-        sound: true,
-      },
-      trigger: null, // null trigger means show immediately
-    });
-    
-    return { success: true, identifier };
-  } catch (error) {
-    console.error('Error showing immediate notification:', error);
-    return { success: false, error: error.message };
-  }
-}
+// ฟังก์ชันดีเลย์แบบ Promise
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // ฟังก์ชันสำหรับตรวจสอบและจัดการนาฬิกาปลุกที่กำลังจะเกิดขึ้น
 const checkUpcomingAlarms = async () => {
@@ -883,7 +126,7 @@ export const getNextAlarmTime = (alarm) => {
     // วันปัจจุบันในรูปแบบของ JavaScript
     const todayJS = now.getDay(); // 0=อาทิตย์, 1=จันทร์, ..., 6=เสาร์
     console.log(`[DEBUG] วันนี้ (JS format): ${todayJS}`);
-    
+
     // เรียงลำดับวันในสัปดาห์เริ่มจากวันปัจจุบัน
     const orderedDays = [];
     for (let i = 0; i < 7; i++) {
@@ -912,7 +155,7 @@ export const getNextAlarmTime = (alarm) => {
         candidateDate.setMilliseconds(0);
         
         console.log(`[DEBUG] พิจารณาวันที่ ${day} (เพิ่ม ${daysToAdd} วัน): ${candidateDate.toLocaleString()}`);
-        
+
         // ถ้าเป็นวันนี้ แต่เวลาผ่านไปแล้ว ให้ข้ามไป
         if (daysToAdd === 0 && candidateDate <= now) {
           console.log(`[DEBUG] ข้ามวันนี้เนื่องจากเวลาผ่านไปแล้ว`);
@@ -964,6 +207,236 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// ขอสิทธิ์การแจ้งเตือน
+export const registerForPushNotificationsAsync = async () => {
+  try {
+    // ตรวจสอบว่าเป็นอุปกรณ์จริงหรือไม่
+    if (!Device.isDevice) {
+      console.warn('การแจ้งเตือนอาจไม่ทำงานบน simulator หรือ emulator');
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      Alert.alert(
+        "ไม่ได้รับสิทธิ์",
+        "กรุณาเปิดการแจ้งเตือนในการตั้งค่าเพื่อให้นาฬิกาปลุกทำงานได้",
+        [
+          { text: "ปิด", style: "cancel" },
+          { text: "ไปที่การตั้งค่า", onPress: () => Linking.openSettings() }
+        ]
+      );
+      return null;
+    }
+
+    // ตั้งค่าช่องทางการแจ้งเตือนสำหรับ Android
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("alarms", {
+        name: "การปลุก",
+        description: "แจ้งเตือนสำหรับนาฬิกาปลุก",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#FF231F7C",
+        sound: "default",
+        enableVibrate: true,
+        enableLights: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+      });
+
+      // เพิ่มช่องทางสำหรับการแจ้งเตือนฉุกเฉิน
+      await Notifications.setNotificationChannelAsync("critical_alarms", {
+        name: "การปลุกแบบสำคัญ",
+        description: "แจ้งเตือนสำหรับนาฬิกาปลุกที่สำคัญ",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 500, 250, 500],
+        lightColor: "#FF0000",
+        sound: "default",
+        enableVibrate: true,
+        enableLights: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error setting up notifications:", error);
+    return false;
+  }
+};
+
+// บันทึก token ลงใน AsyncStorage
+export const savePushToken = async (userId, token) => {
+  if (!userId || !token) return;
+
+  try {
+    const deviceInfo = {
+      pushToken: token,
+      platform: Platform.OS,
+      version: Platform.Version,
+      lastUpdated: new Date().toISOString(),
+    };
+    
+    await AsyncStorage.setItem(`@device_info_${userId}`, JSON.stringify(deviceInfo));
+    console.log("บันทึก Push Token สำเร็จ");
+  } catch (error) {
+    console.error("Error saving push token:", error);
+  }
+};
+
+// ฟังก์ชันสำหรับการตั้งค่าการแจ้งเตือนนาฬิกาปลุก - ปรับปรุงโดยใช้ setTimeout แทน setInterval
+export const scheduleAlarmNotification = async (alarm) => {
+  if (!alarm || !alarm.isActive) {
+    console.log('[INFO] ข้ามการตั้งค่าการแจ้งเตือนสำหรับนาฬิกาปลุกที่ไม่ได้เปิดใช้งาน');
+    return null;
+  }
+
+  // ตรวจสอบการอนุญาตการแจ้งเตือน
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  
+  if (finalStatus !== 'granted') {
+    console.log('[ERROR] ไม่ได้รับสิทธิ์ในการส่งการแจ้งเตือน');
+    Alert.alert(
+      'การแจ้งเตือนถูกปิดใช้งาน',
+      'กรุณาเปิดการแจ้งเตือนในการตั้งค่าเพื่อให้นาฬิกาปลุกทำงานได้',
+      [
+        { text: "ปิด", style: "cancel" },
+        { text: "ไปที่การตั้งค่า", onPress: () => Linking.openSettings() }
+      ]
+    );
+    return null;
+  }
+
+  try {
+    // ตั้งค่าช่องทางการแจ้งเตือนหากยังไม่ได้ตั้งค่า
+    await setupNotificationChannel();
+    
+    // ยกเลิกการแจ้งเตือนเดิมของนาฬิกาปลุกนี้ (ถ้ามี)
+    if (alarm.notificationId) {
+      try {
+        console.log(`[INFO] กำลังยกเลิกการแจ้งเตือนเดิม ID: ${alarm.notificationId}`);
+        await Notifications.cancelScheduledNotificationAsync(alarm.notificationId);
+      } catch (cancelError) {
+        console.log(`[WARN] ไม่สามารถยกเลิกการแจ้งเตือนเดิมได้: ${cancelError.message}`);
+      }
+    }
+    
+    // คำนวณเวลาในการแจ้งเตือนครั้งถัดไป
+    const nextAlarmTime = getNextAlarmTime(alarm);
+    
+    if (!nextAlarmTime) {
+      console.log('[ERROR] ไม่สามารถคำนวณเวลาการแจ้งเตือนได้');
+      return null;
+    }
+
+    // ตรวจสอบว่าเวลาแจ้งเตือนถูกต้อง (อยู่ในอนาคตอย่างน้อย 10 วินาที)
+    const now = new Date();
+    const timeDifference = nextAlarmTime.getTime() - now.getTime();
+    
+    if (timeDifference <= 10000) { // น้อยกว่า 10 วินาที
+      console.log('[WARN] เวลาแจ้งเตือนใกล้เกินไป อาจไม่ทำงานถูกต้อง:', nextAlarmTime.toString());
+      
+      // ถ้าเวลาผ่านไปแล้ว ให้เลื่อนไปเป็นวันถัดไป
+      if (timeDifference <= 0) {
+        if (alarm.repeatDays && alarm.repeatDays.length > 0) {
+          // กรณีตั้งซ้ำ ให้เลื่อนไปวันที่ตรงกับการตั้งปลุกครั้งถัดไป
+          nextAlarmTime.setDate(nextAlarmTime.getDate() + 1);
+        } else {
+          // กรณีไม่ตั้งซ้ำ ให้เลื่อนไปวันถัดไป
+          nextAlarmTime.setDate(nextAlarmTime.getDate() + 1);
+        }
+        console.log('[INFO] เลื่อนการแจ้งเตือนไปวันถัดไป:', nextAlarmTime.toString());
+      }
+    }
+
+    // คำนวณเวลาที่เหลืออีกครั้ง (อาจมีการเปลี่ยนแปลงหลังจากปรับ)
+    const updatedTimeDifference = nextAlarmTime.getTime() - new Date().getTime();
+    const minutesUntilAlarm = updatedTimeDifference / (60 * 1000);
+    
+    console.log(`[TIMING] เวลาปัจจุบัน: ${now.toLocaleString()}`);
+    console.log(`[TIMING] เวลาที่จะแจ้งเตือน: ${nextAlarmTime.toLocaleString()}`);
+    console.log(`[TIMING] เวลาที่เหลือ: ${minutesUntilAlarm.toFixed(2)} นาที`);
+
+    // สร้างเนื้อหาของการแจ้งเตือน
+    const content = {
+      title: alarm.label || 'นาฬิกาปลุก',
+      body: `เวลา ${alarm.hour.toString().padStart(2, '0')}:${alarm.minute.toString().padStart(2, '0')} น.`,
+      sound: true,
+      priority: 'max',
+      sticky: true,
+      data: { 
+        alarm: {
+          ...alarm,
+          timestamp: nextAlarmTime.getTime()
+        },
+        alarmId: alarm.id,
+        taskType: alarm.taskType || 'none',
+        snooze: alarm.snooze || false,
+        created: new Date().getTime(),
+        timezone: new Date().getTimezoneOffset() // บันทึก timezone offset เพื่อตรวจสอบภายหลัง
+      },
+      channelId: Platform.OS === 'android' ? 'alarm-channel' : undefined,
+    };
+
+    // กำหนด trigger เวลาสำหรับการแจ้งเตือน
+    const trigger = {
+      date: nextAlarmTime,
+      channelId: Platform.OS === 'android' ? 'alarm-channel' : undefined,
+    };
+
+    // ตั้งค่าการแจ้งเตือนโดยใช้ exposition-notification API
+    let notificationId = await Notifications.scheduleNotificationAsync({
+      content,
+      trigger
+    });
+
+    console.log(`[SUCCESS] ตั้งค่าการแจ้งเตือนสำเร็จ ID: ${notificationId} สำหรับ "${alarm.label || 'นาฬิกาปลุก'}" เวลา: ${nextAlarmTime.toString()}`);
+    
+    // แบบการใช้งาน setTimeout (แนะนำเฉพาะกรณีแอพทำงานตลอดเวลาเท่านั้น)
+    if (updatedTimeDifference <= 15 * 60 * 1000 && updatedTimeDifference > 0) { // ถ้าเหลือเวลาน้อยกว่า 15 นาที
+      console.log(`[INFO] ตั้ง setTimeout สำหรับการแจ้งเตือนใน ${(updatedTimeDifference/1000).toFixed(0)} วินาที`);
+      
+      // ใช้ setTimeout เพื่อทริกเกอร์การแจ้งเตือนเมื่อถึงเวลา
+      setTimeout(async () => {
+        try {
+          // ส่งการแจ้งเตือนทันทีเมื่อถึงเวลา
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              ...content,
+              title: `${content.title} (ถึงเวลาแล้ว!)`,
+              priority: 'max'
+            },
+            trigger: null // ส่งทันทีไม่ต้องรอ
+          });
+          
+          console.log(`[ALERT] ส่งการแจ้งเตือนด่วนทันทีสำหรับ "${alarm.label || 'นาฬิกาปลุก'}"`);
+        } catch (immediateError) {
+          console.error('[ERROR] ไม่สามารถส่งการแจ้งเตือนทันที:', immediateError);
+        }
+      }, updatedTimeDifference);
+    }
+    
+    return notificationId;
+    
+  } catch (error) {
+    console.error('[ERROR] ไม่สามารถตั้งค่าการแจ้งเตือนได้:', error);
+    return null;
+  }
+}
+
 // ยกเลิกการแจ้งเตือน
 export const cancelAlarmNotification = async (notificationIdOrIds) => {
   if (!notificationIdOrIds) {
@@ -1013,8 +486,36 @@ export const cancelAlarmNotification = async (notificationIdOrIds) => {
           return true;
         }
       }
+      
+      // ถ้าเป็น string (ไม่แน่ใจ)
+      if (typeof notificationIdOrIds === 'string') {
+        await Notifications.cancelScheduledNotificationAsync(notificationIdOrIds);
+        console.log(`[INFO] ยกเลิกการแจ้งเตือน ID: ${notificationIdOrIds} สำเร็จ`);
+        return true;
+      }
+      
+      console.log('[ERROR] ไม่พบ ID ที่ถูกต้องใน object');
+      return false;
     }
     
+    // ถ้าเป็น array
+    if (Array.isArray(notificationIdOrIds)) {
+      console.log(`[INFO] ยกเลิก ${notificationIdOrIds.length} การแจ้งเตือนจาก array`);
+      let success = true;
+      for (const id of notificationIdOrIds) {
+        if (typeof id === 'string' && id) {
+          try {
+            await Notifications.cancelScheduledNotificationAsync(id);
+            console.log(`[INFO] ยกเลิกการแจ้งเตือน ID: ${id} สำเร็จ`);
+          } catch (err) {
+            console.log(`[WARN] ไม่สามารถยกเลิกการแจ้งเตือน ID: ${id} - ${err.message}`);
+            success = false;
+          }
+        }
+      }
+      return success;
+    }
+
     // ถ้าเป็น string
     if (typeof notificationIdOrIds === 'string') {
       await Notifications.cancelScheduledNotificationAsync(notificationIdOrIds);
@@ -1220,149 +721,87 @@ const checkAndFixAlarmNotifications = async () => {
   } catch (error) {
     console.error('Error checking and fixing alarm notifications:', error);
   }
-}
+};
 
-// Schedule notification
-async function scheduleNotification({
-  title,
-  body,
-  data = {},
-  date,
-  repeats = false,
-  channelId = 'default'
-}) {
+// ตรวจสอบและขอสิทธิ์การแจ้งเตือนถ้ายังไม่ได้รับ
+export const checkNotificationPermissions = async () => {
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+
+  if (existingStatus !== "granted") {
+    console.log("ไม่ได้รับสิทธิ์การแจ้งเตือน กำลังขอสิทธิ์...");
+    const { status } = await Notifications.requestPermissionsAsync();
+
+    if (status !== "granted") {
+      console.log("ไม่ได้รับสิทธิ์การแจ้งเตือน");
+      return false;
+    }
+  }
+
+  return true;
+};
+
+// เริ่มต้นระบบการแจ้งเตือนทั้งหมด (ควรเรียกใช้เมื่อแอปเริ่มต้น)
+export const initializeNotifications = async () => {
   try {
-    // Ensure the date is valid
-    if (!(date instanceof Date) || isNaN(date.getTime())) {
-      throw new Error('Invalid date for notification scheduling');
+    // 1. ตรวจสอบและขอสิทธิ์การแจ้งเตือน
+    const hasPermission = await checkNotificationPermissions();
+    if (!hasPermission) {
+      console.warn('ไม่ได้รับสิทธิ์การแจ้งเตือน นาฬิกาปลุกอาจทำงานไม่ถูกต้อง');
+      return false;
     }
     
-    // Log the scheduling attempt
-    console.log(`Scheduling notification "${title}" for ${date.toISOString()}`);
+    // 2. กำหนดช่องทางการแจ้งเตือน
+    await setupNotificationChannel();
     
-    // Create the notification
-    const identifier = await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data: {
-          ...data,
-          scheduledAt: new Date().toISOString(),
-          targetDate: date.toISOString(),
-        },
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.MAX,
-        vibrate: [0, 250, 250, 250],
-        channelId,
-      },
-      trigger: {
-        date,
-        repeats,
-      },
+    // 3. ตรวจสอบเวลาระบบและ timezone
+    verifyTimeSettings();
+    
+    // 4. ตรวจสอบและแก้ไขการแจ้งเตือนที่มีปัญหา
+    // รอให้แอพโหลดเสร็จก่อนตรวจสอบการแจ้งเตือน
+    setTimeout(async () => {
+      await checkAndFixAlarmNotifications();
+      console.log('ตรวจสอบและแก้ไขการแจ้งเตือนเสร็จสิ้น');
+    }, 2000);
+    
+    return true;
+  } catch (error) {
+    console.error('Error initializing notifications:', error);
+    return false;
+  }
+};
+
+// เริ่มต้นการตรวจสอบการแจ้งเตือนทำงานในพื้นหลัง
+export const startBackgroundAlarmCheck = async () => {
+  try {
+    return true;
+  } catch (error) {
+    console.error('Error starting background alarm check:', error);
+    return false;
+  }
+};
+
+// ตั้งค่าช่องทางการแจ้งเตือน
+export const setupNotificationChannel = async () => {
+  // ตั้งค่าเฉพาะใน Android
+  if (Platform.OS === 'android') {
+    // สร้างช่องทางหลักสำหรับการแจ้งเตือนนาฬิกาปลุก
+    await Notifications.setNotificationChannelAsync('alarm-channel', {
+      name: 'การแจ้งเตือนนาฬิกาปลุก',
+      description: 'แจ้งเตือนเมื่อถึงเวลาปลุก',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF231F7C',
+      sound: 'default',
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: true,
     });
     
-    // Store notification metadata for tracking
-    await storeNotificationMetadata(identifier, {
-      title,
-      body,
-      data,
-      scheduledDate: date.toISOString(),
-      scheduledAt: new Date().toISOString(),
-      identifier,
+    // สร้างช่องทางสำหรับการแจ้งเตือนทั่วไป
+    await Notifications.setNotificationChannelAsync('general', {
+      name: 'การแจ้งเตือนทั่วไป',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 250, 250, 250],
+      sound: 'default',
     });
-    
-    // For time-critical notifications on Android, also schedule a background task
-    if (Platform.OS === 'android' && data.type?.includes('timer')) {
-      await scheduleExactTask(date, { title, body, ...data });
-    }
-    
-    return { success: true, identifier };
-  } catch (error) {
-    console.error('Error scheduling notification:', error);
-    return { success: false, error: error.message };
   }
-}
-
-// Cancel notification
-async function cancelNotification(identifier) {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(identifier);
-    
-    // Also remove from metadata storage
-    const storedData = await AsyncStorage.getItem('@notification_metadata');
-    if (storedData) {
-      let allMetadata = JSON.parse(storedData);
-      if (allMetadata[identifier]) {
-        delete allMetadata[identifier];
-        await AsyncStorage.setItem('@notification_metadata', JSON.stringify(allMetadata));
-      }
-    }
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error canceling notification:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Cancel all notifications
-async function cancelAllNotifications() {
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    
-    // Clear metadata storage
-    await AsyncStorage.removeItem('@notification_metadata');
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error canceling all notifications:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Get scheduled notifications
-async function getScheduledNotifications() {
-  try {
-    const notifications = await Notifications.getAllScheduledNotificationsAsync();
-    return { success: true, notifications };
-  } catch (error) {
-    console.error('Error getting scheduled notifications:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Get notification metadata
-async function getNotificationMetadata() {
-  try {
-    const storedData = await AsyncStorage.getItem('@notification_metadata');
-    const metadata = storedData ? JSON.parse(storedData) : {};
-    return { success: true, metadata };
-  } catch (error) {
-    console.error('Error getting notification metadata:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Show immediate notification
-async function showImmediateNotification(title, body, data = {}) {
-  try {
-    const identifier = await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data: {
-          ...data,
-          triggeredAt: new Date().toISOString(),
-          immediate: true
-        },
-        sound: true,
-      },
-      trigger: null, // null trigger means show immediately
-    });
-    
-    return { success: true, identifier };
-  } catch (error) {
-    console.error('Error showing immediate notification:', error);
-    return { success: false, error: error.message };
-  }
-}
+};
