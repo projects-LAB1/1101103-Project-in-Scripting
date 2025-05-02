@@ -1,5 +1,5 @@
 // AddAlarmScreen.js - หน้าเพิ่มและแก้ไขนาฬิกาปลุก
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,67 +10,149 @@ import {
   Alert,
   Platform,
   Pressable,
+  Animated,
+  Dimensions,
+  ScrollView,
+  Modal,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { addAlarm, updateAlarm, cancelAlarm, deleteAlarm } from '../utils/alarmStorage';
 import { scheduleAlarm } from '../utils/alarmNotification';
 
+// คำนวณความกว้างของหน้าจอ
+const { width } = Dimensions.get('window');
+const ITEM_HEIGHT = 50;
+const VISIBLE_ITEMS = 5;
+
 const AddAlarmScreen = ({ route, navigation }) => {
   const { user } = useAuth();
   const editingAlarm = route.params?.alarm;
 
-  const [time, setTime] = useState(editingAlarm ?
-    new Date(2000, 1, 1, editingAlarm.hour, editingAlarm.minute) :
-    new Date()
-  );
+  // State สำหรับเวลา
+  const [hours, setHours] = useState(editingAlarm ? editingAlarm.hour : new Date().getHours());
+  const [minutes, setMinutes] = useState(editingAlarm ? editingAlarm.minute : new Date().getMinutes());
+  
+  // State อื่นๆ
   const [repeatDays, setRepeatDays] = useState(editingAlarm?.repeatDays || []);
   const [isActive, setIsActive] = useState(editingAlarm?.isActive ?? true);
-  const [label, setLabel] = useState(editingAlarm?.label || "การตั้งปลุก"); // Default label
-  const [soundId, setSoundId] = useState(editingAlarm?.soundId || "default-alarm.mp3"); // Default sound ID
-  const [soundName, setSoundName] = useState(editingAlarm?.soundName || "Default Alarm"); // Default sound name
-
+  const [label, setLabel] = useState(editingAlarm?.label || "การตั้งปลุก");
+  const [soundId, setSoundId] = useState(editingAlarm?.soundId || "default-alarm.mp3");
+  const [soundName, setSoundName] = useState(editingAlarm?.soundName || "Default Alarm");
+  
+  // State สำหรับ Modal
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [tempHours, setTempHours] = useState(hours);
+  const [tempMinutes, setTempMinutes] = useState(minutes);
+  
+  // Refs สำหรับ ScrollView
+  const hoursScrollRef = useRef(null);
+  const minutesScrollRef = useRef(null);
+  
+  // สร้างอาร์เรย์สำหรับชั่วโมงและนาที
+  const hoursArray = Array.from({ length: 24 }, (_, i) => i);
+  const minutesArray = Array.from({ length: 60 }, (_, i) => i);
+  
   const dayNames = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']; // Short day names
+
+  // ฟังก์ชันแสดง TimePicker ในสไตล์ iOS
+  const openTimePicker = () => {
+    setTempHours(hours);
+    setTempMinutes(minutes);
+    setPickerVisible(true);
+    
+    // หน่วงเวลาเล็กน้อยเพื่อให้แน่ใจว่า Modal แสดงผลเรียบร้อยแล้วก่อนเลื่อนไปยังตำแหน่งที่ถูกต้อง
+    setTimeout(() => {
+      if (hoursScrollRef.current) {
+        hoursScrollRef.current.scrollTo({ 
+          y: hours * ITEM_HEIGHT,
+          animated: false 
+        });
+      }
+      if (minutesScrollRef.current) {
+        minutesScrollRef.current.scrollTo({ 
+          y: minutes * ITEM_HEIGHT, 
+          animated: false 
+        });
+      }
+    }, 200);
+  };
+  
+  // ฟังก์ชันเมื่อกดตกลงใน TimePicker
+  const confirmTimePicker = () => {
+    setHours(tempHours);
+    setMinutes(tempMinutes);
+    setPickerVisible(false);
+  };
+  
+  // ฟังก์ชันเมื่อผู้ใช้เลื่อน ScrollView
+  const handleHourScroll = (event) => {
+    const y = event.nativeEvent.contentOffset.y;
+    const selectedIndex = Math.round(y / ITEM_HEIGHT);
+    if (selectedIndex >= 0 && selectedIndex < hoursArray.length) {
+      setTempHours(selectedIndex);
+    }
+  };
+  
+  const handleMinuteScroll = (event) => {
+    const y = event.nativeEvent.contentOffset.y;
+    const selectedIndex = Math.round(y / ITEM_HEIGHT);
+    if (selectedIndex >= 0 && selectedIndex < minutesArray.length) {
+      setTempMinutes(selectedIndex);
+    }
+  };
 
   const handleSave = async () => {
     try {
       const alarmData = {
-        hour: time.getHours(),
-        minute: time.getMinutes(),
+        hour: hours,
+        minute: minutes,
         repeatDays,
         isActive,
         userId: user?.id,
-        label: label || "การตั้งปลุก", // Ensure label is not empty
+        label: label || "การตั้งปลุก",
         soundId,
         soundName,
-        snooze: false, // Snooze removed from UI, set to false
+        snooze: false,
         createdAt: editingAlarm?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
+      // ยกเลิกการแจ้งเตือนเดิม (ถ้ามี)
+      if (editingAlarm?.notificationId) {
+        await cancelAlarm(editingAlarm.notificationId);
+      }
+      
       let savedAlarm;
       if (editingAlarm) {
-        // Cancel previous notification if exists
-        if (editingAlarm.notificationId) {
-          await cancelAlarm(editingAlarm.notificationId);
-        }
-        savedAlarm = await updateAlarm(editingAlarm.id, alarmData);
+        // อัพเดตข้อมูลการปลุก
+        await updateAlarm(editingAlarm.id, alarmData);
+        savedAlarm = { ...editingAlarm, ...alarmData, id: editingAlarm.id };
       } else {
+        // เพิ่มการปลุกใหม่
         savedAlarm = await addAlarm(alarmData);
       }
 
-      if (!savedAlarm) {
-        throw new Error('Failed to save alarm');
+      if (!savedAlarm || !savedAlarm.id) {
+        throw new Error('ไม่สามารถบันทึกข้อมูลการปลุกได้');
       }
 
-      // Schedule new notification if active
+      // หากเปิดใช้งานการปลุก จะตั้งการแจ้งเตือน
       if (isActive) {
-        const notificationId = await scheduleAlarm(savedAlarm);
-        if (notificationId) {
-          // Update alarm with the new notification ID
-          await updateAlarm(savedAlarm.id, { ...savedAlarm, notificationId });
+        try {
+          const notificationId = await scheduleAlarm(savedAlarm);
+          if (notificationId) {
+            // อัพเดต notificationId
+            await updateAlarm(savedAlarm.id, { 
+              ...savedAlarm, 
+              notificationId 
+            });
+          }
+        } catch (notificationError) {
+          console.error('Error scheduling notification:', notificationError);
+          // แม้การตั้งการแจ้งเตือนจะล้มเหลว แต่ยังคงบันทึกข้อมูลการปลุก
+          Alert.alert('ข้อควรระวัง', 'บันทึกการปลุกแล้ว แต่อาจมีปัญหาในการตั้งการแจ้งเตือน');
         }
       }
 
@@ -126,13 +208,13 @@ const AddAlarmScreen = ({ route, navigation }) => {
       headerTitleStyle: styles.headerTitle,
       headerStyle: {
         backgroundColor: '#000000',
-        borderBottomWidth: 0, // Remove bottom border
-        elevation: 0, // Remove shadow on Android
-        shadowOpacity: 0, // Remove shadow on iOS
+        borderBottomWidth: 0,
+        elevation: 0,
+        shadowOpacity: 0,
       },
       headerTintColor: '#FF9500',
     });
-  }, [navigation, time, repeatDays, isActive, label, soundName]); // Add dependencies
+  }, [navigation, hours, minutes, repeatDays, isActive, label, soundName]);
 
   const getRepeatDaysText = () => {
     if (repeatDays.length === 0) return 'ไม่ปลุกซ้ำ';
@@ -147,29 +229,61 @@ const AddAlarmScreen = ({ route, navigation }) => {
       .join(' ');
   };
 
-  // Callback function for SoundLibraryScreen
   const handleSoundSelected = (selectedSoundId, selectedSoundName) => {
     setSoundId(selectedSoundId);
     setSoundName(selectedSoundName);
   };
 
+  // ฟังก์ชันฟอร์แมตตัวเลขให้มี 2 หลัก
+  const formatNumber = (number) => {
+    return number.toString().padStart(2, "0");
+  };
+
+  // รายการแสดงเวลา
+  const renderTimeItem = (value, selected) => {
+    return (
+      <View
+        style={[
+          styles.timeItem,
+          selected && styles.selectedTimeItem
+        ]}
+        key={value}
+      >
+        <Text style={[styles.timeItemText, selected && styles.selectedTimeItemText]}>
+          {formatNumber(value)}
+        </Text>
+      </View>
+    );
+  };
+
+  // เรียงรายการเพื่อให้มี paddings ที่เพียงพอสำหรับการเลื่อน
+  const renderTimeWheel = (items, selectedValue, renderItem) => {
+    // สร้างรายการพร้อม padding ด้านบนและล่าง
+    return [
+      ...Array(2).fill().map((_, i) => (
+        <View key={`top-padding-${i}`} style={styles.timeWheelPadding} />
+      )),
+      ...items.map((item) => renderItem(item, item === selectedValue)),
+      ...Array(2).fill().map((_, i) => (
+        <View key={`bottom-padding-${i}`} style={styles.timeWheelPadding} />
+      ))
+    ];
+  };
+
+  // ตัวเลขชั่วโมงและนาทีเพื่อแสดงในหน้าจอ
+  const timeString = `${formatNumber(hours)}:${formatNumber(minutes)}`;
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={styles.pickerContainer}>
-        <DateTimePicker
-          value={time}
-          mode="time"
-          is24Hour={true}
-          display="spinner" // Use spinner display like the image
-          onChange={(event, selectedTime) => {
-            if (selectedTime) {
-              setTime(selectedTime);
-            }
-          }}
-          textColor="#FFFFFF" // White text for spinner
-          style={styles.picker}
-        />
-      </View>
+      {/* แสดงเวลาแบบ iOS Style */}
+      <TouchableOpacity 
+        style={styles.iosTimePickerDisplay} 
+        onPress={openTimePicker}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.iosTimeText}>{timeString}</Text>
+        <MaterialCommunityIcons name="chevron-down" size={24} color="#FF9500" />
+      </TouchableOpacity>
 
       <View style={styles.optionsContainer}>
         {/* Repeat Option */}
@@ -221,7 +335,7 @@ const AddAlarmScreen = ({ route, navigation }) => {
           <Switch
             value={isActive}
             onValueChange={setIsActive}
-            trackColor={{ false: '#3e3e3e', true: '#34C759' }} // Green color when active
+            trackColor={{ false: '#3e3e3e', true: '#34C759' }}
             thumbColor={'#FFFFFF'}
             ios_backgroundColor="#3e3e3e"
             style={styles.switch}
@@ -237,6 +351,70 @@ const AddAlarmScreen = ({ route, navigation }) => {
           <Text style={styles.deleteButtonText}>ลบการปลุก</Text>
         </TouchableOpacity>
       )}
+
+      {/* Modal สำหรับ TimePicker แบบ iOS */}
+      <Modal
+        visible={pickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setPickerVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerContainer}>
+            <View style={styles.pickerHeader}>
+              <TouchableOpacity 
+                onPress={() => setPickerVisible(false)}
+                style={styles.pickerButton}
+              >
+                <Text style={[styles.pickerButtonText, { color: '#007AFF' }]}>ยกเลิก</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                onPress={confirmTimePicker}
+                style={styles.pickerButton}
+              >
+                <Text style={[styles.pickerButtonText, { color: '#007AFF', fontWeight: '600' }]}>ตกลง</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.pickerBody}>
+              {/* ฉากหลังตัวเลขที่เลือก - ปรับปรุงตำแหน่งให้ตรงกับตัวเลข */}
+              <View style={styles.pickerSelectionBackground} />
+              
+              {/* Time Wheels */}
+              <View style={styles.timeWheelsContainer}>
+                {/* Hours */}
+                <ScrollView
+                  ref={hoursScrollRef}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  onMomentumScrollEnd={handleHourScroll}
+                  onScrollEndDrag={handleHourScroll}
+                  contentContainerStyle={styles.timeWheelContent}
+                  decelerationRate="fast"
+                >
+                  {renderTimeWheel(hoursArray, tempHours, renderTimeItem)}
+                </ScrollView>
+
+                <Text style={styles.timeSeparator}>:</Text>
+
+                {/* Minutes */}
+                <ScrollView
+                  ref={minutesScrollRef}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  onMomentumScrollEnd={handleMinuteScroll}
+                  onScrollEndDrag={handleMinuteScroll}
+                  contentContainerStyle={styles.timeWheelContent}
+                  decelerationRate="fast"
+                >
+                  {renderTimeWheel(minutesArray, tempMinutes, renderTimeItem)}
+                </ScrollView>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -245,7 +423,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
-    paddingTop: 20, // Add some padding at the top
+    paddingTop: 20,
   },
   headerButton: {
     paddingHorizontal: 16,
@@ -260,20 +438,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  pickerContainer: {
-    // Container for the DateTimePicker
+  iosTimePickerDisplay: {
     alignItems: 'center',
-    marginBottom: 30, // Space below the picker
+    justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 30,
+    flexDirection: 'row',
   },
-  picker: {
-    width: Platform.OS === 'ios' ? '90%' : 300, // Adjust width as needed
-    height: Platform.OS === 'ios' ? 200 : 180, // Adjust height for spinner
+  iosTimeText: {
+    color: '#FFFFFF',
+    fontSize: 64,
+    fontWeight: '300',
+    letterSpacing: 2,
+    marginRight: 5,
   },
   optionsContainer: {
-    backgroundColor: '#1C1C1E', // Dark gray background for options
+    backgroundColor: '#1C1C1E',
     borderRadius: 10,
     marginHorizontal: 16,
-    overflow: 'hidden', // Clip the border radius
+    overflow: 'hidden',
   },
   optionRow: {
     flexDirection: 'row',
@@ -282,8 +465,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#333333', // Separator line color
-    minHeight: 50, // Minimum row height
+    borderBottomColor: '#333333',
+    minHeight: 50,
   },
   optionLabel: {
     color: '#FFFFFF',
@@ -292,38 +475,113 @@ const styles = StyleSheet.create({
   optionValueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 1, // Allow text to shrink if needed
+    flexShrink: 1,
   },
   optionValueText: {
-    color: '#8E8E93', // Lighter gray for value text
+    color: '#8E8E93',
     fontSize: 17,
     marginRight: 5,
     textAlign: 'right',
-    maxWidth: '80%', // Limit width to prevent overlap
+    maxWidth: '80%',
   },
   labelInput: {
     color: '#8E8E93',
     fontSize: 17,
     textAlign: 'right',
-    flex: 1, // Take remaining space
-    marginLeft: 10, // Space between label and input
-    padding: 0, // Remove default padding
+    flex: 1,
+    marginLeft: 10,
+    padding: 0,
   },
   switch: {
-    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] // Slightly smaller switch
+    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }]
   },
   deleteButton: {
     backgroundColor: '#1C1C1E',
     borderRadius: 10,
     marginHorizontal: 16,
-    marginTop: 30, // Space above delete button
+    marginTop: 30,
     paddingVertical: 14,
     alignItems: 'center',
   },
   deleteButtonText: {
-    color: '#FF3B30', // Red color for delete
+    color: '#FF3B30',
     fontSize: 17,
     fontWeight: '600',
+  },
+  // Modal Styles - ปรับปรุงสีและขนาด
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerContainer: {
+    backgroundColor: '#1C1C1E',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    overflow: 'hidden',
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#333333',
+  },
+  pickerButton: {
+    padding: 16,
+  },
+  pickerButtonText: {
+    fontSize: 17,
+  },
+  pickerBody: {
+    height: ITEM_HEIGHT * VISIBLE_ITEMS,
+    position: 'relative',
+  },
+  pickerSelectionBackground: {
+    position: 'absolute',
+    top: ITEM_HEIGHT * 2,
+    left: 20,
+    right: 20,
+    height: ITEM_HEIGHT,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    zIndex: 0,
+  },
+  timeWheelsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+    height: ITEM_HEIGHT * VISIBLE_ITEMS,
+  },
+  timeWheelContent: {
+    paddingHorizontal: 20,
+  },
+  timeWheelPadding: {
+    height: ITEM_HEIGHT,
+  },
+  timeItem: {
+    height: ITEM_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 60,
+  },
+  selectedTimeItem: {
+    // สไตล์พิเศษสำหรับตัวเลขที่เลือก
+  },
+  timeItemText: {
+    color: '#8E8E93',
+    fontSize: 22,
+  },
+  selectedTimeItemText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '500',
+  },
+  timeSeparator: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '600',
+    paddingHorizontal: 5,
   },
 });
 

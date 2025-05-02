@@ -12,25 +12,32 @@ import {
   RefreshControl,
   Animated,
   StatusBar,
+  ToastAndroid,
+  Platform,
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Swipeable } from "react-native-gesture-handler";
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   loadAlarms,
   saveAlarms,
   deleteAlarm as deleteAlarmFromStorage,
-  toggleAlarmStatus as toggleAlarmInStorage
+  toggleAlarmStatus as toggleAlarmInStorage,
+  clearAllAlarms,
 } from '../utils/alarmStorage';
 import { scheduleAlarmNotification, cancelAlarmNotification } from "../models/NotificationManager";
 
 const AlarmListScreen = ({ navigation }) => {
   const [alarms, setAlarms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const swipeableRef = useRef(null);
+  const debugTapCount = useRef(0);  // For debug menu
+  const debugTapTimer = useRef(null);
 
   // Monitor network connectivity
   useEffect(() => {
@@ -46,7 +53,10 @@ const AlarmListScreen = ({ navigation }) => {
   // Load alarms from storage
   const loadStoredAlarms = async () => {
     try {
+      setError(null);
       const storedAlarms = await loadAlarms();
+      
+      // Sort alarms by time
       setAlarms(storedAlarms.sort((a, b) => {
         const timeA = a.hour * 60 + a.minute;
         const timeB = b.hour * 60 + b.minute;
@@ -54,7 +64,10 @@ const AlarmListScreen = ({ navigation }) => {
       }));
     } catch (error) {
       console.error('Error loading alarms:', error);
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลการปลุกได้');
+      setError('ไม่สามารถเชื่อมต่อข้อมูลการปลุกได้');
+      if (!refreshing) {
+        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อข้อมูลการปลุกได้');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -66,7 +79,118 @@ const AlarmListScreen = ({ navigation }) => {
     loadStoredAlarms();
   }, []);
 
-  // Add navigation options
+  // ใช้ useFocusEffect เพื่อโหลดข้อมูลใหม่เมื่อกลับมาที่หน้านี้
+  useFocusEffect(
+    React.useCallback(() => {
+      // โหลดข้อมูลใหม่ทุกครั้งเมื่อกลับมาที่หน้านี้
+      loadStoredAlarms();
+      return () => {
+        // ทำความสะอาดถ้าจำเป็น
+      };
+    }, [])
+  );
+
+  // ฟังก์ชันสำหรับแสดงเมนูดีบัก (กดหัวข้อ "ปลุก" เร็วๆ 5 ครั้ง)
+  const handleDebugTap = () => {
+    debugTapCount.current += 1;
+    
+    // เคลียร์ไทม์เมอร์เดิม (ถ้ามี)
+    if (debugTapTimer.current) {
+      clearTimeout(debugTapTimer.current);
+    }
+    
+    // ตั้งไทม์เมอร์ใหม่สำหรับรีเซ็ตการนับ
+    debugTapTimer.current = setTimeout(() => {
+      debugTapCount.current = 0;
+    }, 2000);
+    
+    // ถ้ากดครบ 5 ครั้ง ให้แสดงเมนูดีบัก
+    if (debugTapCount.current >= 5) {
+      debugTapCount.current = 0;
+      showDebugMenu();
+    }
+  };
+  
+  // แสดงเมนูดีบัก
+  const showDebugMenu = () => {
+    Alert.alert(
+      '🔧 เมนูแก้ไขปัญหา',
+      'เลือกการดำเนินการ:',
+      [
+        {
+          text: 'รีเซ็ตข้อมูลการปลุกทั้งหมด',
+          style: 'destructive',
+          onPress: resetAllAlarmData
+        },
+        {
+          text: 'รีโหลดข้อมูลการปลุก',
+          onPress: () => {
+            setLoading(true);
+            loadStoredAlarms();
+          }
+        },
+        {
+          text: 'แสดงจำนวนการปลุก',
+          onPress: () => showAlarmCount()
+        },
+        {
+          text: 'ยกเลิก',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
+  
+  // รีเซ็ตข้อมูลการปลุกทั้งหมด
+  const resetAllAlarmData = async () => {
+    Alert.alert(
+      'ยืนยันการรีเซ็ตข้อมูล',
+      'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลการปลุกทั้งหมด? การดำเนินการนี้ไม่สามารถยกเลิกได้',
+      [
+        {
+          text: 'ยกเลิก',
+          style: 'cancel'
+        },
+        {
+          text: 'รีเซ็ต',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await clearAllAlarms();
+              setAlarms([]);
+              showToast('รีเซ็ตข้อมูลการปลุกเรียบร้อยแล้ว');
+            } catch (error) {
+              console.error('Error resetting alarm data:', error);
+              Alert.alert('ข้อผิดพลาด', 'ไม่สามารถรีเซ็ตข้อมูลการปลุกได้');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+  
+  // แสดงจำนวนการปลุก
+  const showAlarmCount = () => {
+    Alert.alert(
+      'ข้อมูลการปลุก',
+      `จำนวนการปลุกทั้งหมด: ${alarms.length}\nจำนวนการปลุกที่เปิดใช้งาน: ${alarms.filter(a => a.isActive).length}`
+    );
+  };
+  
+  // แสดง Toast message (สำหรับ Android) หรือ Alert (สำหรับ iOS)
+  const showToast = (message) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      // สำหรับ iOS ใช้ Alert แทน
+      Alert.alert('แจ้งเตือน', message);
+    }
+  };
+
+  // Add navigation options with debug tap handler
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -81,11 +205,11 @@ const AlarmListScreen = ({ navigation }) => {
         backgroundColor: '#000000',
       },
       headerTintColor: '#FFFFFF',
-      headerTitle: 'ปลุก',
-      headerTitleStyle: {
-        fontSize: 34,
-        fontWeight: '700',
-      },
+      headerTitle: () => (
+        <TouchableOpacity onPress={handleDebugTap}>
+          <Text style={styles.headerTitle}>ปลุก</Text>
+        </TouchableOpacity>
+      ),
     });
   }, [navigation]);
 
@@ -95,6 +219,7 @@ const AlarmListScreen = ({ navigation }) => {
     loadStoredAlarms();
   };
 
+  // ส่วนที่เหลือเหมือนเดิม...
   const toggleAlarmActive = async (alarmId, currentStatus) => {
     try {
       const success = await toggleAlarmInStorage(alarmId);
@@ -105,7 +230,7 @@ const AlarmListScreen = ({ navigation }) => {
             // Handle notifications
             if (newStatus) {
               scheduleAlarmNotification(alarm);
-            } else {
+            } else if (alarm.notificationId) {
               cancelAlarmNotification(alarm.notificationId);
             }
             return { ...alarm, isActive: newStatus };
@@ -228,6 +353,11 @@ const AlarmListScreen = ({ navigation }) => {
             <Text style={[styles.daysText, !item.isActive && styles.inactiveText]}>
               {getDaysText(item.repeatDays)}
             </Text>
+            {item.label && (
+              <Text style={[styles.daysText, !item.isActive && styles.inactiveText]}>
+                {item.label}
+              </Text>
+            )}
           </View>
           <Switch
             value={item.isActive}
@@ -245,6 +375,35 @@ const AlarmListScreen = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF9500" />
+      </SafeAreaView>
+    );
+  }
+
+  // Show error screen if error state is set
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Icon name="alert-circle-outline" size={64} color="#FF3B30" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => {
+              setLoading(true);
+              loadStoredAlarms();
+            }}
+          >
+            <Text style={styles.retryButtonText}>ลองอีกครั้ง</Text>
+          </TouchableOpacity>
+          
+          {/* เพิ่มปุ่มรีเซ็ตข้อมูลในหน้า error */}
+          <TouchableOpacity 
+            style={styles.resetButton}
+            onPress={resetAllAlarmData}
+          >
+            <Text style={styles.resetButtonText}>รีเซ็ตข้อมูล</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -293,6 +452,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
     justifyContent: "center",
     alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   addButton: {
     marginRight: 16,
@@ -378,6 +542,44 @@ const styles = StyleSheet.create({
     color: "#666666",
     fontSize: 15,
     marginTop: 8,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  errorText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    marginTop: 16,
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: "#FF9500",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 24,
+  },
+  retryButtonText: {
+    color: "#000000",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  resetButton: {
+    backgroundColor: "#222222",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#FF3B30",
+  },
+  resetButtonText: {
+    color: "#FF3B30",
+    fontSize: 17,
+    fontWeight: "600",
   },
 });
 

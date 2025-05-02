@@ -1,133 +1,142 @@
-// Import mongoose directly to ensure it's initialized
-import mongoose from 'mongoose';
-import { isConnected, connectToMongoDB } from '../config/mongoConfig';
+/**
+ * MongoDB Authentication Service
+ * Handles user authentication operations with MongoDB
+ */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { connectToMongoDB, isConnected } from '../config/mongoConfig';
+import User from '../models/User';
 
+// Storage key for current user
 const CURRENT_USER_KEY = '@currentUser';
 
-// Helper function to get User model safely
-const getUserModel = async () => {
-  try {
-    // Ensure MongoDB is connected
-    if (!isConnected()) {
-      await connectToMongoDB();
-    }
-    
-    // Import the User model dynamically to ensure mongoose is ready
-    const UserModule = await import('../models/User');
-    return UserModule.default;
-  } catch (error) {
-    console.error('Error getting User model:', error);
-    throw new Error('ไม่สามารถเข้าถึงข้อมูลผู้ใช้ได้');
-  }
-};
-
-// ลงทะเบียนผู้ใช้ใหม่
+/**
+ * Register a new user
+ * @param {string} email - User's email
+ * @param {string} password - User's password
+ * @returns {Promise<Object>} - User data
+ */
 export const register = async (email, password) => {
+  console.log('Registering new user with email:', email);
+  
   try {
-    // ตรวจสอบการเชื่อมต่อกับ MongoDB
-    if (!isConnected()) {
-      await connectToMongoDB();
-      if (!isConnected()) {
-        throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
-      }
+    // Connect to MongoDB
+    const connected = await connectToMongoDB();
+    if (!connected) {
+      console.error('Failed to connect to MongoDB during registration');
+      throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาลองอีกครั้ง');
     }
-
-    // Get User model
-    const User = await getUserModel();
     
-    // ตรวจสอบว่ามีอีเมลนี้ในระบบแล้วหรือไม่
+    // Check if email already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log('Email already registered:', email);
       throw new Error('อีเมลนี้ถูกใช้งานแล้ว');
     }
 
-    // สร้างผู้ใช้ใหม่
+    // Create new user
+    console.log('Creating new user...');
     const newUser = new User({
       email,
-      password, // รหัสผ่านจะถูกเข้ารหัสโดย mongoose middleware
+      password, // Will be hashed by mongoose middleware
       displayName: email.split('@')[0]
     });
 
-    // บันทึกผู้ใช้ลงในฐานข้อมูล
+    // Save user to database
     await newUser.save();
+    console.log('User saved successfully:', email);
 
-    // สร้างข้อมูลผู้ใช้สำหรับส่งกลับ (ไม่มีรหัสผ่าน)
+    // Prepare user data for response (without password)
     const userData = {
-      id: newUser._id.toString(), // ใช้ toString() เพื่อป้องกันปัญหาการแปลง ObjectId
+      id: newUser._id.toString(),
       email: newUser.email,
       displayName: newUser.displayName,
-      photoURL: newUser.photoURL
+      photoURL: newUser.photoURL || null,
+      createdAt: newUser.createdAt
     };
 
-    // เก็บข้อมูลผู้ใช้ปัจจุบันใน AsyncStorage
+    // Store current user in AsyncStorage
     await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+    console.log('User data saved to AsyncStorage');
 
     return userData;
   } catch (error) {
-    console.error('Error registering:', error);
+    console.error('Registration error:', error);
     throw error;
   }
 };
 
-// เข้าสู่ระบบ
+/**
+ * Login user
+ * @param {string} email - User's email
+ * @param {string} password - User's password
+ * @returns {Promise<Object>} - User data
+ */
 export const login = async (email, password) => {
+  console.log('Attempting login for email:', email);
+  
   try {
-    // ตรวจสอบการเชื่อมต่อกับ MongoDB
-    if (!isConnected()) {
-      await connectToMongoDB();
-      if (!isConnected()) {
-        throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
-      }
+    // Connect to MongoDB
+    const connected = await connectToMongoDB();
+    if (!connected) {
+      console.error('Failed to connect to MongoDB during login');
+      throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาลองอีกครั้ง');
     }
 
-    // Get User model
-    const User = await getUserModel();
-
-    // ค้นหาผู้ใช้ด้วยอีเมล (เลือกเอาฟิลด์รหัสผ่านด้วยเพราะปกติจะไม่ถูกส่งกลับ)
+    // Find user by email with password field included
     const user = await User.findOne({ email }).select('+password');
     
-    // ตรวจสอบว่ามีผู้ใช้นี้หรือไม่
+    // Verify user exists
     if (!user) {
+      console.log('User not found:', email);
       throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
     }
 
-    // ตรวจสอบรหัสผ่าน
+    // Verify password
     const isMatch = user.matchPassword(password);
     if (!isMatch) {
+      console.log('Password mismatch for user:', email);
       throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
     }
 
-    // สร้างข้อมูลผู้ใช้สำหรับส่งกลับ (ไม่มีรหัสผ่าน)
+    console.log('Login successful for user:', email);
+    
+    // Prepare user data for response (without password)
     const userData = {
       id: user._id.toString(),
       email: user.email,
       displayName: user.displayName,
-      photoURL: user.photoURL
+      photoURL: user.photoURL || null
     };
 
-    // เก็บข้อมูลผู้ใช้ปัจจุบันใน AsyncStorage
+    // Store current user in AsyncStorage
     await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+    console.log('User data saved to AsyncStorage');
 
     return userData;
   } catch (error) {
-    console.error('Error logging in:', error);
+    console.error('Login error:', error);
     throw error;
   }
 };
 
-// ออกจากระบบ
+/**
+ * Logout current user
+ */
 export const logout = async () => {
   try {
-    // ลบข้อมูลผู้ใช้ปัจจุบันออกจาก AsyncStorage
+    console.log('Logging out user...');
     await AsyncStorage.removeItem(CURRENT_USER_KEY);
+    console.log('User logged out successfully');
   } catch (error) {
-    console.error('Error logging out:', error);
+    console.error('Logout error:', error);
     throw error;
   }
 };
 
-// ตรวจสอบสถานะการเข้าสู่ระบบปัจจุบัน
+/**
+ * Get current logged-in user
+ * @returns {Promise<Object|null>} - User data or null if not logged in
+ */
 export const getCurrentUser = async () => {
   try {
     const userJson = await AsyncStorage.getItem(CURRENT_USER_KEY);
@@ -138,21 +147,24 @@ export const getCurrentUser = async () => {
   }
 };
 
-// อัพเดทข้อมูลผู้ใช้
+/**
+ * Update user data
+ * @param {string} userId - User ID
+ * @param {Object} updatedData - User data to update
+ * @returns {Promise<Object>} - Updated user data
+ */
 export const updateUser = async (userId, updatedData) => {
+  console.log('Updating user data for ID:', userId);
+  
   try {
-    // ตรวจสอบการเชื่อมต่อกับ MongoDB
-    if (!isConnected()) {
-      await connectToMongoDB();
-      if (!isConnected()) {
-        throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
-      }
+    // Connect to MongoDB
+    const connected = await connectToMongoDB();
+    if (!connected) {
+      console.error('Failed to connect to MongoDB during user update');
+      throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาลองอีกครั้ง');
     }
-
-    // Get User model
-    const User = await getUserModel();
     
-    // อัพเดทข้อมูลและรับข้อมูลล่าสุดกลับมา
+    // Update user and get updated document
     const user = await User.findByIdAndUpdate(
       userId,
       { ...updatedData, updatedAt: Date.now() },
@@ -160,101 +172,114 @@ export const updateUser = async (userId, updatedData) => {
     );
 
     if (!user) {
+      console.error('User not found for update:', userId);
       throw new Error('ไม่พบผู้ใช้ในระบบ');
     }
 
-    // สร้างข้อมูลผู้ใช้สำหรับส่งกลับ
+    console.log('User updated successfully:', userId);
+
+    // Prepare user data for response
     const userData = {
       id: user._id.toString(),
       email: user.email,
       displayName: user.displayName,
-      photoURL: user.photoURL
+      photoURL: user.photoURL || null
     };
 
-    // อัพเดท AsyncStorage ถ้าเป็นผู้ใช้ปัจจุบัน
+    // Update AsyncStorage if this is current user
     const currentUserJson = await AsyncStorage.getItem(CURRENT_USER_KEY);
     if (currentUserJson) {
       const currentUser = JSON.parse(currentUserJson);
       if (currentUser.id === userId) {
         await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+        console.log('Current user data updated in AsyncStorage');
       }
     }
 
     return userData;
   } catch (error) {
-    console.error('Error updating user:', error);
+    console.error('User update error:', error);
     throw error;
   }
 };
 
-// เปลี่ยนรหัสผ่าน
+/**
+ * Change user password
+ * @param {string} userId - User ID
+ * @param {string} currentPassword - Current password
+ * @param {string} newPassword - New password
+ * @returns {Promise<Object>} - Result object
+ */
 export const changePassword = async (userId, currentPassword, newPassword) => {
+  console.log('Changing password for user ID:', userId);
+  
   try {
-    // ตรวจสอบการเชื่อมต่อกับ MongoDB
-    if (!isConnected()) {
-      await connectToMongoDB();
-      if (!isConnected()) {
-        return { success: false, error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้' };
-      }
+    // Connect to MongoDB
+    const connected = await connectToMongoDB();
+    if (!connected) {
+      console.error('Failed to connect to MongoDB during password change');
+      return { success: false, error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาลองอีกครั้ง' };
     }
-
-    // Get User model
-    const User = await getUserModel();
     
-    // ค้นหาผู้ใช้ด้วย ID และเลือกเอาฟิลด์รหัสผ่านด้วย
+    // Find user and include password field
     const user = await User.findById(userId).select('+password');
     
     if (!user) {
+      console.error('User not found for password change:', userId);
       return { success: false, error: 'ไม่พบผู้ใช้ในระบบ' };
     }
 
-    // ตรวจสอบรหัสผ่านปัจจุบัน
+    // Verify current password
     const isMatch = user.matchPassword(currentPassword);
     if (!isMatch) {
+      console.log('Current password mismatch for user:', userId);
       return { success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' };
     }
 
-    // อัพเดทรหัสผ่านใหม่
+    // Update password
     user.password = newPassword;
     user.updatedAt = Date.now();
-    await user.save(); // บันทึกจะเรียกใช้ middleware เข้ารหัสรหัสผ่านอัตโนมัติ
-
+    await user.save(); // This will trigger the password hashing middleware
+    
+    console.log('Password changed successfully for user:', userId);
     return { success: true };
   } catch (error) {
-    console.error('Error changing password:', error);
+    console.error('Password change error:', error);
     return { success: false, error: 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' };
   }
 };
 
-// ส่งอีเมลรีเซ็ตรหัสผ่าน (จำลอง)
+/**
+ * Send reset password email (mock implementation)
+ * @param {string} email - User's email
+ * @returns {Promise<Object>} - Result object
+ */
 export const sendResetPasswordEmail = async (email) => {
+  console.log('Sending reset password email to:', email);
+  
   try {
-    // ตรวจสอบการเชื่อมต่อกับ MongoDB
-    if (!isConnected()) {
-      await connectToMongoDB();
-      if (!isConnected()) {
-        return { success: false, error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้' };
-      }
+    // Connect to MongoDB
+    const connected = await connectToMongoDB();
+    if (!connected) {
+      console.error('Failed to connect to MongoDB during reset password');
+      return { success: false, error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาลองอีกครั้ง' };
     }
-
-    // Get User model
-    const User = await getUserModel();
     
-    // ตรวจสอบว่ามีอีเมลนี้ในระบบหรือไม่
+    // Check if user exists
     const user = await User.findOne({ email });
     
     if (!user) {
+      console.log('User not found for reset password:', email);
       return { success: false, error: 'ไม่พบบัญชีผู้ใช้ที่ตรงกับอีเมลนี้' };
     }
 
-    // ในโปรเจกต์จริง คุณควรส่งอีเมลรีเซ็ตรหัสผ่านจริงๆ
-    // แต่ในตัวอย่างนี้เราจะจำลองว่าส่งสำเร็จ
-    
-    console.log(`[จำลอง] ส่งอีเมลรีเซ็ตรหัสผ่านไปที่: ${email}`);
+    // In a real project, you would send an actual email here
+    // But for this example, we'll just simulate it
+    console.log(`[MOCK] Sent password reset email to: ${email}`);
     
     return { success: true };
   } catch (error) {
-    console.error('Error sending password reset email:', error);
+    console.error('Reset password error:', error);
     return { success: false, error: 'เกิดข้อผิดพลาดในการส่งอีเมลรีเซ็ตรหัสผ่าน' };
   }
 };

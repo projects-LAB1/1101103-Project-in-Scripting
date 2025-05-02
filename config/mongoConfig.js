@@ -1,68 +1,89 @@
-// Import necessary modules
+/**
+ * MongoDB Configuration
+ * This file handles the connection to MongoDB using Mongoose
+ */
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import 'react-native-get-random-values';
+// Import mongoose directly
 import mongoose from 'mongoose';
-import * as Crypto from 'expo-crypto';
-import bcrypt from 'react-native-bcrypt';
 
-// Fix for crypto in React Native environment
-if (!global.crypto) {
-  global.crypto = {
-    getRandomValues: (buffer) => {
-      for (let i = 0; i < buffer.length; i++) {
-        buffer[i] = Math.floor(Math.random() * 256);
-      }
-      return buffer;
-    }
-  };
-}
-
-// Set a secure random function fallback for bcrypt
-bcrypt.setRandomFallback((len) => {
-  const buf = new Uint8Array(len);
-  global.crypto.getRandomValues(buf);
-  return buf;
-});
-
-// MongoDB Atlas connection URL
+// MongoDB connection URI
 const MONGO_URI = 'mongodb+srv://dbUser:lZNiCp1GOzoCfUu2@cluster0.wzrvmbj.mongodb.net/clockApp?retryWrites=true&w=majority&appName=Cluster0';
 
-// Define mongoose connection options for React Native
-const connectionOptions = {
+// Connection options
+const CONNECTION_OPTIONS = {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 };
 
-let isInitialized = false;
-let mongooseInstance = null;
+// Track connection state
+let isConnecting = false;
+let mongooseConnected = false;
 
-// ฟังก์ชันสำหรับเชื่อมต่อกับ MongoDB
+/**
+ * Initialize MongoDB connection
+ */
 export const connectToMongoDB = async () => {
+  console.log('Attempting to connect to MongoDB...');
+
+  // Return early if already connected
+  if (mongooseConnected && mongoose.connection && mongoose.connection.readyState === 1) {
+    console.log('MongoDB already connected.');
+    return true;
+  }
+
+  // Prevent multiple connection attempts
+  if (isConnecting) {
+    console.log('Connection to MongoDB already in progress...');
+    return false;
+  }
+
+  isConnecting = true;
+
   try {
-    if (isInitialized) return true;
-    
     // Check if mongoose is properly imported
     if (!mongoose || typeof mongoose.connect !== 'function') {
-      console.error('Mongoose is not properly imported');
+      console.error('Mongoose import failed - mongoose not available or connect not a function');
+      isConnecting = false;
       return false;
     }
-    
+
     // Connect to MongoDB
-    await mongoose.connect(MONGO_URI, connectionOptions);
-    console.log('Connected to MongoDB Atlas');
-    mongooseInstance = mongoose;
-    isInitialized = true;
+    console.log('Connecting to MongoDB URI:', MONGO_URI);
+    await mongoose.connect(MONGO_URI, CONNECTION_OPTIONS);
+    
+    console.log('✓ Successfully connected to MongoDB!');
+    mongooseConnected = true;
+    
+    // Cache connection status
+    await AsyncStorage.setItem('@mongodb_connected', 'true');
+    
     return true;
   } catch (error) {
     console.error('MongoDB connection error:', error);
     return false;
+  } finally {
+    isConnecting = false;
   }
 };
 
-// ตรวจสอบว่ามีการเชื่อมต่อกับ MongoDB หรือไม่
+/**
+ * Check if MongoDB is connected
+ */
 export const isConnected = () => {
-  return isInitialized && mongooseInstance && 
-         mongooseInstance.connection && 
-         mongooseInstance.connection.readyState === 1;
+  return mongooseConnected && mongoose && mongoose.connection && mongoose.connection.readyState === 1;
 };
 
-// Export mongoose instance
+/**
+ * Get mongoose instance
+ */
+export const getMongoose = async () => {
+  // Try to connect if not already connected
+  if (!isConnected()) {
+    await connectToMongoDB();
+  }
+  return mongoose;
+};
+
+// Export mongoose
 export default mongoose;

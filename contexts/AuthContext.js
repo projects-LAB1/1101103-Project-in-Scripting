@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { connectToMongoDB, isConnected } from '../config/mongoConfig';
+import { connectToMongoDB } from '../config/mongoConfig';
 import {
   register as mongoRegister,
   login as mongoLogin,
@@ -23,23 +23,40 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isMongoInitialized, setIsMongoInitialized] = useState(false);
+  const [dbInitializing, setDbInitializing] = useState(true);
 
+  // Initialize MongoDB and check login state
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Ensure MongoDB is connected before proceeding
+        console.log('Initializing auth context...');
+        
+        // Attempt to connect to MongoDB
+        console.log('Connecting to MongoDB...');
         const connected = await connectToMongoDB();
+        
         if (!connected) {
-          throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
+          console.error('MongoDB connection failed during app initialization');
+          setDbInitializing(false);
+        } else {
+          console.log('MongoDB connected successfully');
+          setDbInitializing(false);
         }
-        setIsMongoInitialized(true);
-
-        // ตรวจสอบสถานะการเข้าสู่ระบบ
+        
+        // Check current user regardless of MongoDB connection
+        // (user might be cached in AsyncStorage)
+        console.log('Checking for current user...');
         const userData = await mongoGetCurrentUser();
-        setUser(userData);
+        
+        if (userData) {
+          console.log('User found:', userData.email);
+          setUser(userData);
+        } else {
+          console.log('No user found in AsyncStorage');
+        }
       } catch (error) {
         console.error('Error initializing app:', error);
+        setDbInitializing(false);
       } finally {
         setLoading(false);
       }
@@ -48,12 +65,20 @@ export const AuthProvider = ({ children }) => {
     initializeApp();
   }, []);
 
+  // Handle registration
   const handleRegister = async (email, password) => {
-    if (!isMongoInitialized) {
-      return { success: false, error: 'ระบบกำลังเริ่มต้น กรุณาลองใหม่อีกครั้ง' };
-    }
     try {
       setLoading(true);
+      
+      // Attempt to connect to MongoDB first
+      const connected = await connectToMongoDB();
+      if (!connected) {
+        return { 
+          success: false, 
+          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
+        };
+      }
+      
       const newUser = await mongoRegister(email, password);
       setUser(newUser);
       return { success: true };
@@ -64,12 +89,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Handle login
   const handleLogin = async (email, password) => {
-    if (!isMongoInitialized) {
-      return { success: false, error: 'ระบบกำลังเริ่มต้น กรุณาลองใหม่อีกครั้ง' };
-    }
     try {
       setLoading(true);
+      
+      // Attempt to connect to MongoDB first
+      const connected = await connectToMongoDB();
+      if (!connected) {
+        return { 
+          success: false, 
+          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
+        };
+      }
+      
       const loggedInUser = await mongoLogin(email, password);
       setUser(loggedInUser);
       return { success: true };
@@ -80,6 +113,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Handle logout
   const handleLogout = async () => {
     try {
       setLoading(true);
@@ -93,9 +127,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Update user profile
   const handleUpdateUser = async (userData) => {
     try {
       if (!user) throw new Error('ยังไม่มีการเข้าสู่ระบบ');
+      
+      // Attempt to connect to MongoDB first
+      const connected = await connectToMongoDB();
+      if (!connected) {
+        return { 
+          success: false, 
+          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
+        };
+      }
       
       const updatedUser = await mongoUpdateUser(user.id, userData);
       setUser(updatedUser);
@@ -105,9 +149,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Change password
   const handleChangePassword = async (currentPassword, newPassword) => {
     try {
       if (!user) throw new Error('ยังไม่มีการเข้าสู่ระบบ');
+      
+      // Attempt to connect to MongoDB first
+      const connected = await connectToMongoDB();
+      if (!connected) {
+        return { 
+          success: false, 
+          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
+        };
+      }
       
       const result = await mongoChangePassword(user.id, currentPassword, newPassword);
       return result;
@@ -116,8 +170,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Send password reset email
   const handleResetPassword = async (email) => {
     try {
+      // Attempt to connect to MongoDB first
+      const connected = await connectToMongoDB();
+      if (!connected) {
+        return { 
+          success: false, 
+          error: 'ไม่สามารถเชื่อมต่อกับฐานข้อมูล กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง' 
+        };
+      }
+      
       const result = await mongoSendResetEmail(email);
       return result;
     } catch (error) {
@@ -125,19 +189,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Context value
   const value = {
     user,
     loading,
+    dbInitializing,
     register: handleRegister,
     login: handleLogin,
     logout: handleLogout,
     updateUser: handleUpdateUser,
     changePassword: handleChangePassword,
     resetPassword: handleResetPassword,
-    isAuthenticated: !!user,
-    isMongoInitialized
+    isAuthenticated: !!user
   };
 
+  // Return loading state
   if (loading) {
     return (
       <AuthContext.Provider value={value}>
@@ -146,6 +212,7 @@ export const AuthProvider = ({ children }) => {
     );
   }
 
+  // Return fully initialized context
   return (
     <AuthContext.Provider value={value}>
       {children}

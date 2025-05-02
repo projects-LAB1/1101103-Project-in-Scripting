@@ -1,21 +1,36 @@
-import mongoose from 'mongoose';
+/**
+ * User model for MongoDB
+ * Handles user authentication and profile data
+ */
+import 'react-native-get-random-values';
 import bcrypt from 'react-native-bcrypt';
 import * as Crypto from 'expo-crypto';
+import mongoose from '../config/mongoConfig';
 
-// Set a secure random function fallback for bcrypt using expo-crypto
-if (!bcrypt.getRandom) {
-  bcrypt.setRandomFallback(async (len) => {
-    const bytes = await Crypto.getRandomBytesAsync(len);
-    return new Uint8Array(bytes);
-  });
-}
+// Set up a secure random function fallback for bcrypt
+bcrypt.setRandomFallback((len) => {
+  try {
+    const buffer = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      buffer[i] = Math.floor(Math.random() * 256);
+    }
+    return buffer;
+  } catch (err) {
+    console.error('Error generating random values:', err);
+    const buffer = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      buffer[i] = Math.floor(Math.random() * 256);
+    }
+    return buffer;
+  }
+});
 
-// Generate a salt using a more compatible method
+// Generate a salt for password hashing
 const generateSalt = (rounds = 10) => {
   return bcrypt.genSaltSync(rounds);
 };
 
-// สร้างโครงสร้าง Schema สำหรับผู้ใช้
+// Define the user schema
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -48,15 +63,15 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Middleware เข้ารหัสรหัสผ่านก่อนบันทึกลงฐานข้อมูล
-userSchema.pre('save', async function(next) {
-  // ทำงานเฉพาะเมื่อมีการเปลี่ยนแปลงรหัสผ่าน
+// Add password hashing middleware
+userSchema.pre('save', function(next) {
+  // Only hash if password is modified
   if (!this.isModified('password')) {
     return next();
   }
   
   try {
-    // เข้ารหัสรหัสผ่านด้วย bcrypt แบบ React Native compatible
+    // Hash password
     const salt = generateSalt(10);
     this.password = bcrypt.hashSync(this.password, salt);
     next();
@@ -66,7 +81,7 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// เมธอดเปรียบเทียบรหัสผ่าน
+// Add password verification method
 userSchema.methods.matchPassword = function(enteredPassword) {
   try {
     return bcrypt.compareSync(enteredPassword, this.password);
@@ -76,7 +91,16 @@ userSchema.methods.matchPassword = function(enteredPassword) {
   }
 };
 
-// สร้างโมเดล User จาก Schema
-const User = mongoose.models.User || mongoose.model('User', userSchema);
+// Create and register the User model
+let User;
+try {
+  // Try to retrieve existing model first
+  User = mongoose.model('User');
+  console.log('Retrieved existing User model');
+} catch (error) {
+  // Model doesn't exist yet, create it
+  User = mongoose.model('User', userSchema);
+  console.log('Created new User model');
+}
 
 export default User;
