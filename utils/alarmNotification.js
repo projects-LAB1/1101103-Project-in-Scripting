@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Platform, Alert, Linking } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 
@@ -13,59 +13,96 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// ขอสิทธิ์การแจ้งเตือน
+// ขอสิทธิ์การแจ้งเตือนด้วยการปรับปรุงให้ดีขึ้น
 export const requestNotificationPermissions = async () => {
-  // ตรวจสอบว่าเป็นอุปกรณ์จริงหรือไม่
-  if (!Device.isDevice) {
-    console.warn('การแจ้งเตือนอาจไม่ทำงานบน simulator หรือ emulator');
-    return false;
-  }
+  try {
+    // ตรวจสอบว่าเป็นอุปกรณ์จริงหรือไม่ แต่ไม่หยุดทำงานหากเป็น simulator
+    if (!Device.isDevice) {
+      console.warn('การแจ้งเตือนอาจไม่ทำงานบน simulator หรือ emulator');
+      // เราจะยังคงพยายามขอสิทธิ์แม้จะเป็น simulator
+    }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  
-  if (finalStatus !== 'granted') {
-    console.warn('ไม่ได้รับสิทธิ์การแจ้งเตือน การปลุกอาจไม่ทำงาน');
-    return false;
-  }
-
-  // สร้าง notification channels สำหรับ Android (สำคัญมาก)
-  if (Platform.OS === 'android') {
-    // สร้าง channel สำหรับการปลุก (เสียงดัง ความสำคัญสูงสุด)
-    await Notifications.setNotificationChannelAsync('alarms', {
-      name: 'การปลุก',
-      description: 'แจ้งเตือนสำหรับนาฬิกาปลุก',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250, 250, 250],
-      enableVibrate: true,
-      sound: 'default', // ใช้ 'default' แทนที่จะเป็น custom เพื่อหลีกเลี่ยง error
-      enableLights: true,
-      lightColor: '#FF0000',
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      bypassDnd: true, // ข้ามโหมด Do Not Disturb
-    });
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
     
-    // สร้าง channel เพิ่มเติมสำหรับการปลุกแบบพิเศษ (ข้ามโหมด silent ได้)
-    await Notifications.setNotificationChannelAsync('critical_alarms', {
-      name: 'การปลุกแบบสำคัญ',
-      description: 'แจ้งเตือนสำหรับนาฬิกาปลุกแบบสำคัญ (ข้ามโหมดเงียบ)',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 500, 500, 500, 500, 500],
-      enableVibrate: true,
-      sound: 'default', // ใช้ 'default' แทนที่จะเป็น custom เพื่อหลีกเลี่ยง error
-      enableLights: true,
-      lightColor: '#FF0000',
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      bypassDnd: true, 
-    });
-  }
+    if (existingStatus !== 'granted') {
+      console.log('กำลังขอสิทธิ์การแจ้งเตือน...');
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    
+    if (finalStatus !== 'granted') {
+      console.warn('ไม่ได้รับสิทธิ์การแจ้งเตือน การปลุกอาจไม่ทำงาน');
+      
+      // ถามผู้ใช้ว่าต้องการไปที่การตั้งค่าหรือไม่เพื่อเปิดใช้งานการแจ้งเตือน
+      Alert.alert(
+        'การแจ้งเตือนถูกปิดใช้งาน',
+        'เพื่อให้นาฬิกาปลุกทำงานได้อย่างถูกต้อง คุณต้องอนุญาตการแจ้งเตือน ต้องการไปที่การตั้งค่าเพื่อเปิดใช้งานหรือไม่?',
+        [
+          {
+            text: 'ไปที่การตั้งค่า',
+            onPress: () => Linking.openSettings(),
+          },
+          {
+            text: 'ไม่ ใช้งานแบบจำกัด', 
+            style: 'cancel',
+            onPress: () => console.log('ผู้ใช้เลือกใช้งานแบบจำกัด (ไม่มีการแจ้งเตือน)')
+          },
+        ]
+      );
+      return false;
+    }
 
-  return true;
+    // สร้าง notification channels สำหรับ Android (สำคัญมาก)
+    if (Platform.OS === 'android') {
+      console.log('กำลังตั้งค่าช่องทางการแจ้งเตือนสำหรับ Android...');
+      
+      // สร้าง channel สำหรับการปลุก (เสียงดัง ความสำคัญสูงสุด)
+      await Notifications.setNotificationChannelAsync('alarms', {
+        name: 'การปลุก',
+        description: 'แจ้งเตือนสำหรับนาฬิกาปลุก',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250, 250, 250],
+        enableVibrate: true,
+        sound: 'default', // ใช้ 'default' แทนที่จะเป็น custom เพื่อหลีกเลี่ยง error
+        enableLights: true,
+        lightColor: '#FF0000',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true, // ข้ามโหมด Do Not Disturb
+      });
+      
+      // สร้าง channel เพิ่มเติมสำหรับการปลุกแบบพิเศษ (ข้ามโหมด silent ได้)
+      await Notifications.setNotificationChannelAsync('critical_alarms', {
+        name: 'การปลุกแบบสำคัญ',
+        description: 'แจ้งเตือนสำหรับนาฬิกาปลุกแบบสำคัญ (ข้ามโหมดเงียบ)',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 500, 500, 500, 500, 500],
+        enableVibrate: true,
+        sound: 'default', // ใช้ 'default' แทนที่จะเป็น custom เพื่อหลีกเลี่ยง error
+        enableLights: true,
+        lightColor: '#FF0000',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true, 
+      });
+
+      // เพิ่ม channel สำหรับการแจ้งเตือนทั่วไป
+      await Notifications.setNotificationChannelAsync('general', {
+        name: 'การแจ้งเตือนทั่วไป',
+        description: 'แจ้งเตือนทั่วไปในแอพ',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern: [0, 250, 250, 250],
+        sound: 'default',
+      });
+      
+      console.log('ตั้งค่าช่องทางการแจ้งเตือนสำเร็จ');
+    }
+
+    console.log('ได้รับสิทธิ์การแจ้งเตือนแล้ว!');
+    return true;
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการขอสิทธิ์การแจ้งเตือน:', error);
+    return false;
+  }
 };
 
 // กำหนดเวลาการแจ้งเตือนนาฬิกาปลุก
@@ -75,7 +112,13 @@ export const scheduleAlarm = async (alarm) => {
     const permissionGranted = await requestNotificationPermissions();
     if (!permissionGranted) {
       console.warn('ไม่สามารถตั้งการปลุกได้เนื่องจากไม่ได้รับสิทธิ์การแจ้งเตือน');
-      return null;
+      
+      // แม้จะไม่ได้รับสิทธิ์ แต่เราจะคืนค่า dummy ID เพื่อไม่ให้เกิด error
+      return { 
+        primaryId: `local-${Date.now()}`,
+        allIds: [`local-${Date.now()}`],
+        noPermission: true 
+      };
     }
     
     const { hour, minute, repeatDays = [], label, soundId } = alarm;
@@ -142,6 +185,7 @@ export const scheduleAlarm = async (alarm) => {
           });
           
           notificationIds.push(id);
+          console.log(`ตั้งการปลุก (iOS) สำหรับวัน ${jsWeekday} (${['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][jsWeekday]}) ที่ ${hour}:${minute} ID: ${id}`);
         }
         
         // คืนค่า ID แรกและเก็บ IDs ทั้งหมดไว้ใน data
@@ -187,15 +231,13 @@ export const scheduleAlarm = async (alarm) => {
               channelId: 'alarms',
             },
             trigger: {
-              hour: hour,
-              minute: minute,
-              second: 0,
+              date: nextAlarmDate,
               repeats: true,
-              weekday: jsWeekday + 1, // Android weekday format
             },
           });
           
           notificationIds.push(id);
+          console.log(`ตั้งการปลุก (Android) สำหรับวัน ${jsWeekday} (${['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][jsWeekday]}) ที่ ${hour}:${minute} ID: ${id}`);
         }
         
         // คืนค่า ID แรกและเก็บ IDs ทั้งหมดไว้ใน data
@@ -240,7 +282,12 @@ export const scheduleAlarm = async (alarm) => {
     }
   } catch (error) {
     console.error('เกิดข้อผิดพลาดในการตั้งนาฬิกาปลุก:', error);
-    return null;
+    // สร้าง dummy ID เพื่อให้แอพยังทำงานต่อไปได้แม้จะมีข้อผิดพลาด
+    return { 
+      primaryId: `error-${Date.now()}`,
+      allIds: [`error-${Date.now()}`],
+      error: true 
+    };
   }
 };
 
