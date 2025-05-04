@@ -34,3 +34,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+android/.gradle/8.10.2/dependencies-accessors/569c8b261a8a714d7731d5f568e0e5c05babae10-6a02fd01-b6b9-49d9-a7c5-b319fdebfe79/classes/org/gradle/accessors/dm/LibrariesForLibs$AndroidGradleLibraryAccessors.class
+*.class
+android/.gradle/8.10.2/dependencies-accessors/569c8b261a8a714d7731d5f568e0e5c05babae10-6a02fd01-b6b9-49d9-a7c5-b319fdebfe79/sources/org/gradle/accessors/dm/LibrariesForLibs.java
