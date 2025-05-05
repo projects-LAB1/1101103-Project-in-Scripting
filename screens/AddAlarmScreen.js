@@ -11,10 +11,12 @@ import {
   Alert,
   Platform,
   Pressable,
+  StatusBar,
   Modal,
+  FlatList,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { addAlarm, updateAlarm, cancelAlarm, deleteAlarm } from '../utils/alarmStorage';
@@ -31,17 +33,20 @@ const AddAlarmScreen = ({ route, navigation }) => {
   );
   const [repeatDays, setRepeatDays] = useState(editingAlarm?.repeatDays || []);
   const [isActive, setIsActive] = useState(editingAlarm?.isActive ?? true);
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [label, setLabel] = useState(editingAlarm?.label || "");
-  const [taskType, setTaskType] = useState(editingAlarm?.taskType || "normal");
-  const [taskDifficulty, setTaskDifficulty] = useState(
-    editingAlarm?.taskDifficulty || "medium"
-  );
   const [soundId, setSoundId] = useState(editingAlarm?.soundId || "default");
-  const [soundName, setSoundName] = useState(editingAlarm?.soundName || "เสียงเริ่มต้น");
+  const [soundName, setSoundName] = useState(editingAlarm?.soundName || "Default alarm sound");
   const [snooze, setSnooze] = useState(editingAlarm?.snooze ?? true);
+  const [snoozeTime, setSnoozeTime] = useState(editingAlarm?.snoozeTime || 5);
+  const [snoozeCount, setSnoozeCount] = useState(editingAlarm?.snoozeCount || 3);
+  const [vibrate, setVibrate] = useState(editingAlarm?.vibrate ?? true);
+  const [vibrateType, setVibrateType] = useState(editingAlarm?.vibrateType || "Default");
+  const [skipHolidays, setSkipHolidays] = useState(editingAlarm?.skipHolidays ?? false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [tempTime, setTempTime] = useState(new Date());
 
-  const dayNames = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+  const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const dayFullNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const handleSave = async () => {
     try {
@@ -55,6 +60,11 @@ const AddAlarmScreen = ({ route, navigation }) => {
         soundId,
         soundName,
         snooze,
+        snoozeTime,
+        snoozeCount,
+        vibrate,
+        vibrateType,
+        skipHolidays,
         createdAt: new Date().toISOString(),
       };
 
@@ -122,8 +132,6 @@ const AddAlarmScreen = ({ route, navigation }) => {
           // นำทางไปยังหน้า AlarmRingingScreen โดยตรง
           navigation.navigate("AlarmRinging", { alarm: alarmData });
         });
-        
-      Alert.alert('ทดสอบการปลุก', 'กำลังเปิดหน้าจอปลุก');
     } catch (error) {
       console.error('Error testing alarm:', error);
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถทดสอบการปลุกได้');
@@ -132,109 +140,198 @@ const AddAlarmScreen = ({ route, navigation }) => {
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
+      headerTitle: () => (
+        <Text style={styles.headerTitle}>{editingAlarm ? 'Edit alarm' : 'Add alarm'}</Text>
+      ),
       headerRight: () => (
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-          <Text style={styles.saveButtonText}>บันทึก</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRightContainer}>
+          <TouchableOpacity onPress={handleTestAlarm} style={styles.headerButton}>
+            <Ionicons name="alarm-outline" size={22} color="#0A84FF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleSave} style={styles.headerButton}>
+            <Text style={styles.headerButtonTextDone}>Save</Text>
+          </TouchableOpacity>
+        </View>
       ),
       headerLeft: () => (
-        <TouchableOpacity onPress={handleTestAlarm} style={styles.testButton}>
-          <MaterialCommunityIcons name="bell-ring" size={20} color="#FF9500" />
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={styles.headerButton}
+        >
+          <Text style={styles.headerButtonText}>Cancel</Text>
         </TouchableOpacity>
       ),
-      title: editingAlarm ? 'แก้ไขการปลุก' : 'เพิ่มการปลุก',
       headerStyle: {
         backgroundColor: '#000000',
+        shadowColor: 'transparent',
+        elevation: 0,
       },
       headerTintColor: '#FFFFFF',
     });
   }, [navigation, time, repeatDays, isActive]);
 
-  const getRepeatDaysText = () => {
-    if (repeatDays.length === 0) return 'ไม่เลย';
-    if (repeatDays.length === 7) return 'ทุกวัน';
-    if (repeatDays.length === 5 && !repeatDays.includes(5) && !repeatDays.includes(6)) 
-      return 'วันธรรมดา';
-    if (repeatDays.length === 2 && repeatDays.includes(5) && repeatDays.includes(6))
-      return 'สุดสัปดาห์';
+  const getRepeatText = () => {
+    if (repeatDays.length === 0) return 'Never';
+    if (repeatDays.length === 7) return 'Every day';
+    if (repeatDays.length === 5 && !repeatDays.includes(0) && !repeatDays.includes(6)) 
+      return 'Weekdays';
+    if (repeatDays.length === 2 && repeatDays.includes(0) && repeatDays.includes(6))
+      return 'Weekends';
+    
     return repeatDays
       .sort()
-      .map(day => dayNames[day])
-      .join(' ');
+      .map(day => dayFullNames[day])
+      .join(', ');
+  };
+
+  const getTimeUntilAlarm = () => {
+    const now = new Date();
+    const alarmTime = new Date(now);
+    alarmTime.setHours(time.getHours());
+    alarmTime.setMinutes(time.getMinutes());
+    alarmTime.setSeconds(0);
+    
+    // ถ้าเวลาปลุกผ่านไปแล้ว ให้เพิ่มอีก 1 วัน
+    if (alarmTime < now) {
+      alarmTime.setDate(alarmTime.getDate() + 1);
+    }
+    
+    // คำนวณความแตกต่าง
+    const diffMs = alarmTime - now;
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `Ring in ${diffHrs} hours ${diffMins} minutes`;
+  };
+
+  // Quick access time adjustment functions
+  const addMinutes = (mins) => {
+    const newTime = new Date(time);
+    newTime.setMinutes(newTime.getMinutes() + mins);
+    setTime(newTime);
+  };
+
+  const setSpecificTime = (hours, minutes) => {
+    const newTime = new Date(time);
+    newTime.setHours(hours);
+    newTime.setMinutes(minutes);
+    setTime(newTime);
+  };
+
+  const openTimePicker = () => {
+    setTempTime(new Date(time));
+    setShowTimePicker(true);
+  };
+
+  const cancelTimePicker = () => {
+    setShowTimePicker(false);
+  };
+
+  const confirmTimePicker = () => {
+    setTime(tempTime);
+    setShowTimePicker(false);
+  };
+
+  const handleTimeChange = (event, selectedTime) => {
+    if (selectedTime) {
+      setTempTime(selectedTime);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['right', 'left', 'bottom']}>
+      <StatusBar barStyle="light-content" />
+      
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContent}
         bounces={true}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.cardContainer}>
-          <Pressable 
-            style={styles.card}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <View style={styles.cardIconContainer}>
-              <MaterialCommunityIcons name="clock-outline" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.cardMainContent}>
-              <Text style={styles.cardLabel}>เวลา</Text>
-              <Text style={styles.timeText}>{formatTime(time)}</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
-          </Pressable>
-
-          <Pressable 
-            style={styles.card}
-            onPress={() => navigation.navigate('RepeatDays', { 
-              repeatDays, 
-              onSave: setRepeatDays 
-            })}
-          >
-            <View style={styles.cardIconContainer}>
-              <MaterialCommunityIcons name="repeat" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.cardMainContent}>
-              <Text style={styles.cardLabel}>ทำซ้ำ</Text>
-              <Text style={styles.cardValue}>{getRepeatDaysText()}</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
-          </Pressable>
-
-          <View style={styles.card}>
-            <View style={styles.cardIconContainer}>
-              <MaterialCommunityIcons name="label-outline" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.cardMainContent}>
-              <Text style={styles.cardLabel}>ชื่อ</Text>
-              <TextInput
-                style={styles.labelInput}
-                value={label}
-                onChangeText={setLabel}
-                placeholder="เพิ่มชื่อ"
-                placeholderTextColor="#666"
-                maxLength={30}
-              />
-            </View>
+        {/* Samsung-style large time display */}
+        <TouchableOpacity 
+          style={styles.largeTimeDisplay}
+          onPress={openTimePicker}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.largeTimeText}>
+            {time.getHours().toString().padStart(2, '0')}:{time.getMinutes().toString().padStart(2, '0')}
+          </Text>
+        </TouchableOpacity>
+        
+        <Text style={styles.timeRingIn}>{getTimeUntilAlarm()}</Text>
+        
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>Repeat</Text>
+            <Text style={styles.sectionValueText}>{getRepeatText()}</Text>
           </View>
-
-          <View style={styles.card}>
-            <View style={styles.cardIconContainer}>
-              <MaterialCommunityIcons name="bell-ring-outline" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.cardMainContent}>
-              <Text style={styles.cardLabel}>เลื่อนปลุก</Text>
+          
+          <View style={styles.weekdayContainer}>
+            {dayNames.map((day, index) => (
+              <TouchableOpacity 
+                key={index}
+                style={[
+                  styles.dayButton,
+                  repeatDays.includes(index) ? styles.dayButtonActive : null
+                ]}
+                onPress={() => toggleDay(index)}
+              >
+                <Text style={[
+                  styles.dayText,
+                  repeatDays.includes(index) ? styles.dayTextActive : null
+                ]}>{day}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <View style={styles.optionRow}>
+            <View style={styles.optionTextContainer}>
+              <Text style={styles.optionText}>Do Not Ring on Holidays</Text>
+              <Text style={styles.optionSubText}>Alarm won't ring on holidays.</Text>
             </View>
             <Switch
-              value={snooze}
-              onValueChange={setSnooze}
-              trackColor={{ false: '#3e3e3e', true: '#FF9500' }}
-              thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : snooze ? '#FFFFFF' : '#f4f3f4'}
+              value={skipHolidays}
+              onValueChange={setSkipHolidays}
+              trackColor={{ false: '#3e3e3e', true: '#3e3e3e' }}
+              thumbColor={skipHolidays ? '#FFFFFF' : '#FFFFFF'}
               ios_backgroundColor="#3e3e3e"
             />
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <TextInput
+            style={styles.labelInput}
+            value={label}
+            onChangeText={setLabel}
+            placeholder="Alarm name"
+            placeholderTextColor="#777"
+          />
+          
+          <TouchableOpacity style={styles.optionRow}>
+            <View style={styles.optionTextContainer}>
+              <Text style={styles.optionText}>Ringtone</Text>
+              <Text style={styles.optionSubText}>{soundName}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.optionRow}>
+            <View style={styles.optionTextContainer}>
+              <Text style={styles.optionText}>Vibrate</Text>
+              <Text style={styles.optionSubText}>{vibrateType}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.optionRow}>
+            <View style={styles.optionTextContainer}>
+              <Text style={styles.optionText}>Snooze</Text>
+              <Text style={styles.optionSubText}>{snoozeTime} minutes, {snoozeCount} times</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+          </TouchableOpacity>
         </View>
 
         {editingAlarm && (
@@ -242,12 +339,12 @@ const AddAlarmScreen = ({ route, navigation }) => {
             style={styles.deleteButton}
             onPress={() => {
               Alert.alert(
-                'ลบการปลุก',
-                'คุณแน่ใจหรือไม่ที่จะลบการปลุกนี้?',
+                'Delete Alarm',
+                'Are you sure you want to delete this alarm?',
                 [
-                  { text: 'ยกเลิก', style: 'cancel' },
+                  { text: 'Cancel', style: 'cancel' },
                   { 
-                    text: 'ลบ', 
+                    text: 'Delete', 
                     style: 'destructive',
                     onPress: async () => {
                       try {
@@ -258,7 +355,7 @@ const AddAlarmScreen = ({ route, navigation }) => {
                         navigation.goBack();
                       } catch (error) {
                         console.error('Error deleting alarm:', error);
-                        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถลบการปลุกได้');
+                        Alert.alert('Error', 'Could not delete the alarm');
                       }
                     }
                   }
@@ -267,51 +364,130 @@ const AddAlarmScreen = ({ route, navigation }) => {
             }}
           >
             <MaterialCommunityIcons name="trash-can-outline" size={24} color="#FF3B30" />
-            <Text style={styles.deleteButtonText}>ลบการปลุก</Text>
+            <Text style={styles.deleteButtonText}>Delete Alarm</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
 
+      {/* Horizontal time picker modal */}
       <Modal
-        visible={showTimePicker}
-        transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowTimePicker(false)}
+        transparent={true}
+        visible={showTimePicker}
+        onRequestClose={cancelTimePicker}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity 
-                onPress={() => setShowTimePicker(false)}
-                style={styles.modalButton}
-              >
-                <Text style={styles.modalCancelText}>ยกเลิก</Text>
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>ตั้งเวลา</Text>
-              <TouchableOpacity 
-                onPress={() => setShowTimePicker(false)}
-                style={styles.modalButton}
-              >
-                <Text style={styles.modalSaveText}>ตกลง</Text>
-              </TouchableOpacity>
+          <View style={styles.timePickerModal}>
+            <View style={styles.timeDisplayContainer}>
+              <Text style={styles.timeDisplayText}>
+                {tempTime.getHours().toString().padStart(2, '0')}:{tempTime.getMinutes().toString().padStart(2, '0')}
+              </Text>
             </View>
-            <View style={styles.timePreview}>
-              <Text style={styles.timePreviewText}>{formatTime(time)}</Text>
-            </View>
-            <View style={styles.pickerContainer}>
-              <DateTimePicker
-                value={time}
-                mode="time"
-                is24Hour={true}
-                display="spinner"
-                onChange={(event, selectedTime) => {
-                  if (selectedTime) {
-                    setTime(selectedTime);
+
+            <View style={styles.horizontalPickerContainer}>
+              <Text style={styles.pickerLabel}>Hours</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalPickerContent}
+                ref={hoursScrollRef => {
+                  // Scroll to current hour position when modal opens
+                  if (hoursScrollRef && showTimePicker) {
+                    setTimeout(() => {
+                      hoursScrollRef.scrollTo({
+                        x: tempTime.getHours() * 70, 
+                        animated: false
+                      });
+                    }, 100);
                   }
                 }}
-                textColor="#FFFFFF"
-                style={styles.picker}
-              />
+              >
+                <View style={styles.timePickerCenterMarker} pointerEvents="none" />
+                {[...Array(24)].map((_, i) => (
+                  <TouchableOpacity
+                    key={`hour-${i}`}
+                    style={[
+                      styles.horizontalTimeItem,
+                      tempTime.getHours() === i && styles.horizontalTimeItemSelected
+                    ]}
+                    onPress={() => {
+                      const newTime = new Date(tempTime);
+                      newTime.setHours(i);
+                      setTempTime(newTime);
+                    }}
+                  >
+                    <Text 
+                      style={[
+                        styles.horizontalTimeText,
+                        tempTime.getHours() === i && styles.horizontalTimeTextSelected
+                      ]}
+                    >
+                      {i.toString().padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+            
+            <View style={styles.horizontalPickerContainer}>
+              <Text style={styles.pickerLabel}>Minutes</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalPickerContent}
+                ref={minutesScrollRef => {
+                  // Scroll to current minute position when modal opens
+                  if (minutesScrollRef && showTimePicker) {
+                    setTimeout(() => {
+                      minutesScrollRef.scrollTo({
+                        x: tempTime.getMinutes() * 70, 
+                        animated: false
+                      });
+                    }, 100);
+                  }
+                }}
+              >
+                <View style={styles.timePickerCenterMarker} pointerEvents="none" />
+                {[...Array(60)].map((_, i) => (
+                  <TouchableOpacity
+                    key={`minute-${i}`}
+                    style={[
+                      styles.horizontalTimeItem,
+                      tempTime.getMinutes() === i && styles.horizontalTimeItemSelected
+                    ]}
+                    onPress={() => {
+                      const newTime = new Date(tempTime);
+                      newTime.setMinutes(i);
+                      setTempTime(newTime);
+                    }}
+                  >
+                    <Text 
+                      style={[
+                        styles.horizontalTimeText,
+                        tempTime.getMinutes() === i && styles.horizontalTimeTextSelected
+                      ]}
+                    >
+                      {i.toString().padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.timePickerActions}>
+              <TouchableOpacity 
+                style={styles.timePickerCancelButton} 
+                onPress={cancelTimePicker}
+              >
+                <Text style={styles.timePickerButtonText}>CANCEL</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.timePickerConfirmButton} 
+                onPress={confirmTimePicker}
+              >
+                <Text style={styles.timePickerButtonText}>OK</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -332,53 +508,126 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingVertical: 16,
   },
-  cardContainer: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 28,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    overflow: 'hidden',
-    padding: 8,
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  card: {
+  headerButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  headerButtonText: {
+    color: '#0A84FF',
+    fontSize: 17,
+  },
+  headerButtonTextDone: {
+    color: '#0A84FF',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  headerLeftContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    minHeight: 72,
+    position: 'relative',
   },
-  cardIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 149, 0, 0.1)',
-    justifyContent: 'center',
+  headerRightContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
   },
-  cardMainContent: {
-    flex: 1,
+  largeTimeDisplay: {
+    alignItems: 'center',
     justifyContent: 'center',
+    marginVertical: 35,
+    paddingVertical: 15,
   },
-  cardLabel: {
+  largeTimeText: {
+    fontSize: 60,
+    fontWeight: '300',
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
+    letterSpacing: 2,
   },
-  timeText: {
-    color: '#FF9500',
+  timeRingIn: {
+    color: '#8E8E93',
+    fontSize: 15,
+    fontWeight: '400',
+    textAlign: 'center',
+    marginVertical: 25,
+  },
+  section: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#333333',
+  },
+  sectionHeaderText: {
+    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '600',
   },
-  cardValue: {
-    color: '#666',
-    fontSize: 14,
+  sectionValueText: {
+    color: '#0A84FF',
+    fontSize: 17,
+    marginTop: 4,
+  },
+  weekdayContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  dayButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#333333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dayButtonActive: {
+    backgroundColor: '#0A84FF',
+  },
+  dayText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  dayTextActive: {
+    color: '#FFFFFF',
+  },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#333333',
+  },
+  optionTextContainer: {
+    flex: 1,
+  },
+  optionText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+  },
+  optionSubText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    marginTop: 2,
   },
   labelInput: {
     color: '#FFFFFF',
-    fontSize: 14,
-    padding: 0,
-    height: 20,
+    fontSize: 17,
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#333333',
   },
   deleteButton: {
     flexDirection: 'row',
@@ -387,87 +636,105 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 59, 48, 0.1)',
     marginHorizontal: 16,
     padding: 16,
-    borderRadius: 28,
+    borderRadius: 16,
     marginTop: 8,
+    marginBottom: 24,
   },
   deleteButtonText: {
     color: '#FF3B30',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     marginLeft: 8,
   },
-  saveButton: {
-    marginRight: 16,
-  },
-  saveButtonText: {
-    color: '#FF9500',
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  testButton: {
-    marginLeft: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 149, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  // Horizontal Time Picker Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContent: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 28,
+  timePickerModal: {
     width: '90%',
-    maxWidth: 340,
-    paddingBottom: 24,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
   },
-  modalHeader: {
+  timeDisplayContainer: {
+    marginBottom: 30,
+  },
+  timeDisplayText: {
+    fontSize: 50,
+    color: '#FFFFFF',
+    fontWeight: '200',
+  },
+  horizontalPickerContainer: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  pickerLabel: {
+    fontSize: 16,
+    color: '#BBBBBB',
+    marginBottom: 10,
+    fontWeight: '500',
+    marginLeft: 10,
+  },
+  horizontalPickerContent: {
+    paddingHorizontal: 100, // Space for items outside view
+    height: 60,
+    alignItems: 'center',
+  },
+  timePickerCenterMarker: {
+    position: 'absolute',
+    top: 0,
+    left: '50%',
+    marginLeft: -35,
+    width: 70,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    zIndex: -1,
+  },
+  horizontalTimeItem: {
+    width: 70,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  horizontalTimeItemSelected: {
+    // no background change needed due to center marker
+  },
+  horizontalTimeText: {
+    fontSize: 24,
+    color: '#999999',
+  },
+  horizontalTimeTextSelected: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '500',
+  },
+  timePickerActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#333333',
+    width: '100%',
+    marginTop: 20,
   },
-  modalButton: {
-    padding: 8,
+  timePickerCancelButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#2C2C2E',
   },
-  modalTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
+  timePickerConfirmButton: {
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#0A84FF',
+  },
+  timePickerButtonText: {
+    fontSize: 16,
     fontWeight: '600',
-  },
-  modalCancelText: {
-    color: '#FF3B30',
-    fontSize: 17,
-  },
-  modalSaveText: {
-    color: '#34C759',
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  timePreview: {
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  timePreviewText: {
     color: '#FFFFFF',
-    fontSize: 56,
-    fontWeight: '300',
-    letterSpacing: 2,
-  },
-  pickerContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  picker: {
-    width: Platform.OS === 'ios' ? '100%' : 280,
-    height: Platform.OS === 'ios' ? 200 : 'auto',
   },
 });
 

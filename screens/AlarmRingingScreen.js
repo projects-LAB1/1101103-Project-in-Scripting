@@ -6,25 +6,26 @@ import {
   StyleSheet,
   TouchableOpacity,
   Vibration,
-  Image,
   Dimensions,
   Platform,
   Alert,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width, height } = Dimensions.get('window');
 
 const AlarmRingingScreen = ({ route, navigation }) => {
   const { alarm } = route.params;
-  const [sound, setSound] = useState(null);
   const [snoozeCount, setSnoozeCount] = useState(0);
   const [maxSnooze, setMaxSnooze] = useState(3);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Play alarm sound
+  // Start vibration pattern immediately
   useEffect(() => {
-    // เริ่มเฉพาะการสั่น ไม่เปิดเสียง
     startVibration();
 
     // Update current time every second
@@ -39,26 +40,12 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     };
   }, []);
 
-  // Load and play alarm sound
-  const loadSound = async () => {
-    try {
-      // สำหรับการทดสอบ เราจะไม่โหลดไฟล์เสียง
-      // แต่จะใช้การสั่นเท่านั้น
-      console.log("Skipping sound loading for testing purposes");
-      
-      // เพิ่มแรงสั่นของอุปกรณ์เพื่อให้รู้สึกถึงการปลุกได้ชัดเจนขึ้น
-      startVibration();
-    } catch (error) {
-      console.error("Error in loadSound function:", error);
-    }
-  };
-
   // Start vibration pattern
   const startVibration = () => {
     try {
       // ปรับรูปแบบการสั่นให้ถี่และแรงขึ้น
-      // เนื่องจากไม่มีเสียง เราจึงทำให้การสั่นชัดเจนมากขึ้น
-      const pattern = [0, 700, 300, 700, 300, 700, 300, 700, 300];
+      // Samsung-style vibration pattern (more intense)
+      const pattern = [0, 800, 200, 800, 200, 800, 200, 800, 200];
       Vibration.vibrate(pattern, true);
     } catch (error) {
       console.error("Error starting vibration:", error);
@@ -70,8 +57,8 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     if (snoozeCount >= maxSnooze) {
       // Max snooze reached, force user to complete task
       Alert.alert(
-        "ไม่สามารถเลื่อนปลุกได้อีก",
-        "คุณได้เลื่อนปลุกครบจำนวนครั้งที่กำหนดแล้ว"
+        "Cannot snooze anymore",
+        "You've already snoozed the maximum number of times"
       );
       return;
     }
@@ -82,8 +69,6 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     // Update snooze count in state
     const newSnoozeCount = snoozeCount + 1;
     setSnoozeCount(newSnoozeCount);
-
-    // สำหรับการทดสอบ เราข้ามการอัปเดต Firestore ไป
 
     // Navigate back to previous screen
     navigation.goBack();
@@ -99,30 +84,26 @@ const AlarmRingingScreen = ({ route, navigation }) => {
 
   // Handle dismiss based on task type
   const handleDismiss = () => {
-    // สำหรับการทดสอบ เราจะข้ามการทำงานของภารกิจ (task) และแสดงแค่การยืนยันการปิด
-    Alert.alert("ปิดนาฬิกาปลุก", "คุณต้องการปิดนาฬิกาปลุกใช่หรือไม่?", [
-      {
-        text: "ยกเลิก",
-        style: "cancel",
-      },
-      {
-        text: "ปิดนาฬิกาปลุก",
-        onPress: () => completeAlarm("completed"),
-      },
-    ]);
+    Alert.alert(
+      "Turn off alarm",
+      "Do you want to turn off this alarm?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Turn off",
+          onPress: () => completeAlarm("completed"),
+        },
+      ]
+    );
   };
 
   // Complete alarm and update statistics
   const completeAlarm = async (status) => {
     // Stop vibration
     Vibration.cancel();
-
-    // Show success message
-    if (status === "completed") {
-      Alert.alert("สำเร็จ", "ปิดนาฬิกาปลุกเรียบร้อยแล้ว");
-    }
-
-    // สำหรับการทดสอบ เราข้ามการอัปเดต Firestore ไป
 
     // Navigate back to alarm list
     navigation.navigate("AlarmList");
@@ -135,55 +116,68 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     return `${hours}:${minutes}`;
   };
 
+  // Format date for Samsung-style display
+  const formatDate = (date) => {
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric"
+    });
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.timeContainer}>
-          <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-          <Text style={styles.dateText}>
-            {currentTime.toLocaleDateString("th-TH", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient
+        colors={['#121212', '#000000']}
+        style={styles.gradient}
+      >
+        <SafeAreaView style={styles.content}>
+          {/* Samsung-style "Alarm" indicator */}
+          <View style={styles.alarmIndicator}>
+            <View style={styles.alarmIndicatorDot} />
+            <Text style={styles.alarmIndicatorText}>ALARM</Text>
+          </View>
+          
+          {/* Time display */}
+          <View style={styles.timeContainer}>
+            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            <Text style={styles.dateText}>{formatDate(currentTime)}</Text>
+          </View>
+
+          {/* Alarm label */}
+          <View style={styles.alarmInfoContainer}>
+            <Text style={styles.alarmLabel}>{alarm.label || "Alarm"}</Text>
+          </View>
+
+          {/* Samsung-style button layout */}
+          <View style={styles.buttonsContainer}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleSnooze}
+            >
+              <View style={styles.buttonCircle}>
+                <Text style={styles.buttonText}>SNOOZE</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleDismiss}
+            >
+              <View style={[styles.buttonCircle, styles.dismissCircle]}>
+                <Text style={styles.buttonText}>DISMISS</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Snooze count indicator */}
+          <Text style={styles.snoozeCount}>
+            Snooze count: {snoozeCount}/{maxSnooze}
           </Text>
-        </View>
-
-        <View style={styles.alarmInfoContainer}>
-          <Icon
-            name="alarm"
-            size={50}
-            color="#FF9500"
-            style={styles.alarmIcon}
-          />
-          <Text style={styles.alarmLabel}>{alarm.label || "นาฬิกาปลุก"}</Text>
-        </View>
-
-        <View style={styles.buttonsContainer}>
-          <TouchableOpacity
-            style={[styles.button, styles.snoozeButton]}
-            onPress={handleSnooze}
-          >
-            <Icon name="alarm-snooze" size={24} color="white" />
-            <Text style={styles.buttonText}>เลื่อนปลุก</Text>
-            <Text style={styles.snoozeCount}>
-              {snoozeCount}/{maxSnooze}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.dismissButton]}
-            onPress={handleDismiss}
-          >
-            <Icon name="alarm-off" size={24} color="white" />
-            <Text style={styles.buttonText}>
-              {alarm.taskType === "normal" ? "ปิดเสียงปลุก" : "ทำภารกิจ"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </SafeAreaView>
+        </SafeAreaView>
+      </LinearGradient>
+    </View>
   );
 };
 
@@ -192,72 +186,98 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000000",
   },
+  gradient: {
+    flex: 1,
+  },
   content: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
     padding: 20,
+    paddingTop: 50,
+    paddingBottom: 50,
+  },
+  alarmIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  alarmIndicatorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0A84FF',
+    marginRight: 10,
+  },
+  alarmIndicatorText: {
+    color: '#0A84FF',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
   timeContainer: {
     alignItems: "center",
-    marginBottom: 50,
+    marginBottom: 60,
   },
   timeText: {
-    fontSize: 60,
-    fontWeight: "bold",
+    fontSize: 76,
+    fontWeight: "200",
     color: "#FFFFFF",
+    letterSpacing: 2,
   },
   dateText: {
-    fontSize: 18,
+    fontSize: 20,
     color: "#9CA3AF",
     marginTop: 10,
   },
   alarmInfoContainer: {
     alignItems: "center",
-    marginBottom: 50,
-  },
-  alarmIcon: {
-    marginBottom: 15,
+    marginBottom: 60,
   },
   alarmLabel: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#FF9500",
+    fontSize: 28,
+    fontWeight: '300',
+    color: "#FFFFFF",
   },
   buttonsContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     width: "100%",
-    paddingHorizontal: 20,
+    marginBottom: 20,
   },
   button: {
     flex: 1,
-    borderRadius: 15,
-    padding: 20,
     alignItems: "center",
-    marginHorizontal: 10,
-    elevation: 2,
+  },
+  buttonCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#1C1C1E',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#333333',
+    elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
   },
-  snoozeButton: {
-    backgroundColor: "#1C1C1E",
-  },
-  dismissButton: {
-    backgroundColor: "#FF9500",
+  dismissCircle: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
   },
   buttonText: {
     color: "white",
     fontSize: 16,
     fontWeight: "600",
-    marginTop: 5,
+    letterSpacing: 1,
   },
   snoozeCount: {
-    color: "white",
-    fontSize: 12,
-    marginTop: 5,
+    color: "#9CA3AF",
+    fontSize: 14,
+    marginTop: 20,
   },
 });
 

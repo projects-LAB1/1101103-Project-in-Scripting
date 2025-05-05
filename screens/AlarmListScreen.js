@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Animated,
   StatusBar,
+  Image,
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
@@ -54,7 +55,7 @@ const AlarmListScreen = ({ navigation }) => {
       }));
     } catch (error) {
       console.error('Error loading alarms:', error);
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลการปลุกได้');
+      Alert.alert('Error', 'Could not load alarm data');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -70,21 +71,35 @@ const AlarmListScreen = ({ navigation }) => {
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('AddAlarm')}
-        >
-          <Icon name="plus" size={24} color="#FF9500" />
-        </TouchableOpacity>
+        <View style={styles.headerRightContainer}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => {
+              // Navigate to settings in a real app
+              Alert.alert('Action', 'Would navigate to settings');
+            }}
+          >
+            <Icon name="cog-outline" size={24} color="#0A84FF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('AddAlarm')}
+          >
+            <Icon name="plus" size={24} color="#0A84FF" />
+          </TouchableOpacity>
+        </View>
       ),
       headerStyle: {
         backgroundColor: '#000000',
+        borderBottomWidth: 0,
+        shadowOpacity: 0,
+        elevation: 0,
       },
       headerTintColor: '#FFFFFF',
-      headerTitle: 'ปลุก',
+      headerTitle: 'Alarm',
       headerTitleStyle: {
-        fontSize: 34,
-        fontWeight: '700',
+        fontSize: 26,
+        fontWeight: '600',
       },
     });
   }, [navigation]);
@@ -117,7 +132,7 @@ const AlarmListScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error toggling alarm:', error);
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถเปลี่ยนสถานะการปลุกได้');
+      Alert.alert('Error', 'Could not change alarm status');
     }
   };
 
@@ -134,7 +149,7 @@ const AlarmListScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error deleting alarm:', error);
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถลบการปลุกได้');
+      Alert.alert('Error', 'Could not delete the alarm');
     }
   };
 
@@ -143,9 +158,20 @@ const AlarmListScreen = ({ navigation }) => {
   };
 
   const getDaysText = (days) => {
-    if (!days || days.length === 0) return "ครั้งเดียว";
-    const dayNames = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
-    if (days.length === 7) return "ทุกวัน";
+    if (!days || days.length === 0) return "Once";
+    const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    if (days.length === 7) return "Every day";
+    
+    // Check for weekdays pattern
+    const weekdaysArray = [0, 1, 2, 3, 4];
+    const weekendArray = [5, 6];
+    
+    const hasAllWeekdays = weekdaysArray.every(day => days.includes(day));
+    if (hasAllWeekdays && days.length === 5) return "Weekdays";
+    
+    const hasAllWeekend = weekendArray.every(day => days.includes(day));
+    if (hasAllWeekend && days.length === 2) return "Weekend";
+    
     return days.map((day) => dayNames[day]).join(", ");
   };
 
@@ -175,7 +201,7 @@ const AlarmListScreen = ({ navigation }) => {
           ]}
         >
           <Icon name="trash-can-outline" size={28} color="#FFFFFF" />
-          <Text style={styles.deleteActionText}>ลบ</Text>
+          <Text style={styles.deleteActionText}>Delete</Text>
         </Animated.View>
       </TouchableOpacity>
     );
@@ -196,12 +222,12 @@ const AlarmListScreen = ({ navigation }) => {
       }
       onSwipeableOpen={() => {
         Alert.alert(
-          'ลบการปลุก',
-          'คุณแน่ใจหรือไม่ที่จะลบการปลุกนี้?',
+          'Delete Alarm',
+          'Are you sure you want to delete this alarm?',
           [
-            { text: 'ยกเลิก', style: 'cancel' },
+            { text: 'Cancel', style: 'cancel' },
             { 
-              text: 'ลบ', 
+              text: 'Delete', 
               style: 'destructive',
               onPress: () => deleteAlarm(item.id)
             }
@@ -225,9 +251,16 @@ const AlarmListScreen = ({ navigation }) => {
             <Text style={[styles.timeText, !item.isActive && styles.inactiveText]}>
               {formatTime(item.hour, item.minute)}
             </Text>
-            <Text style={[styles.daysText, !item.isActive && styles.inactiveText]}>
-              {getDaysText(item.repeatDays)}
-            </Text>
+            <View style={styles.alarmDetailsContainer}>
+              {item.label ? (
+                <Text style={[styles.labelText, !item.isActive && styles.inactiveText]}>
+                  {item.label}
+                </Text>
+              ) : null}
+              <Text style={[styles.daysText, !item.isActive && styles.inactiveText]}>
+                {getDaysText(item.repeatDays)}
+              </Text>
+            </View>
           </View>
           <Switch
             value={item.isActive}
@@ -244,7 +277,7 @@ const AlarmListScreen = ({ navigation }) => {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FF9500" />
+        <ActivityIndicator size="large" color="#0A84FF" />
       </SafeAreaView>
     );
   }
@@ -255,9 +288,10 @@ const AlarmListScreen = ({ navigation }) => {
       {isOffline && (
         <View style={styles.offlineBanner}>
           <Icon name="cloud-off-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.offlineText}>ไม่มีการเชื่อมต่ออินเทอร์เน็ต</Text>
+          <Text style={styles.offlineText}>No internet connection</Text>
         </View>
       )}
+      
       <FlatList
         data={alarms}
         renderItem={renderAlarmItem}
@@ -268,14 +302,14 @@ const AlarmListScreen = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#FF9500"
+            tintColor="#0A84FF"
           />
         }
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Icon name="alarm-plus" size={64} color="#666666" />
-            <Text style={styles.emptyText}>ไม่มีการตั้งปลุก</Text>
-            <Text style={styles.emptySubtext}>แตะที่ + เพื่อเพิ่มการปลุก</Text>
+            <Text style={styles.emptyText}>No alarms</Text>
+            <Text style={styles.emptySubtext}>Tap + to add an alarm</Text>
           </View>
         )}
       />
@@ -294,8 +328,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  addButton: {
-    marginRight: 16,
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  headerButton: {
     width: 44,
     height: 44,
     justifyContent: 'center',
@@ -303,6 +341,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flexGrow: 1,
+    paddingTop: 8,
   },
   alarmItem: {
     backgroundColor: "#1C1C1E",
@@ -312,29 +351,39 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 88,
+    paddingVertical: 16,
+    minHeight: 92,
   },
   timeContainer: {
     flex: 1,
   },
   timeText: {
-    fontSize: 48,
+    fontSize: 42,
     color: "#FFFFFF",
     fontWeight: "300",
     fontVariant: ['tabular-nums'],
-    marginBottom: 4,
+    marginBottom: 8,
+  },
+  alarmDetailsContainer: {
+    flexDirection: 'column',
+  },
+  labelText: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "500",
+    marginBottom: 2,
   },
   inactiveText: {
     color: "#666666",
   },
   daysText: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#999999",
   },
   separator: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "#333333",
+    marginLeft: 16,
   },
   deleteAction: {
     backgroundColor: "#FF3B30",

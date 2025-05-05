@@ -24,6 +24,7 @@
     "expo-document-picker": "^13.0.3",
     "expo-file-system": "~18.0.12",
     "expo-image-manipulator": "^13.0.6",
+    "expo-linear-gradient": "^14.1.4",
     "expo-notifications": "^0.29.14",
     "expo-status-bar": "~2.0.1",
     "expo-system-ui": "~4.0.9",
