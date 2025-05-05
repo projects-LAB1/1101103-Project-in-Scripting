@@ -86,4 +86,39 @@ export const cancelAlarm = async (notificationId) => {
   if (notificationId) {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
   }
+};
+
+// ทดสอบการแจ้งเตือนแบบทันที
+export const triggerTestAlarm = async (alarm) => {
+  const { hour, minute, label, soundId, snooze } = alarm;
+  
+  // ตั้งค่าเวลาในรูปแบบ 00:00
+  const formattedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  
+  // เตรียมข้อมูลสำหรับส่งไปยังหน้า AlarmRingingScreen
+  const testAlarmData = {
+    ...alarm,
+    id: 'test-alarm-' + Date.now(),
+    label: label || 'ทดสอบการปลุก',
+    hour: hour,
+    minute: minute,
+    isTest: true,
+    volume: 80, // ระดับเสียงเริ่มต้น
+  };
+  
+  // ใช้ Notification เพื่อแสดงผลเมื่อแอพอยู่ในพื้นหลัง
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'ทดสอบการปลุก' + (label ? `: ${label}` : ''),
+      body: `เวลา ${formattedTime} (ทดสอบการแจ้งเตือน)`,
+      sound: true,
+      priority: 'high',
+      vibrate: [0, 250, 250, 250],
+      data: { alarm: testAlarmData },
+    },
+    trigger: null, // null trigger means show immediately
+  });
+  
+  // ใช้สำหรับการนำทางไปยังหน้า AlarmRingingScreen โดยตรง
+  return testAlarmData;
 }; 

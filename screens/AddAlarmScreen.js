@@ -18,7 +18,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { addAlarm, updateAlarm, cancelAlarm, deleteAlarm } from '../utils/alarmStorage';
-import { scheduleAlarm } from '../utils/alarmNotification';
+import { scheduleAlarm, triggerTestAlarm } from '../utils/alarmNotification';
 import { BlurView } from 'expo-blur';
 
 const AddAlarmScreen = ({ route, navigation }) => {
@@ -103,11 +103,43 @@ const AddAlarmScreen = ({ route, navigation }) => {
     });
   };
 
+  const handleTestAlarm = () => {
+    try {
+      const testAlarmData = {
+        hour: time.getHours(),
+        minute: time.getMinutes(),
+        repeatDays,
+        isActive: true,
+        userId: user?.id,
+        label: label || "การทดสอบ",
+        soundId,
+        soundName,
+        snooze,
+      };
+      
+      triggerTestAlarm(testAlarmData)
+        .then(alarmData => {
+          // นำทางไปยังหน้า AlarmRingingScreen โดยตรง
+          navigation.navigate("AlarmRinging", { alarm: alarmData });
+        });
+        
+      Alert.alert('ทดสอบการปลุก', 'กำลังเปิดหน้าจอปลุก');
+    } catch (error) {
+      console.error('Error testing alarm:', error);
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถทดสอบการปลุกได้');
+    }
+  };
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
           <Text style={styles.saveButtonText}>บันทึก</Text>
+        </TouchableOpacity>
+      ),
+      headerLeft: () => (
+        <TouchableOpacity onPress={handleTestAlarm} style={styles.testButton}>
+          <MaterialCommunityIcons name="bell-ring" size={20} color="#FF9500" />
         </TouchableOpacity>
       ),
       title: editingAlarm ? 'แก้ไขการปลุก' : 'เพิ่มการปลุก',
@@ -371,6 +403,15 @@ const styles = StyleSheet.create({
     color: '#FF9500',
     fontSize: 17,
     fontWeight: '600',
+  },
+  testButton: {
+    marginLeft: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalOverlay: {
     flex: 1,

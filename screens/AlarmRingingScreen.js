@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
-import { getFirestore, doc, updateDoc, increment } from "firebase/firestore";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 const AlarmRingingScreen = ({ route, navigation }) => {
@@ -23,11 +22,9 @@ const AlarmRingingScreen = ({ route, navigation }) => {
   const [maxSnooze, setMaxSnooze] = useState(3);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  const db = getFirestore();
-
   // Play alarm sound
   useEffect(() => {
-    loadSound();
+    // เริ่มเฉพาะการสั่น ไม่เปิดเสียง
     startVibration();
 
     // Update current time every second
@@ -37,10 +34,6 @@ const AlarmRingingScreen = ({ route, navigation }) => {
 
     return () => {
       // Clean up
-      if (sound) {
-        sound.stopAsync();
-        sound.unloadAsync();
-      }
       Vibration.cancel();
       clearInterval(timeInterval);
     };
@@ -49,59 +42,27 @@ const AlarmRingingScreen = ({ route, navigation }) => {
   // Load and play alarm sound
   const loadSound = async () => {
     try {
-      // Select sound file based on alarm.soundId
-      let soundSource;
-
-      // Handle different sound files based on soundId
-      switch (alarm.soundId) {
-        case "bell":
-          soundSource = require("../assets/sounds/bell-alarm.mp3");
-          break;
-        case "digital":
-          soundSource = require("../assets/sounds/digital-alarm.mp3");
-          break;
-        case "rooster":
-          soundSource = require("../assets/sounds/rooster-alarm.mp3");
-          break;
-        case "default":
-        default:
-          soundSource = require("../assets/sounds/default-alarm.mp3");
-          break;
-      }
-
-      // Set audio mode to play even when device is silent
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
-      // Create and play the sound with maximum volume
-      const { sound: audioSound } = await Audio.Sound.createAsync(soundSource, {
-        isLooping: true,
-        volume: alarm.volume / 100 || 0.8,
-        shouldPlay: true, // Start playing immediately
-      });
-
-      setSound(audioSound);
-      await audioSound.playAsync();
-
-      // Make sure sound plays at the specified volume
-      await audioSound.setVolumeAsync(alarm.volume / 100 || 0.8);
+      // สำหรับการทดสอบ เราจะไม่โหลดไฟล์เสียง
+      // แต่จะใช้การสั่นเท่านั้น
+      console.log("Skipping sound loading for testing purposes");
+      
+      // เพิ่มแรงสั่นของอุปกรณ์เพื่อให้รู้สึกถึงการปลุกได้ชัดเจนขึ้น
+      startVibration();
     } catch (error) {
-      console.error("Error loading sound:", error);
-      // Fallback to vibration only if sound fails to load
-      Alert.alert("ข้อผิดพลาด", "ไม่สามารถเล่นเสียงปลุกได้ ใช้การสั่นแทน");
+      console.error("Error in loadSound function:", error);
     }
   };
 
   // Start vibration pattern
   const startVibration = () => {
-    // Vibration pattern: vibrate for 500ms, pause for 500ms, repeat
-    // Increased intensity with longer vibration periods
-    const pattern = [0, 500, 500, 700, 500, 900, 500];
-    Vibration.vibrate(pattern, true);
+    try {
+      // ปรับรูปแบบการสั่นให้ถี่และแรงขึ้น
+      // เนื่องจากไม่มีเสียง เราจึงทำให้การสั่นชัดเจนมากขึ้น
+      const pattern = [0, 700, 300, 700, 300, 700, 300, 700, 300];
+      Vibration.vibrate(pattern, true);
+    } catch (error) {
+      console.error("Error starting vibration:", error);
+    }
   };
 
   // Handle snooze
@@ -115,27 +76,14 @@ const AlarmRingingScreen = ({ route, navigation }) => {
       return;
     }
 
-    // Stop sound and vibration temporarily
-    if (sound) {
-      await sound.stopAsync();
-    }
+    // Stop vibration temporarily
     Vibration.cancel();
 
-    // Update snooze count in state and Firestore
+    // Update snooze count in state
     const newSnoozeCount = snoozeCount + 1;
     setSnoozeCount(newSnoozeCount);
 
-    try {
-      // Update alarm statistics in Firestore
-      if (alarm.id) {
-        const userRef = doc(db, "users", alarm.userId);
-        await updateDoc(userRef, {
-          "statistics.alarmsSnooze": increment(1),
-        });
-      }
-    } catch (error) {
-      console.error("Error updating snooze statistics:", error);
-    }
+    // สำหรับการทดสอบ เราข้ามการอัปเดต Firestore ไป
 
     // Navigate back to previous screen
     navigation.goBack();
@@ -151,61 +99,22 @@ const AlarmRingingScreen = ({ route, navigation }) => {
 
   // Handle dismiss based on task type
   const handleDismiss = () => {
-    // Determine which task screen to navigate to based on alarm settings
-    if (alarm.taskType === "math") {
-      navigation.navigate("MathTask", {
-        alarm,
-        difficulty: alarm.taskDifficulty || "medium",
-        onComplete: completeAlarm,
-      });
-    } else if (alarm.taskType === "photo") {
-      navigation.navigate("PhotoTask", {
-        alarm,
-        difficulty: alarm.taskDifficulty || "medium",
-        onComplete: completeAlarm,
-      });
-    } else if (alarm.taskType === "random") {
-      // Randomly select a task type
-      const taskTypes = ["math", "photo"];
-      const randomTask =
-        taskTypes[Math.floor(Math.random() * taskTypes.length)];
-
-      if (randomTask === "math") {
-        navigation.navigate("MathTask", {
-          alarm,
-          difficulty: alarm.taskDifficulty || "medium",
-          onComplete: completeAlarm,
-        });
-      } else {
-        navigation.navigate("PhotoTask", {
-          alarm,
-          difficulty: alarm.taskDifficulty || "medium",
-          onComplete: completeAlarm,
-        });
-      }
-    } else {
-      // Normal alarm - just dismiss
-      // Show a confirmation message before dismissing
-      Alert.alert("ปิดนาฬิกาปลุก", "คุณต้องการปิดนาฬิกาปลุกใช่หรือไม่?", [
-        {
-          text: "ยกเลิก",
-          style: "cancel",
-        },
-        {
-          text: "ปิดนาฬิกาปลุก",
-          onPress: () => completeAlarm("completed"),
-        },
-      ]);
-    }
+    // สำหรับการทดสอบ เราจะข้ามการทำงานของภารกิจ (task) และแสดงแค่การยืนยันการปิด
+    Alert.alert("ปิดนาฬิกาปลุก", "คุณต้องการปิดนาฬิกาปลุกใช่หรือไม่?", [
+      {
+        text: "ยกเลิก",
+        style: "cancel",
+      },
+      {
+        text: "ปิดนาฬิกาปลุก",
+        onPress: () => completeAlarm("completed"),
+      },
+    ]);
   };
 
   // Complete alarm and update statistics
   const completeAlarm = async (status) => {
-    // Stop sound and vibration
-    if (sound) {
-      await sound.stopAsync();
-      await sound.unloadAsync();
-    }
+    // Stop vibration
     Vibration.cancel();
 
     // Show success message
@@ -213,31 +122,7 @@ const AlarmRingingScreen = ({ route, navigation }) => {
       Alert.alert("สำเร็จ", "ปิดนาฬิกาปลุกเรียบร้อยแล้ว");
     }
 
-    try {
-      // Update alarm statistics in Firestore
-      if (alarm.id && alarm.userId) {
-        const userRef = doc(db, "users", alarm.userId);
-
-        if (status === "completed") {
-          await updateDoc(userRef, {
-            "statistics.alarmsCompleted": increment(1),
-            "statistics.totalAlarms": increment(1),
-          });
-
-          // Update average wake up time
-          // This would be more complex in a real app
-          const now = new Date();
-          const wakeUpTime = now.getHours() * 60 + now.getMinutes();
-
-          // In a real app, you would calculate a running average
-          await updateDoc(userRef, {
-            "statistics.avgWakeUpTime": wakeUpTime,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error updating alarm statistics:", error);
-    }
+    // สำหรับการทดสอบ เราข้ามการอัปเดต Firestore ไป
 
     // Navigate back to alarm list
     navigation.navigate("AlarmList");
@@ -269,7 +154,7 @@ const AlarmRingingScreen = ({ route, navigation }) => {
           <Icon
             name="alarm"
             size={50}
-            color="#4F46E5"
+            color="#FF9500"
             style={styles.alarmIcon}
           />
           <Text style={styles.alarmLabel}>{alarm.label || "นาฬิกาปลุก"}</Text>
@@ -305,7 +190,7 @@ const AlarmRingingScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#000000",
   },
   content: {
     flex: 1,
@@ -320,11 +205,11 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 60,
     fontWeight: "bold",
-    color: "#111827",
+    color: "#FFFFFF",
   },
   dateText: {
     fontSize: 18,
-    color: "#6B7280",
+    color: "#9CA3AF",
     marginTop: 10,
   },
   alarmInfoContainer: {
@@ -337,7 +222,7 @@ const styles = StyleSheet.create({
   alarmLabel: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#4F46E5",
+    color: "#FF9500",
   },
   buttonsContainer: {
     flexDirection: "row",
@@ -358,10 +243,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   snoozeButton: {
-    backgroundColor: "#6B7280",
+    backgroundColor: "#1C1C1E",
   },
   dismissButton: {
-    backgroundColor: "#4F46E5",
+    backgroundColor: "#FF9500",
   },
   buttonText: {
     color: "white",

@@ -3,6 +3,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import AlarmListScreen from '../screens/AlarmListScreen';
 import AddAlarmScreen from '../screens/AddAlarmScreen';
 import RepeatDaysScreen from '../screens/RepeatDaysScreen';
+import AlarmRingingScreen from '../screens/AlarmRingingScreen';
 
 const Stack = createStackNavigator();
 
@@ -38,6 +39,15 @@ const AlarmNavigator = () => {
         component={RepeatDaysScreen}
         options={{
           title: 'ทำซ้ำ',
+        }}
+      />
+      <Stack.Screen 
+        name="AlarmRinging" 
+        component={AlarmRingingScreen}
+        options={{
+          title: 'กำลังปลุก',
+          headerShown: false,
+          gestureEnabled: false,
         }}
       />
     </Stack.Navigator>
