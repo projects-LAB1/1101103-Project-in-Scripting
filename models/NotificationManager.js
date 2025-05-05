@@ -174,39 +174,13 @@ export const scheduleAlarmNotification = async (alarm) => {
       const { status: newStatus } =
         await Notifications.requestPermissionsAsync();
       if (newStatus !== "granted") {
+        Alert.alert(
+          "ข้อผิดพลาด",
+          "ไม่สามารถตั้งนาฬิกาปลุกได้เนื่องจากไม่ได้รับสิทธิ์การแจ้งเตือน โปรดเปิดสิทธิ์ในการตั้งค่าอุปกรณ์ของคุณ",
+          [{ text: "ตกลง" }]
+        );
         console.error("ไม่ได้รับสิทธิ์การแจ้งเตือน ไม่สามารถตั้งนาฬิกาปลุกได้");
         return null;
-      }
-    }
-
-    // คำนวณเวลาที่จะปลุก
-    const now = new Date();
-    const alarmTime = new Date();
-    alarmTime.setHours(alarm.hour, alarm.minute, 0);
-
-    // ถ้าเวลาปลุกผ่านไปแล้ว ให้ตั้งเป็นวันถัดไป
-    if (alarmTime <= now) {
-      alarmTime.setDate(alarmTime.getDate() + 1);
-    }
-
-    // ตรวจสอบว่าเป็นการปลุกซ้ำหรือไม่
-    if (alarm.repeatDays && alarm.repeatDays.length > 0) {
-      // ถ้าเป็นการปลุกซ้ำ ให้ตรวจสอบว่าวันนี้ต้องปลุกหรือไม่
-      const today = now.getDay();
-      // ปรับ index เพื่อให้ตรงกับ repeatDays (0 = จันทร์, 6 = อาทิตย์)
-      const adjustedToday = today === 0 ? 6 : today - 1;
-
-      if (!alarm.repeatDays.includes(adjustedToday)) {
-        // หาวันถัดไปที่ต้องปลุก
-        let daysToAdd = 1;
-        let nextDay = (adjustedToday + 1) % 7;
-
-        while (!alarm.repeatDays.includes(nextDay)) {
-          daysToAdd++;
-          nextDay = (nextDay + 1) % 7;
-        }
-
-        alarmTime.setDate(now.getDate() + daysToAdd);
       }
     }
 
@@ -214,34 +188,124 @@ export const scheduleAlarmNotification = async (alarm) => {
     if (alarm.notificationId) {
       await Notifications.cancelScheduledNotificationAsync(
         alarm.notificationId
-      );
+      ).catch(err => console.log("Error canceling previous notification:", err));
     }
 
-    // ตั้งค่าการแจ้งเตือนใหม่ด้วยการกำหนดค่าที่เหมาะสม
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: alarm.label || "นาฬิกาปลุก",
-        body: `${alarm.hour.toString().padStart(2, "0")}:${alarm.minute
-          .toString()
-          .padStart(2, "0")}`,
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.MAX,
-        vibrate: [0, 250, 250, 250],
-        data: { alarm },
-        autoDismiss: false, // ไม่ให้การแจ้งเตือนหายไปเอง
-      },
-      trigger: {
-        date: alarmTime,
-        channelId: "alarms",
-      },
-    });
+    // สำหรับการตั้งปลุกที่ไม่ซ้ำ
+    if (!alarm.repeatDays || alarm.repeatDays.length === 0) {
+      // คำนวณเวลาที่จะปลุก
+      const now = new Date();
+      const alarmTime = new Date();
+      alarmTime.setHours(alarm.hour, alarm.minute, 0, 0);
 
-    console.log(
-      `ตั้งนาฬิกาปลุกสำเร็จ ID: ${notificationId}, เวลา: ${alarmTime.toString()}`
-    );
-    return notificationId;
+      // ถ้าเวลาปลุกผ่านไปแล้ว ให้ตั้งเป็นวันถัดไป
+      if (alarmTime <= now) {
+        alarmTime.setDate(alarmTime.getDate() + 1);
+      }
+
+      console.log(`กำลังตั้งนาฬิกาปลุกแบบไม่ซ้ำสำหรับ: ${alarmTime.toString()}`);
+
+      // ตั้งค่าการแจ้งเตือนสำหรับการปลุกแบบไม่ซ้ำ
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: alarm.label || "นาฬิกาปลุก",
+          body: `${alarm.hour.toString().padStart(2, "0")}:${alarm.minute
+            .toString()
+            .padStart(2, "0")}`,
+          sound: alarm.soundId || "default",
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: alarm.vibrate ? [0, 250, 250, 250] : null,
+          data: { alarm },
+          autoDismiss: false, // ไม่ให้การแจ้งเตือนหายไปเอง
+        },
+        trigger: {
+          date: alarmTime,
+          channelId: "alarms",
+        },
+      });
+
+      console.log(
+        `ตั้งนาฬิกาปลุกแบบไม่ซ้ำสำเร็จ ID: ${notificationId}, เวลา: ${alarmTime.toString()}`
+      );
+      return notificationId;
+    } 
+    // สำหรับการตั้งปลุกที่ซ้ำ
+    else {
+      // สำหรับแต่ละวันที่ต้องการปลุกซ้ำ ให้ตั้งการแจ้งเตือนแยกกัน
+      const notificationIds = [];
+      
+      // แปลงวันในรูปแบบที่ใช้ในแอป (0 = จันทร์, 6 = อาทิตย์) เป็นรูปแบบของ JavaScript (0 = อาทิตย์, 6 = เสาร์)
+      const convertToJSDay = (appDay) => (appDay === 6) ? 0 : appDay + 1;
+      
+      // วนลูปผ่านแต่ละวันที่ต้องการปลุกซ้ำ
+      for (const appDayIndex of alarm.repeatDays) {
+        const jsDayIndex = convertToJSDay(appDayIndex);
+        const now = new Date();
+        const alarmTime = new Date();
+        alarmTime.setHours(alarm.hour, alarm.minute, 0, 0);
+        
+        // คำนวณจำนวนวันที่ต้องเพิ่มเพื่อไปยังวันถัดไปที่ต้องปลุก
+        const nowDay = now.getDay(); // 0-6 (อาทิตย์-เสาร์)
+        let daysToAdd = 0;
+        
+        if (jsDayIndex === nowDay) {
+          // ถ้าวันนี้เป็นวันที่ต้องปลุก
+          if (alarmTime <= now) {
+            // แต่เวลาปลุกผ่านไปแล้ว ให้ตั้งเป็นสัปดาห์หน้า
+            daysToAdd = 7;
+          }
+        } else {
+          // หาจำนวนวันที่ต้องเพิ่มเพื่อไปยังวันถัดไปที่ต้องปลุก
+          daysToAdd = (jsDayIndex - nowDay + 7) % 7;
+          if (daysToAdd === 0) daysToAdd = 7;
+        }
+        
+        alarmTime.setDate(now.getDate() + daysToAdd);
+        
+        console.log(`กำลังตั้งนาฬิกาปลุกแบบซ้ำสำหรับวัน ${jsDayIndex} (${['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'][jsDayIndex]}): ${alarmTime.toString()}`);
+        
+        try {
+          // ตั้งค่าการแจ้งเตือนสำหรับแต่ละวัน
+          const notificationId = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: alarm.label || "นาฬิกาปลุก",
+              body: `${alarm.hour.toString().padStart(2, "0")}:${alarm.minute
+                .toString()
+                .padStart(2, "0")}`,
+              sound: alarm.soundId || "default",
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              vibrate: alarm.vibrate ? [0, 250, 250, 250] : null,
+              data: { alarm, dayIndex: appDayIndex },
+              autoDismiss: false,
+            },
+            trigger: {
+              date: alarmTime,
+              repeats: true,
+              weekday: jsDayIndex + 1, // weekday เริ่มจาก 1 (จันทร์) ถึง 7 (อาทิตย์)
+              hour: alarm.hour,
+              minute: alarm.minute,
+              channelId: "alarms",
+            },
+          });
+          
+          notificationIds.push(notificationId);
+          console.log(`ตั้งนาฬิกาปลุกแบบซ้ำสำเร็จ ID: ${notificationId}, วัน: ${jsDayIndex}, เวลา: ${alarmTime.toString()}`);
+        } catch (error) {
+          console.error(`Error scheduling notification for day ${jsDayIndex}:`, error);
+        }
+      }
+      
+      // รวม IDs ทั้งหมดเป็นสตริงเดียว
+      const combinedId = notificationIds.join('|');
+      return combinedId;
+    }
   } catch (error) {
     console.error("Error scheduling notification:", error);
+    Alert.alert(
+      "ข้อผิดพลาด",
+      "ไม่สามารถตั้งนาฬิกาปลุกได้ กรุณาลองใหม่อีกครั้ง",
+      [{ text: "ตกลง" }]
+    );
     return null;
   }
 };
@@ -251,7 +315,17 @@ export const cancelAlarmNotification = async (notificationId) => {
   if (!notificationId) return;
 
   try {
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
+    // ตรวจสอบว่าเป็น ID แบบรวม (สำหรับการปลุกซ้ำ) หรือไม่
+    if (notificationId.includes('|')) {
+      const ids = notificationId.split('|');
+      for (const id of ids) {
+        await Notifications.cancelScheduledNotificationAsync(id)
+          .catch(err => console.log(`Error canceling notification ${id}:`, err));
+      }
+    } else {
+      await Notifications.cancelScheduledNotificationAsync(notificationId)
+        .catch(err => console.log("Error canceling notification:", err));
+    }
   } catch (error) {
     console.error("Error canceling notification:", error);
   }

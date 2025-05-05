@@ -50,6 +50,15 @@ const AddAlarmScreen = ({ route, navigation }) => {
 
   const handleSave = async () => {
     try {
+      // Validate input before saving
+      if (!time) {
+        Alert.alert('ข้อผิดพลาด', 'กรุณาตั้งเวลาปลุก');
+        return;
+      }
+      
+      // แสดงการโหลดหรือตัวบ่งชี้ว่ากำลังบันทึก
+      // This would be implemented with a state variable and UI component in a real app
+      
       const alarmData = {
         hour: time.getHours(),
         minute: time.getMinutes(),
@@ -68,32 +77,87 @@ const AddAlarmScreen = ({ route, navigation }) => {
         createdAt: new Date().toISOString(),
       };
 
+      console.log('บันทึกการตั้งปลุก:', alarmData);
+
+      let savedAlarm = null;
+      
+      // กรณีแก้ไขการตั้งปลุก
       if (editingAlarm) {
+        console.log(`กำลังอัพเดทการตั้งปลุกที่มีอยู่แล้ว ID: ${editingAlarm.id}`);
+        
+        // ยกเลิกการตั้งปลุกเดิมก่อน (ถ้ามี)
         if (editingAlarm.notificationId) {
+          console.log(`ยกเลิกการแจ้งเตือนเดิม ID: ${editingAlarm.notificationId}`);
           await cancelAlarm(editingAlarm.notificationId);
         }
-        await updateAlarm(editingAlarm.id, alarmData);
-      } else {
-        const newAlarm = await addAlarm(alarmData);
-        if (!newAlarm) {
-          throw new Error('Failed to add alarm');
+        
+        // อัพเดทข้อมูลการตั้งปลุก
+        const updateSuccess = await updateAlarm(editingAlarm.id, alarmData);
+        if (!updateSuccess) {
+          throw new Error('ไม่สามารถอัพเดทการตั้งปลุกได้');
+        }
+        
+        savedAlarm = {
+          ...alarmData,
+          id: editingAlarm.id
+        };
+        
+        console.log(`อัพเดทการตั้งปลุกสำเร็จ ID: ${editingAlarm.id}`);
+      }
+      // กรณีเพิ่มการตั้งปลุกใหม่
+      else {
+        console.log('กำลังเพิ่มการตั้งปลุกใหม่');
+        savedAlarm = await addAlarm(alarmData);
+        if (!savedAlarm) {
+          throw new Error('ไม่สามารถเพิ่มการตั้งปลุกได้');
+        }
+        
+        console.log(`เพิ่มการตั้งปลุกใหม่สำเร็จ ID: ${savedAlarm.id}`);
+      }
+
+      // ถ้าการตั้งปลุกเปิดใช้งาน ให้ตั้งเวลาการแจ้งเตือน
+      if (isActive && savedAlarm) {
+        try {
+          console.log('กำลังตั้งเวลาการแจ้งเตือน...');
+          const notificationId = await scheduleAlarm(savedAlarm);
+          
+          if (notificationId) {
+            console.log(`ตั้งเวลาการแจ้งเตือนสำเร็จ ID: ${notificationId}`);
+            
+            // อัพเดทการตั้งปลุกด้วย ID การแจ้งเตือน
+            await updateAlarm(savedAlarm.id, {
+              notificationId,
+              updatedAt: new Date().toISOString()
+            });
+            
+            console.log(`บันทึกการตั้งปลุกพร้อม notificationId สำเร็จ`);
+          } else {
+            console.warn('ไม่ได้รับ notificationId จากการตั้งเวลาการแจ้งเตือน');
+            Alert.alert(
+              'คำเตือน',
+              'การตั้งปลุกถูกบันทึกแล้ว แต่การแจ้งเตือนอาจไม่ทำงาน กรุณาตรวจสอบการตั้งค่าการแจ้งเตือนของอุปกรณ์',
+              [{ text: 'ตกลง' }]
+            );
+          }
+        } catch (notificationError) {
+          console.error('Error scheduling notification:', notificationError);
+          Alert.alert(
+            'คำเตือน',
+            'การตั้งปลุกถูกบันทึกแล้ว แต่การแจ้งเตือนอาจไม่ทำงาน กรุณาตรวจสอบการตั้งค่าการแจ้งเตือนของอุปกรณ์',
+            [{ text: 'ตกลง' }]
+          );
         }
       }
 
-      if (isActive) {
-        const notificationId = await scheduleAlarm(alarmData);
-        if (notificationId) {
-          await updateAlarm(editingAlarm?.id || Date.now().toString(), {
-            ...alarmData,
-            notificationId,
-          });
-        }
-      }
-
+      // กลับไปยังหน้าก่อนหน้า
       navigation.goBack();
     } catch (error) {
       console.error('Error saving alarm:', error);
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกการตั้งปลุกได้');
+      Alert.alert(
+        'ข้อผิดพลาด',
+        'ไม่สามารถบันทึกการตั้งปลุกได้ กรุณาลองใหม่อีกครั้ง',
+        [{ text: 'ตกลง' }]
+      );
     }
   };
 
