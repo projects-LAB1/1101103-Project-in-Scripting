@@ -17,14 +17,17 @@ import {
 import NetInfo from "@react-native-community/netinfo";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Swipeable } from "react-native-gesture-handler";
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   loadAlarms,
   saveAlarms,
   deleteAlarm as deleteAlarmFromStorage,
-  toggleAlarmStatus as toggleAlarmInStorage
-} from '../utils/alarmStorage';
-import { scheduleAlarmNotification, cancelAlarmNotification } from "../models/NotificationManager";
+  toggleAlarmStatus as toggleAlarmInStorage,
+} from "../utils/alarmStorage";
+import {
+  scheduleAlarmNotification,
+  cancelAlarmNotification,
+} from "../models/NotificationManager";
 
 const AlarmListScreen = ({ navigation }) => {
   const [alarms, setAlarms] = useState([]);
@@ -48,14 +51,16 @@ const AlarmListScreen = ({ navigation }) => {
   const loadStoredAlarms = async () => {
     try {
       const storedAlarms = await loadAlarms();
-      setAlarms(storedAlarms.sort((a, b) => {
-        const timeA = a.hour * 60 + a.minute;
-        const timeB = b.hour * 60 + b.minute;
-        return timeA - timeB;
-      }));
+      setAlarms(
+        storedAlarms.sort((a, b) => {
+          const timeA = a.hour * 60 + a.minute;
+          const timeB = b.hour * 60 + b.minute;
+          return timeA - timeB;
+        })
+      );
     } catch (error) {
-      console.error('Error loading alarms:', error);
-      Alert.alert('Error', 'Could not load alarm data');
+      console.error("Error loading alarms:", error);
+      Alert.alert("Error", "Could not load alarm data");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -76,30 +81,30 @@ const AlarmListScreen = ({ navigation }) => {
             style={styles.headerButton}
             onPress={() => {
               // Navigate to settings in a real app
-              Alert.alert('Action', 'Would navigate to settings');
+              Alert.alert("Action", "Would navigate to settings");
             }}
           >
             <Icon name="cog-outline" size={24} color="#0A84FF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerButton}
-            onPress={() => navigation.navigate('AddAlarm')}
+            onPress={() => navigation.navigate("AddAlarm")}
           >
             <Icon name="plus" size={24} color="#0A84FF" />
           </TouchableOpacity>
         </View>
       ),
       headerStyle: {
-        backgroundColor: '#000000',
+        backgroundColor: "#000000",
         borderBottomWidth: 0,
         shadowOpacity: 0,
         elevation: 0,
       },
-      headerTintColor: '#FFFFFF',
-      headerTitle: 'Alarm',
+      headerTintColor: "#FFFFFF",
+      headerTitle: "Alarm",
       headerTitleStyle: {
         fontSize: 26,
-        fontWeight: '600',
+        fontWeight: "600",
       },
     });
   }, [navigation]);
@@ -112,27 +117,79 @@ const AlarmListScreen = ({ navigation }) => {
 
   const toggleAlarmActive = async (alarmId, currentStatus) => {
     try {
+      // ดึงข้อมูล alarm ที่ต้องการเปลี่ยนสถานะ
+      const targetAlarm = alarms.find((alarm) => alarm.id === alarmId);
+      if (!targetAlarm) {
+        console.error("Cannot find alarm with ID:", alarmId);
+        return;
+      }
+
+      // เปลี่ยนสถานะใน storage
       const success = await toggleAlarmInStorage(alarmId);
       if (success) {
-        const updatedAlarms = alarms.map(alarm => {
+        const newStatus = !currentStatus;
+
+        // อัปเดต state ของ alarms
+        const updatedAlarms = alarms.map((alarm) => {
           if (alarm.id === alarmId) {
-            const newStatus = !currentStatus;
-            // Handle notifications
-            if (newStatus) {
-              scheduleAlarmNotification(alarm);
-            } else {
-              cancelAlarmNotification(alarm.notificationId);
-            }
             return { ...alarm, isActive: newStatus };
           }
           return alarm;
         });
+
+        // บันทึก state ใหม่
         setAlarms(updatedAlarms);
-        await saveAlarms(updatedAlarms);
+
+        // อัปเดตการแจ้งเตือน
+        const updatedAlarm = { ...targetAlarm, isActive: newStatus };
+
+        // จัดการกับการแจ้งเตือน
+        if (newStatus) {
+          // ถ้าเปิดการแจ้งเตือน ให้ตั้งเวลาเตือนตามที่กำหนดไว้
+          try {
+            console.log("Scheduling notification for alarm:", updatedAlarm);
+            const notificationId = await scheduleAlarmNotification(
+              updatedAlarm
+            );
+
+            // บันทึก notificationId กลับไปยัง alarm ที่อัปเดต
+            if (notificationId) {
+              // อัปเดต alarm ด้วย notificationId ใหม่
+              const finalAlarms = updatedAlarms.map((alarm) => {
+                if (alarm.id === alarmId) {
+                  return { ...alarm, notificationId };
+                }
+                return alarm;
+              });
+
+              setAlarms(finalAlarms);
+              await saveAlarms(finalAlarms);
+              console.log(
+                `Alarm ${alarmId} activated with notification ID: ${notificationId}`
+              );
+            }
+          } catch (notificationError) {
+            console.error(
+              "Failed to schedule notification:",
+              notificationError
+            );
+            Alert.alert(
+              "Warning",
+              "Alarm was activated but notification might not work properly"
+            );
+          }
+        } else {
+          // ถ้าปิดการแจ้งเตือน ให้ยกเลิกการแจ้งเตือนที่ตั้งไว้
+          if (targetAlarm.notificationId) {
+            await cancelAlarmNotification(targetAlarm.notificationId);
+            console.log(`Notification cancelled for alarm ${alarmId}`);
+          }
+          await saveAlarms(updatedAlarms);
+        }
       }
     } catch (error) {
-      console.error('Error toggling alarm:', error);
-      Alert.alert('Error', 'Could not change alarm status');
+      console.error("Error toggling alarm:", error);
+      Alert.alert("Error", "Could not change alarm status");
     }
   };
 
@@ -140,38 +197,40 @@ const AlarmListScreen = ({ navigation }) => {
     try {
       const success = await deleteAlarmFromStorage(alarmId);
       if (success) {
-        const alarm = alarms.find(a => a.id === alarmId);
+        const alarm = alarms.find((a) => a.id === alarmId);
         if (alarm?.notificationId) {
           await cancelAlarmNotification(alarm.notificationId);
         }
-        const updatedAlarms = alarms.filter(alarm => alarm.id !== alarmId);
+        const updatedAlarms = alarms.filter((alarm) => alarm.id !== alarmId);
         setAlarms(updatedAlarms);
       }
     } catch (error) {
-      console.error('Error deleting alarm:', error);
-      Alert.alert('Error', 'Could not delete the alarm');
+      console.error("Error deleting alarm:", error);
+      Alert.alert("Error", "Could not delete the alarm");
     }
   };
 
   const formatTime = (hour, minute) => {
-    return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+    return `${hour.toString().padStart(2, "0")}:${minute
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   const getDaysText = (days) => {
     if (!days || days.length === 0) return "Once";
     const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     if (days.length === 7) return "Every day";
-    
+
     // Check for weekdays pattern
     const weekdaysArray = [0, 1, 2, 3, 4];
     const weekendArray = [5, 6];
-    
-    const hasAllWeekdays = weekdaysArray.every(day => days.includes(day));
+
+    const hasAllWeekdays = weekdaysArray.every((day) => days.includes(day));
     if (hasAllWeekdays && days.length === 5) return "Weekdays";
-    
-    const hasAllWeekend = weekendArray.every(day => days.includes(day));
+
+    const hasAllWeekend = weekendArray.every((day) => days.includes(day));
     if (hasAllWeekend && days.length === 2) return "Weekend";
-    
+
     return days.map((day) => dayNames[day]).join(", ");
   };
 
@@ -222,20 +281,23 @@ const AlarmListScreen = ({ navigation }) => {
       }
       onSwipeableOpen={() => {
         Alert.alert(
-          'Delete Alarm',
-          'Are you sure you want to delete this alarm?',
+          "Delete Alarm",
+          "Are you sure you want to delete this alarm?",
           [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Delete', 
-              style: 'destructive',
-              onPress: () => deleteAlarm(item.id)
-            }
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Delete",
+              style: "destructive",
+              onPress: () => deleteAlarm(item.id),
+            },
           ]
         );
       }}
       ref={(ref) => {
-        if (ref && item.id === swipeableRef?.current?.props?.children?.props?.item?.id) {
+        if (
+          ref &&
+          item.id === swipeableRef?.current?.props?.children?.props?.item?.id
+        ) {
           swipeableRef.current = ref;
         }
       }}
@@ -248,16 +310,25 @@ const AlarmListScreen = ({ navigation }) => {
       >
         <View style={styles.alarmContent}>
           <View style={styles.timeContainer}>
-            <Text style={[styles.timeText, !item.isActive && styles.inactiveText]}>
+            <Text
+              style={[styles.timeText, !item.isActive && styles.inactiveText]}
+            >
               {formatTime(item.hour, item.minute)}
             </Text>
             <View style={styles.alarmDetailsContainer}>
               {item.label ? (
-                <Text style={[styles.labelText, !item.isActive && styles.inactiveText]}>
+                <Text
+                  style={[
+                    styles.labelText,
+                    !item.isActive && styles.inactiveText,
+                  ]}
+                >
                   {item.label}
                 </Text>
               ) : null}
-              <Text style={[styles.daysText, !item.isActive && styles.inactiveText]}>
+              <Text
+                style={[styles.daysText, !item.isActive && styles.inactiveText]}
+              >
                 {getDaysText(item.repeatDays)}
               </Text>
             </View>
@@ -265,8 +336,8 @@ const AlarmListScreen = ({ navigation }) => {
           <Switch
             value={item.isActive}
             onValueChange={() => toggleAlarmActive(item.id, item.isActive)}
-            trackColor={{ false: '#767577', true: '#34C759' }}
-            thumbColor={item.isActive ? '#FFFFFF' : '#F4F3F4'}
+            trackColor={{ false: "#767577", true: "#34C759" }}
+            thumbColor={item.isActive ? "#FFFFFF" : "#F4F3F4"}
             ios_backgroundColor="#3e3e3e"
           />
         </View>
@@ -283,7 +354,7 @@ const AlarmListScreen = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'left']}>
+    <SafeAreaView style={styles.container} edges={["right", "left"]}>
       <StatusBar barStyle="light-content" />
       {isOffline && (
         <View style={styles.offlineBanner}>
@@ -291,7 +362,7 @@ const AlarmListScreen = ({ navigation }) => {
           <Text style={styles.offlineText}>No internet connection</Text>
         </View>
       )}
-      
+
       <FlatList
         data={alarms}
         renderItem={renderAlarmItem}
@@ -329,15 +400,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerRightContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginRight: 8,
   },
   headerButton: {
     width: 44,
     height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   listContent: {
     flexGrow: 1,
@@ -361,11 +432,11 @@ const styles = StyleSheet.create({
     fontSize: 42,
     color: "#FFFFFF",
     fontWeight: "300",
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
     marginBottom: 8,
   },
   alarmDetailsContainer: {
-    flexDirection: 'column',
+    flexDirection: "column",
   },
   labelText: {
     fontSize: 16,

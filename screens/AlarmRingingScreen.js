@@ -14,15 +14,27 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from "expo-linear-gradient";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 const AlarmRingingScreen = ({ route, navigation }) => {
   const { alarm } = route.params;
   const [snoozeCount, setSnoozeCount] = useState(0);
   const [maxSnooze, setMaxSnooze] = useState(3);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // แสดงข้อมูลการปลุกเพื่อการตรวจสอบ
+  useEffect(() => {
+    console.log("หน้า AlarmRingingScreen ถูกเรียกใช้งาน");
+    console.log("ข้อมูลการปลุก:", JSON.stringify(alarm, null, 2));
+
+    if (alarm.isTest) {
+      console.log("นี่เป็นการทดสอบการปลุกเท่านั้น");
+    } else {
+      console.log("นี่เป็นการปลุกตามเวลาที่ตั้งไว้");
+    }
+  }, [alarm]);
 
   // Start vibration pattern immediately
   useEffect(() => {
@@ -78,26 +90,26 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     // to reschedule the alarm
     setTimeout(() => {
       // This is just a simulation - in a real app you would use proper scheduling
-      navigation.navigate("AlarmRinging", { alarm });
+      // ใช้การนำทางแบบซ้อนกันเพื่อให้สอดคล้องกับการนำทางในทั้งระบบ
+      navigation.navigate("Alarm", {
+        screen: "AlarmRinging",
+        params: { alarm },
+      });
     }, 5 * 60 * 1000); // 5 minutes
   };
 
   // Handle dismiss based on task type
   const handleDismiss = () => {
-    Alert.alert(
-      "Turn off alarm",
-      "Do you want to turn off this alarm?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Turn off",
-          onPress: () => completeAlarm("completed"),
-        },
-      ]
-    );
+    Alert.alert("Turn off alarm", "Do you want to turn off this alarm?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Turn off",
+        onPress: () => completeAlarm("completed"),
+      },
+    ]);
   };
 
   // Complete alarm and update statistics
@@ -105,8 +117,10 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     // Stop vibration
     Vibration.cancel();
 
-    // Navigate back to alarm list
-    navigation.navigate("AlarmList");
+    // Navigate back to alarm list using nested navigation
+    navigation.navigate("Alarm", {
+      screen: "AlarmList",
+    });
   };
 
   // Format time as HH:MM
@@ -121,24 +135,21 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     return date.toLocaleDateString("en-US", {
       weekday: "long",
       month: "long",
-      day: "numeric"
+      day: "numeric",
     });
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient
-        colors={['#121212', '#000000']}
-        style={styles.gradient}
-      >
+      <LinearGradient colors={["#121212", "#000000"]} style={styles.gradient}>
         <SafeAreaView style={styles.content}>
           {/* Samsung-style "Alarm" indicator */}
           <View style={styles.alarmIndicator}>
             <View style={styles.alarmIndicatorDot} />
             <Text style={styles.alarmIndicatorText}>ALARM</Text>
           </View>
-          
+
           {/* Time display */}
           <View style={styles.timeContainer}>
             <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
@@ -148,29 +159,28 @@ const AlarmRingingScreen = ({ route, navigation }) => {
           {/* Alarm label */}
           <View style={styles.alarmInfoContainer}>
             <Text style={styles.alarmLabel}>{alarm.label || "Alarm"}</Text>
+            {alarm.isTest && (
+              <Text style={styles.alarmTestLabel}>
+                (นี่เป็นการทดสอบเท่านั้น)
+              </Text>
+            )}
           </View>
 
           {/* Samsung-style button layout */}
           <View style={styles.buttonsContainer}>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleSnooze}
-            >
+            <TouchableOpacity style={styles.button} onPress={handleSnooze}>
               <View style={styles.buttonCircle}>
                 <Text style={styles.buttonText}>SNOOZE</Text>
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleDismiss}
-            >
+            <TouchableOpacity style={styles.button} onPress={handleDismiss}>
               <View style={[styles.buttonCircle, styles.dismissCircle]}>
                 <Text style={styles.buttonText}>DISMISS</Text>
               </View>
             </TouchableOpacity>
           </View>
-          
+
           {/* Snooze count indicator */}
           <Text style={styles.snoozeCount}>
             Snooze count: {snoozeCount}/{maxSnooze}
@@ -198,21 +208,21 @@ const styles = StyleSheet.create({
     paddingBottom: 50,
   },
   alarmIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 20,
   },
   alarmIndicatorDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#0A84FF',
+    backgroundColor: "#0A84FF",
     marginRight: 10,
   },
   alarmIndicatorText: {
-    color: '#0A84FF',
+    color: "#0A84FF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 1,
   },
   timeContainer: {
@@ -236,8 +246,14 @@ const styles = StyleSheet.create({
   },
   alarmLabel: {
     fontSize: 28,
-    fontWeight: '300',
+    fontWeight: "300",
     color: "#FFFFFF",
+  },
+  alarmTestLabel: {
+    fontSize: 18,
+    fontWeight: "300",
+    color: "#FF9500",
+    marginTop: 10,
   },
   buttonsContainer: {
     flexDirection: "row",
@@ -253,11 +269,11 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#1C1C1E',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#1C1C1E",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: '#333333',
+    borderColor: "#333333",
     elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -265,8 +281,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   dismissCircle: {
-    backgroundColor: '#0A84FF',
-    borderColor: '#0A84FF',
+    backgroundColor: "#0A84FF",
+    borderColor: "#0A84FF",
   },
   buttonText: {
     color: "white",
