@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "myproj",
+    "slug": "myproj",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "c3b68283-9f4b-4fa7-9389-d76b1e5dc6e2"
+      }
+    },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.papon254.myproj"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "owner": "papon254"
+  }
+}

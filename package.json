@@ -1,0 +1,46 @@
+{
+  "name": "myproj",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^1.24.0",
+    "@react-native-community/datetimepicker": "7.6.2",
+    "@react-native-community/netinfo": "^11.4.1",
+    "@react-native-community/slider": "^4.5.6",
+    "@react-native-picker/picker": "^2.11.0",
+    "@react-navigation/bottom-tabs": "^7.2.1",
+    "@react-navigation/native": "^7.0.15",
+    "@react-navigation/stack": "^7.1.2",
+    "expo": "~52.0.38",
+    "expo-av": "^15.0.2",
+    "expo-blur": "^14.1.4",
+    "expo-camera": "^16.0.18",
+    "expo-document-picker": "^13.0.3",
+    "expo-file-system": "~18.0.12",
+    "expo-image-manipulator": "^13.0.6",
+    "expo-linear-gradient": "^14.1.4",
+    "expo-notifications": "^0.29.14",
+    "expo-status-bar": "~2.0.1",
+    "expo-system-ui": "~4.0.9",
+    "moment-timezone": "^0.5.48",
+    "react": "18.3.1",
+    "react-native": "0.76.7",
+    "react-native-chart-kit": "^6.12.0",
+    "react-native-date-picker": "^5.0.11",
+    "react-native-gesture-handler": "^2.25.0",
+    "react-native-pager-view": "^6.7.0",
+    "react-native-paper": "^5.13.1",
+    "react-native-safe-area-context": "^5.3.0",
+    "react-native-screens": "^4.9.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0"
+  },
+  "private": true
+}
