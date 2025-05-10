@@ -28,6 +28,9 @@ const AlarmRingingScreen = ({ route, navigation }) => {
   useEffect(() => {
     console.log("หน้า AlarmRingingScreen ถูกเรียกใช้งาน");
     console.log("ข้อมูลการปลุก:", JSON.stringify(alarm, null, 2));
+    console.log("Mini-game required:", alarm.requireGame ? "YES" : "NO");
+    console.log("Game type:", alarm.gameType || "Not specified");
+    console.log("Game difficulty:", alarm.gameDifficulty || "Not specified");
 
     if (alarm.isTest) {
       console.log("นี่เป็นการทดสอบการปลุกเท่านั้น");
@@ -100,16 +103,30 @@ const AlarmRingingScreen = ({ route, navigation }) => {
 
   // Handle dismiss based on task type
   const handleDismiss = () => {
-    Alert.alert("Turn off alarm", "Do you want to turn off this alarm?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Turn off",
-        onPress: () => completeAlarm("completed"),
-      },
-    ]);
+    // Check if alarm requires game to dismiss
+    console.log("Dismiss button pressed, requireGame:", alarm.requireGame);
+    console.log("ข้อมูลการปลุกทั้งหมด:", JSON.stringify(alarm, null, 2));
+    
+    if (alarm && alarm.requireGame) {
+      console.log("Navigating to GameSelector screen");
+      // Navigate to game selector
+      navigation.navigate("GameSelector", {
+        alarm,
+        onComplete: () => completeAlarm("completed"),
+      });
+    } else {
+      // Standard dismiss with confirmation
+      Alert.alert("Turn off alarm", "Do you want to turn off this alarm?", [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Turn off",
+          onPress: () => completeAlarm("completed"),
+        },
+      ]);
+    }
   };
 
   // Complete alarm and update statistics
@@ -162,6 +179,11 @@ const AlarmRingingScreen = ({ route, navigation }) => {
             {alarm.isTest && (
               <Text style={styles.alarmTestLabel}>
                 (นี่เป็นการทดสอบเท่านั้น)
+              </Text>
+            )}
+            {alarm.requireGame && (
+              <Text style={styles.alarmGameLabel}>
+                (Mini-game required to dismiss)
               </Text>
             )}
           </View>
@@ -253,6 +275,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "300",
     color: "#FF9500",
+    marginTop: 10,
+  },
+  alarmGameLabel: {
+    fontSize: 18,
+    fontWeight: "300",
+    color: "#0A84FF",
     marginTop: 10,
   },
   buttonsContainer: {

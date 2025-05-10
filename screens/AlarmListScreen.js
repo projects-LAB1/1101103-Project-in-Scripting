@@ -28,6 +28,7 @@ import {
   scheduleAlarmNotification,
   cancelAlarmNotification,
 } from "../models/NotificationManager";
+import { useFocusEffect } from '@react-navigation/native';
 
 const AlarmListScreen = ({ navigation }) => {
   const [alarms, setAlarms] = useState([]);
@@ -47,9 +48,21 @@ const AlarmListScreen = ({ navigation }) => {
     };
   }, []);
 
+  // เพิ่ม useFocusEffect เพื่อโหลดข้อมูลนาฬิกาปลุกใหม่ทุกครั้งที่กลับมาที่หน้าจอนี้
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('Screen is focused, reloading alarms...');
+      loadStoredAlarms();
+      return () => {
+        // เมื่อออกจากหน้าจอ (ถ้าต้องการทำอะไรตอนนี้)
+      };
+    }, [])
+  );
+
   // Load alarms from storage
   const loadStoredAlarms = async () => {
     try {
+      setLoading(true); // เพิ่มการแสดง loading ระหว่างโหลดข้อมูล
       const storedAlarms = await loadAlarms();
       setAlarms(
         storedAlarms.sort((a, b) => {
@@ -76,21 +89,26 @@ const AlarmListScreen = ({ navigation }) => {
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <View style={styles.headerRightContainer}>
+        <View style={{ flexDirection: 'row' }}>
           <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => {
-              // Navigate to settings in a real app
-              Alert.alert("Action", "Would navigate to settings");
-            }}
+            onPress={() => navigation.navigate('Testing')}
+            style={[styles.headerButton, styles.testButton]}
           >
-            <Icon name="cog-outline" size={24} color="#0A84FF" />
+            <Icon name="test-tube" size={20} color="#FFFFFF" />
+            <Text style={styles.testButtonText}>Testing</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => navigation.navigate("AddAlarm")}
+            onPress={testMiniGameAlarm}
+            style={[styles.headerButton, styles.gameButton]}
           >
-            <Icon name="plus" size={24} color="#0A84FF" />
+            <Icon name="gamepad-variant" size={20} color="#FFFFFF" />
+            <Text style={styles.gameButtonText}>Test Game</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AddAlarm')}
+            style={styles.headerButton}
+          >
+            <Icon name="plus" size={28} color="#0A84FF" />
           </TouchableOpacity>
         </View>
       ),
@@ -345,6 +363,52 @@ const AlarmListScreen = ({ navigation }) => {
     </Swipeable>
   );
 
+  // Add test mini-game function to quickly test the mini-game feature
+  const testMiniGameAlarm = () => {
+    try {
+      // Create test alarm data with mini-game enabled
+      const testAlarmData = {
+        hour: new Date().getHours(),
+        minute: new Date().getMinutes(),
+        repeatDays: [],
+        isActive: true,
+        userId: "test-user",
+        label: "Mini-Game Test Alarm",
+        soundId: "default",
+        soundName: "Default",
+        snooze: true,
+        isTest: true,
+        // Mini-game settings
+        requireGame: true,
+        gameType: "memory", // Options: math, memory, photo
+        gameDifficulty: "easy", // Options: easy, medium, hard
+      };
+
+      console.log("Testing mini-game alarm with settings:", JSON.stringify(testAlarmData, null, 2));
+
+      // แสดงข้อความยืนยันก่อนทดสอบ
+      Alert.alert(
+        "ทดสอบการปลุกพร้อมเกม",
+        "จะมีการจำลองการปลุกพร้อมเกมจับคู่ (ระดับง่าย) ให้คุณทดสอบ",
+        [
+          { text: "ยกเลิก", style: "cancel" },
+          { 
+            text: "ทดสอบเลย", 
+            onPress: () => {
+              // Navigate to AlarmRinging with our test alarm
+              navigation.navigate("AlarmRinging", {
+                alarm: testAlarmData,
+              });
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error("Error testing mini-game alarm:", error);
+      Alert.alert("Error", "Could not test mini-game alarm");
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -384,6 +448,14 @@ const AlarmListScreen = ({ navigation }) => {
           </View>
         )}
       />
+
+      {/* Floating Action Button */}
+      <TouchableOpacity 
+        style={styles.fab}
+        onPress={() => navigation.navigate("AddAlarm")}
+      >
+        <Icon name="plus" size={30} color="#FFFFFF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -405,6 +477,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   headerButton: {
+    marginHorizontal: 5,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 10,
+  },
+  addButton: {
     width: 44,
     height: 44,
     justifyContent: "center",
@@ -485,19 +564,64 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 150,
+    paddingHorizontal: 20,
   },
   emptyText: {
-    color: "#666666",
-    fontSize: 17,
+    fontSize: 24,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
     marginTop: 16,
   },
   emptySubtext: {
-    color: "#666666",
-    fontSize: 15,
+    fontSize: 16,
+    color: '#999999',
     marginTop: 8,
+    textAlign: 'center',
+  },
+  fab: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#0A84FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  testButton: {
+    backgroundColor: "#0A84FF",
+    flexDirection: 'row',
+    borderRadius: 18,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  testButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 5,
+  },
+  gameButton: {
+    backgroundColor: "#FF9500",
+    flexDirection: 'row',
+    borderRadius: 18,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  gameButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 5,
   },
 });
 

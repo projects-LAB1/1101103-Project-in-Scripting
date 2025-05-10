@@ -55,6 +55,11 @@ const AddAlarmScreen = ({ route, navigation }) => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempTime, setTempTime] = useState(new Date());
 
+  // Add mini-game options
+  const [requireGame, setRequireGame] = useState(editingAlarm?.requireGame ?? false);
+  const [gameType, setGameType] = useState(editingAlarm?.gameType || "math");
+  const [gameDifficulty, setGameDifficulty] = useState(editingAlarm?.gameDifficulty || "medium");
+
   const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
   const dayFullNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -84,10 +89,17 @@ const AddAlarmScreen = ({ route, navigation }) => {
         vibrate,
         vibrateType,
         skipHolidays,
+        // Add mini-game options
+        requireGame,
+        gameType,
+        gameDifficulty,
         createdAt: new Date().toISOString(),
       };
 
       console.log("บันทึกการตั้งปลุก:", alarmData);
+      console.log("บันทึกการตั้งค่าเกม - ต้องเล่นเกม:", requireGame ? "ใช่" : "ไม่");
+      console.log("บันทึกการตั้งค่าเกม - ประเภทเกม:", gameType);
+      console.log("บันทึกการตั้งค่าเกม - ระดับความยาก:", gameDifficulty);
 
       let savedAlarm = null;
 
@@ -443,21 +455,169 @@ const AddAlarmScreen = ({ route, navigation }) => {
             ))}
           </View>
 
-          <View style={styles.optionRow}>
-            <View style={styles.optionTextContainer}>
-              <Text style={styles.optionText}>Do Not Ring on Holidays</Text>
-              <Text style={styles.optionSubText}>
-                Alarm won't ring on holidays.
-              </Text>
+          <View style={styles.optionContainer}>
+            <View style={styles.optionRow}>
+              <Text style={styles.optionText}>ข้ามวันหยุด</Text>
+              <Switch
+                value={skipHolidays}
+                onValueChange={setSkipHolidays}
+                trackColor={{ false: "#767577", true: "#0A84FF50" }}
+                thumbColor={skipHolidays ? "#0A84FF" : "#f4f3f4"}
+                ios_backgroundColor="#3e3e3e"
+              />
             </View>
-            <Switch
-              value={skipHolidays}
-              onValueChange={setSkipHolidays}
-              trackColor={{ false: "#3e3e3e", true: "#3e3e3e" }}
-              thumbColor={skipHolidays ? "#FFFFFF" : "#FFFFFF"}
-              ios_backgroundColor="#3e3e3e"
-            />
+            <Text style={styles.optionSubText}>
+              ไม่ปลุกในวันหยุดนักขัตฤกษ์
+            </Text>
           </View>
+
+          {/* Mini Game Option */}
+          <View style={styles.optionContainer}>
+            <View style={styles.optionRow}>
+              <Text style={styles.optionText}>ต้องเล่นเกมเพื่อปิดปลุก</Text>
+              <Switch
+                value={requireGame}
+                onValueChange={setRequireGame}
+                trackColor={{ false: "#767577", true: "#0A84FF50" }}
+                thumbColor={requireGame ? "#0A84FF" : "#f4f3f4"}
+                ios_backgroundColor="#3e3e3e"
+              />
+            </View>
+            <Text style={styles.optionSubText}>
+              จำเป็นต้องเล่นเกมให้ผ่านเพื่อปิดการปลุก
+            </Text>
+          </View>
+
+          {requireGame && (
+            <View style={styles.gameOptionsContainer}>
+              <View style={styles.gameTypeContainer}>
+                <Text style={styles.gameOptionTitle}>ประเภทเกม</Text>
+                <View style={styles.gameTypeButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.gameTypeButton,
+                      gameType === "math" && styles.gameTypeButtonActive,
+                    ]}
+                    onPress={() => setGameType("math")}
+                  >
+                    <MaterialCommunityIcons
+                      name="calculator"
+                      size={24}
+                      color={gameType === "math" ? "#0A84FF" : "#777"}
+                    />
+                    <Text
+                      style={[
+                        styles.gameTypeText,
+                        gameType === "math" && styles.gameTypeTextActive,
+                      ]}
+                    >
+                      คณิตศาสตร์
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.gameTypeButton,
+                      gameType === "memory" && styles.gameTypeButtonActive,
+                    ]}
+                    onPress={() => setGameType("memory")}
+                  >
+                    <MaterialCommunityIcons
+                      name="cards"
+                      size={24}
+                      color={gameType === "memory" ? "#0A84FF" : "#777"}
+                    />
+                    <Text
+                      style={[
+                        styles.gameTypeText,
+                        gameType === "memory" && styles.gameTypeTextActive,
+                      ]}
+                    >
+                      จับคู่ภาพ
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.gameTypeButton,
+                      gameType === "photo" && styles.gameTypeButtonActive,
+                    ]}
+                    onPress={() => setGameType("photo")}
+                  >
+                    <MaterialCommunityIcons
+                      name="camera"
+                      size={24}
+                      color={gameType === "photo" ? "#0A84FF" : "#777"}
+                    />
+                    <Text
+                      style={[
+                        styles.gameTypeText,
+                        gameType === "photo" && styles.gameTypeTextActive,
+                      ]}
+                    >
+                      ถ่ายรูป
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.difficultyContainer}>
+                <Text style={styles.gameOptionTitle}>ระดับความยาก</Text>
+                <View style={styles.difficultyButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.difficultyButton,
+                      gameDifficulty === "easy" && styles.easyButton,
+                    ]}
+                    onPress={() => setGameDifficulty("easy")}
+                  >
+                    <Text
+                      style={[
+                        styles.difficultyText,
+                        gameDifficulty === "easy" && styles.difficultyTextActive,
+                      ]}
+                    >
+                      ง่าย
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.difficultyButton,
+                      gameDifficulty === "medium" && styles.mediumButton,
+                    ]}
+                    onPress={() => setGameDifficulty("medium")}
+                  >
+                    <Text
+                      style={[
+                        styles.difficultyText,
+                        gameDifficulty === "medium" && styles.difficultyTextActive,
+                      ]}
+                    >
+                      ปานกลาง
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.difficultyButton,
+                      gameDifficulty === "hard" && styles.hardButton,
+                    ]}
+                    onPress={() => setGameDifficulty("hard")}
+                  >
+                    <Text
+                      style={[
+                        styles.difficultyText,
+                        gameDifficulty === "hard" && styles.difficultyTextActive,
+                      ]}
+                    >
+                      ยาก
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -924,6 +1084,78 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  optionContainer: {
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#333333",
+  },
+  gameOptionsContainer: {
+    padding: 16,
+  },
+  gameTypeContainer: {
+    marginBottom: 20,
+  },
+  gameTypeButtons: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  gameTypeButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    backgroundColor: "#333333",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  gameTypeButtonActive: {
+    backgroundColor: "#0A84FF",
+  },
+  gameTypeText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  gameTypeTextActive: {
+    color: "#FFFFFF",
+  },
+  difficultyContainer: {
+    marginBottom: 20,
+  },
+  difficultyButtons: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  difficultyButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    backgroundColor: "#333333",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  difficultyText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  difficultyTextActive: {
+    color: "#FFFFFF",
+  },
+  easyButton: {
+    backgroundColor: "#007AFF",
+  },
+  mediumButton: {
+    backgroundColor: "#FF9500",
+  },
+  hardButton: {
+    backgroundColor: "#FF3B30",
+  },
+  gameOptionTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "600",
+    marginBottom: 10,
   },
 });
 

@@ -10,11 +10,12 @@ import {
   Alert,
   StatusBar,
 } from "react-native";
-import { getFirestore, collection, getDocs, addDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, getDocs, addDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../firebase/config";
 import { Audio } from "expo-av";
 import Slider from "@react-native-community/slider";
-import { DocumentPicker } from "expo-document-picker";
+import * as DocumentPicker from "expo-document-picker";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
 const SoundLibraryScreen = ({ route, navigation }) => {
@@ -24,9 +25,6 @@ const SoundLibraryScreen = ({ route, navigation }) => {
   const [playingSound, setPlayingSound] = useState(null);
   const [playingSoundId, setPlayingSoundId] = useState(null);
   const [volume, setVolume] = useState(0.8);
-
-  const db = getFirestore();
-  const storage = getStorage();
 
   // Load sounds from Firestore
   useEffect(() => {
@@ -43,6 +41,19 @@ const SoundLibraryScreen = ({ route, navigation }) => {
 
   const loadSounds = async () => {
     try {
+      // Create default sounds list since we don't have an actual Firebase connection
+      const defaultSounds = [
+        { id: "default", name: "Default Alarm", url: null },
+        { id: "bell", name: "Bell", url: null },
+        { id: "digital", name: "Digital", url: null },
+        { id: "rooster", name: "Rooster", url: null },
+      ];
+      
+      setSounds(defaultSounds);
+      setLoading(false);
+      
+      /* 
+      // Actual Firebase implementation - commented out until Firebase is properly set up
       // Get sounds from Firestore
       const soundsRef = collection(db, "sounds");
       const snapshot = await getDocs(soundsRef);
@@ -66,9 +77,19 @@ const SoundLibraryScreen = ({ route, navigation }) => {
       }
 
       setLoading(false);
+      */
     } catch (error) {
       console.error("Error loading sounds:", error);
       Alert.alert("ข้อผิดพลาด", "ไม่สามารถโหลดรายการเสียงปลุกได้");
+      
+      // Fallback to default sounds on error
+      const defaultSounds = [
+        { id: "default", name: "Default Alarm", url: null },
+        { id: "bell", name: "Bell", url: null },
+        { id: "digital", name: "Digital", url: null },
+        { id: "rooster", name: "Rooster", url: null },
+      ];
+      setSounds(defaultSounds);
       setLoading(false);
     }
   };
@@ -89,13 +110,12 @@ const SoundLibraryScreen = ({ route, navigation }) => {
         }
       }
 
-      // Get sound URL from Firebase Storage or use local asset
+      // Get sound URL or use local asset
       let soundSource;
-      if (sound.url) {
-        // Get URL from Firebase Storage
-        const soundRef = ref(storage, sound.url);
-        const url = await getDownloadURL(soundRef);
-        soundSource = { uri: url };
+      
+      if (sound.url && sound.id.includes('custom_')) {
+        // This is a custom sound with a local URI
+        soundSource = { uri: sound.url };
       } else {
         // Use local asset based on sound ID
         switch (sound.id) {
@@ -161,6 +181,22 @@ const SoundLibraryScreen = ({ route, navigation }) => {
 
       setLoading(true);
 
+      // Mock implementation for demo purposes
+      const soundData = {
+        id: `custom_${Date.now()}`,
+        name: fileName.replace(/\.[^/.]+$/, ""), // Remove file extension
+        url: file.uri, // Use local URI for demo
+        createdAt: new Date(),
+      };
+
+      // Add to local state
+      setSounds([...sounds, soundData]);
+
+      Alert.alert("สำเร็จ", "อัปโหลดไฟล์เสียงเรียบร้อยแล้ว");
+      setLoading(false);
+      
+      /*
+      // Actual Firebase upload implementation - commented out until Firebase is properly set up
       // Upload to Firebase Storage
       const response = await fetch(file.uri);
       const blob = await response.blob();
@@ -185,6 +221,7 @@ const SoundLibraryScreen = ({ route, navigation }) => {
 
       Alert.alert("สำเร็จ", "อัปโหลดไฟล์เสียงเรียบร้อยแล้ว");
       setLoading(false);
+      */
     } catch (error) {
       console.error("Error uploading sound:", error);
       Alert.alert("ข้อผิดพลาด", "ไม่สามารถอัปโหลดไฟล์เสียงได้");

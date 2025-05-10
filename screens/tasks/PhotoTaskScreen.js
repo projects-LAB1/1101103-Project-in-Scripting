@@ -22,6 +22,24 @@ const PhotoTaskScreen = ({ route, navigation }) => {
   const [processing, setProcessing] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [maxAttempts, setMaxAttempts] = useState(5);
+  const [cameraType, setCameraType] = useState(0); // default back camera
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  
+  // เตรียมค่า camera type ที่ปลอดภัย
+  useEffect(() => {
+    try {
+      // ตรวจสอบว่า Camera และ Constants มีอยู่หรือไม่
+      if (Camera && Camera.Constants && Camera.Constants.Type) {
+        setCameraType(Camera.Constants.Type.back);
+      } else {
+        console.warn("Camera.Constants.Type is not available, using default value");
+      }
+    } catch (err) {
+      console.error("Error setting camera type:", err);
+      setErrorMessage("ไม่สามารถเข้าถึงกล้องได้ โปรดลองอีกครั้งภายหลัง");
+    }
+  }, []);
 
   // Colors for different difficulties
   const easyColors = [
@@ -48,11 +66,23 @@ const PhotoTaskScreen = ({ route, navigation }) => {
   // Request camera permission
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === "granted");
-
-      // Select random target color based on difficulty
-      selectRandomColor();
+      try {
+        const { status } = await Camera.requestCameraPermissionsAsync();
+        setHasPermission(status === "granted");
+        
+        // ตรวจสอบว่า Camera.Constants มีค่าหรือไม่
+        if (!Camera.Constants) {
+          console.error("Camera.Constants is undefined");
+          setErrorMessage("กล้องไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง");
+          return;
+        }
+        
+        // Select random target color based on difficulty
+        selectRandomColor();
+      } catch (err) {
+        console.error("Error initializing camera:", err);
+        setErrorMessage("เกิดข้อผิดพลาดในการเริ่มต้นกล้อง: " + err.message);
+      }
     })();
   }, []);
 
@@ -147,25 +177,59 @@ const PhotoTaskScreen = ({ route, navigation }) => {
     }
   };
 
+  // ฟังก์ชันจัดการเมื่อกล้องพร้อมใช้งาน
+  const handleCameraReady = () => {
+    console.log("Camera is ready");
+    setIsCameraReady(true);
+  };
+
+  // ฟังก์ชันจัดการข้อผิดพลาดของกล้อง
+  const handleCameraError = (error) => {
+    console.error("Camera error:", error);
+    setErrorMessage(`เกิดข้อผิดพลาดจากกล้อง: ${error.message || "Unknown error"}`);
+    setIsCameraReady(false);
+  };
+
+  if (errorMessage) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Icon name="alert-circle" size={60} color="#FF3B30" />
+          <Text style={styles.errorText}>{errorMessage}</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.buttonText}>กลับ</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (hasPermission === null) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#4F46E5" />
+        <Text style={styles.loadingText}>กำลังโหลดกล้อง...</Text>
       </View>
     );
   }
 
   if (hasPermission === false) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>ไม่ได้รับอนุญาตให้ใช้กล้อง</Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>กลับ</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Icon name="camera-off" size={60} color="#FF3B30" />
+          <Text style={styles.errorText}>ไม่ได้รับอนุญาตให้ใช้กล้อง</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.buttonText}>กลับ</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -179,10 +243,19 @@ const PhotoTaskScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.cameraContainer}>
+        {/* ใช้ try-catch ในการแสดงกล้อง */}
+        {isCameraReady ? null : (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+            <Text style={styles.loadingText}>กำลังเปิดกล้อง...</Text>
+          </View>
+        )}
         <Camera
           style={styles.camera}
           ref={(ref) => setCamera(ref)}
-          type={Camera.Constants.Type.back}
+          type={cameraType}
+          onCameraReady={handleCameraReady}
+          onMountError={handleCameraError}
         />
       </View>
 
@@ -199,9 +272,12 @@ const PhotoTaskScreen = ({ route, navigation }) => {
 
       <View style={styles.controlsContainer}>
         <TouchableOpacity
-          style={[styles.captureButton, processing && styles.disabledButton]}
+          style={[
+            styles.captureButton, 
+            (processing || !isCameraReady) && styles.disabledButton
+          ]}
           onPress={takePicture}
-          disabled={processing}
+          disabled={processing || !isCameraReady}
         >
           {processing ? (
             <ActivityIndicator size="small" color="white" />
@@ -305,23 +381,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#6B7280",
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   errorText: {
     fontSize: 18,
-    color: "#EF4444",
-    textAlign: "center",
-    margin: 20,
+    color: '#FF3B30',
+    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 20,
   },
   button: {
-    backgroundColor: "#4F46E5",
-    borderRadius: 10,
-    padding: 15,
-    alignItems: "center",
-    margin: 20,
+    backgroundColor: '#4F46E5',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    marginTop: 20,
   },
   buttonText: {
-    color: "white",
+    color: 'white',
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: 'bold',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
 });
 
