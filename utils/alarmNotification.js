@@ -42,7 +42,7 @@ export const requestNotificationPermissions = async () => {
         await Notifications.setNotificationChannelAsync("alarms", {
           name: "Alarms",
           importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 100, 100, 100],
+          vibrationPattern: [0, 50, 50, 50],
           sound: true,
           enableVibrate: true,
           enableLights: true,
@@ -125,7 +125,7 @@ export const scheduleAlarm = async (alarm) => {
             .padStart(2, "0")}`,
           sound: true,
           priority: "max", // เพิ่มความสำคัญให้สูงสุด
-          vibrate: [0, 100, 100, 100], // ลดเวลาสั่นให้สั้นลง
+          vibrate: [0, 50, 50, 50], // ลดเวลาสั่นให้เร็วขึ้น
           data: {
             alarm,
             scheduled: true,
@@ -182,7 +182,7 @@ export const scheduleAlarm = async (alarm) => {
                 .padStart(2, "0")}`,
               sound: true,
               priority: "max", // เพิ่มความสำคัญให้สูงสุด
-              vibrate: [0, 100, 100, 100], // ลดเวลาสั่นให้สั้นลง
+              vibrate: [0, 50, 50, 50], // ลดเวลาสั่นให้เร็วขึ้น
               data: {
                 alarm,
                 dayIndex: appDayIndex,
@@ -250,7 +250,7 @@ export const triggerTestAlarm = async (alarmData) => {
         body: `${testAlarmData.hour.toString().padStart(2, "0")}:${testAlarmData.minute.toString().padStart(2, "0")}`,
         sound: true,
         priority: "max",
-        vibrate: [0, 100, 100, 100],
+        vibrate: [0, 50, 50, 50],
         data: {
           alarm: testAlarmData,
           isTest: true,

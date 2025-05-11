@@ -14,11 +14,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSleep } from '../../contexts/SleepContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getDailyRecommendation } from '../../utils/sleepAI';
 
 const SleepHomeScreen = ({ navigation }) => {
   const { 
     sleepRecords, 
     sleepAnalytics, 
+    sleepGoals,
     loading, 
     refreshing, 
     refresh,
@@ -26,14 +28,34 @@ const SleepHomeScreen = ({ navigation }) => {
   } = useSleep();
 
   const [weeklySummary, setWeeklySummary] = useState(null);
+  const [dailyRecommendation, setDailyRecommendation] = useState(null);
   
   useEffect(() => {
     // Calculate weekly summary when sleepRecords change
     if (sleepRecords.length > 0) {
       const summary = getWeeklySummary();
       setWeeklySummary(summary);
+      
+      try {
+        // Get daily recommendation from AI
+        const sortedRecords = [...sleepRecords].sort((a, b) => 
+          new Date(b.bedTime) - new Date(a.bedTime)
+        );
+        
+        const latestRecord = sortedRecords[0];
+        const recommendation = getDailyRecommendation(latestRecord, sleepGoals, sleepAnalytics);
+        setDailyRecommendation(recommendation);
+      } catch (error) {
+        console.error('Error getting daily recommendation:', error);
+        // Set default recommendation if fails
+        setDailyRecommendation({
+          title: 'คำแนะนำประจำวัน',
+          message: 'ไม่สามารถวิเคราะห์ข้อมูลได้ในขณะนี้ ลองบันทึกข้อมูลการนอนเพิ่มเติม',
+          actionItems: []
+        });
+      }
     }
-  }, [sleepRecords]);
+  }, [sleepRecords, sleepGoals, sleepAnalytics]);
   
   // Format time as HH:MM
   const formatTime = (dateString) => {
@@ -148,6 +170,38 @@ const SleepHomeScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={refresh} colors={['#FF9500']} />
         }
       >
+        {/* AI Daily Recommendation */}
+        {dailyRecommendation && (
+          <View style={styles.aiRecommendationCard}>
+            <View style={styles.aiHeaderContainer}>
+              <MaterialCommunityIcons name="brain" size={24} color="#0A84FF" />
+              <Text style={styles.aiCardTitle}>คำแนะนำประจำวัน</Text>
+            </View>
+            
+            <Text style={styles.aiRecommendationTitle}>{dailyRecommendation.title || 'คำแนะนำประจำวัน'}</Text>
+            <Text style={styles.aiRecommendationMessage}>{dailyRecommendation.message || 'ไม่มีข้อมูลเพียงพอ'}</Text>
+            
+            {dailyRecommendation.actionItems && dailyRecommendation.actionItems.length > 0 && (
+              <View style={styles.aiActionItemsContainer}>
+                {dailyRecommendation.actionItems.map((item, index) => (
+                  <View key={`action-${index}`} style={styles.aiActionItem}>
+                    <MaterialCommunityIcons name="check-circle-outline" size={18} color="#0A84FF" />
+                    <Text style={styles.aiActionItemText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            <TouchableOpacity 
+              style={styles.aiViewMoreButton}
+              onPress={() => navigation.navigate('SleepAnalytics')}
+            >
+              <Text style={styles.aiViewMoreButtonText}>ดูการวิเคราะห์เพิ่มเติม</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#0A84FF" />
+            </TouchableOpacity>
+          </View>
+        )}
+        
         {/* Sleep summary card */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>สรุปการนอนหลับ</Text>
@@ -156,7 +210,7 @@ const SleepHomeScreen = ({ navigation }) => {
             <View style={styles.analyticsContainer}>
               <View style={styles.analyticItem}>
                 <Text style={styles.analyticValue}>
-                  {sleepAnalytics.avgDurationHours}
+                  {sleepAnalytics.avgDurationHours || sleepAnalytics.stats?.averageDurationHours || '0.0'}
                 </Text>
                 <Text style={styles.analyticLabel}>ชั่วโมง/วัน</Text>
               </View>
@@ -165,7 +219,7 @@ const SleepHomeScreen = ({ navigation }) => {
               
               <View style={styles.analyticItem}>
                 <Text style={styles.analyticValue}>
-                  {sleepAnalytics.avgQualityScore}
+                  {sleepAnalytics.avgQualityScore || 0}
                 </Text>
                 <Text style={styles.analyticLabel}>คะแนนคุณภาพ</Text>
               </View>
@@ -174,7 +228,7 @@ const SleepHomeScreen = ({ navigation }) => {
               
               <View style={styles.analyticItem}>
                 <Text style={styles.analyticValue}>
-                  {sleepAnalytics.consistencyScore}%
+                  {sleepAnalytics.consistencyScore || 0}%
                 </Text>
                 <Text style={styles.analyticLabel}>ความสม่ำเสมอ</Text>
               </View>
@@ -262,6 +316,65 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  aiRecommendationCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 16,
+    margin: 16,
+    marginBottom: 8,
+  },
+  aiHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  aiCardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  aiRecommendationTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  aiRecommendationMessage: {
+    fontSize: 15,
+    color: '#CCCCCC',
+    marginBottom: 16,
+    lineHeight: 22,
+  },
+  aiActionItemsContainer: {
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  aiActionItem: {
+    flexDirection: 'row',
+    marginBottom: 10,
+    alignItems: 'flex-start',
+  },
+  aiActionItemText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginLeft: 10,
+    flex: 1,
+    lineHeight: 20,
+  },
+  aiViewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  aiViewMoreButtonText: {
+    fontSize: 15,
+    color: '#0A84FF',
+    marginRight: 4,
   },
   summaryCard: {
     backgroundColor: '#1C1C1E',
