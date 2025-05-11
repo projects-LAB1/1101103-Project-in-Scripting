@@ -27,6 +27,7 @@
     "expo-image-manipulator": "^13.0.6",
     "expo-linear-gradient": "^14.1.4",
     "expo-notifications": "^0.29.14",
+    "expo-sensors": "^14.1.4",
     "expo-status-bar": "~2.0.1",
     "expo-system-ui": "~4.0.9",
     "firebase": "^11.7.1",

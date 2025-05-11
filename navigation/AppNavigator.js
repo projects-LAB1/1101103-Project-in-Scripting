@@ -5,6 +5,7 @@ import WorldClockNavigator from "./WorldClockNavigator";
 import AlarmNavigator from "./AlarmNavigator";
 import StopwatchScreen from "../screens/StopwatchScreen";
 import TimerScreen from "../screens/TimerScreen";
+import SettingsScreen from "../screens/SettingsScreen";
 
 const Tab = createBottomTabNavigator();
 
@@ -64,9 +65,19 @@ const AppNavigator = () => {
         name="Timer"
         component={TimerScreen}
         options={{
-          title: "ตั้งเวลา",
+          title: "ตัวจับเวลา",
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="timer-sand" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          title: "ตั้งค่า",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="cog" size={size} color={color} />
           ),
         }}
       />

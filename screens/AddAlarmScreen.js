@@ -281,6 +281,18 @@ const AddAlarmScreen = ({ route, navigation }) => {
     }
   };
 
+  // เพิ่มฟังก์ชันสำหรับไปยังหน้าเลือกเสียง
+  const goToSoundPicker = () => {
+    navigation.navigate("SoundPicker", {
+      selectedSoundId: soundId,
+      onSelectSound: (selectedSound) => {
+        console.log("เลือกเสียง:", selectedSound);
+        setSoundId(selectedSound.id);
+        setSoundName(selectedSound.name);
+      }
+    });
+  };
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: () => (
@@ -620,6 +632,22 @@ const AddAlarmScreen = ({ route, navigation }) => {
           )}
         </View>
 
+        {/* Sound Selection Section */}
+        <View style={styles.section}>
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={goToSoundPicker}
+          >
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>เสียงปลุก</Text>
+              <View style={styles.settingValue}>
+                <Text style={styles.settingValueText}>{soundName}</Text>
+                <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.section}>
           <TextInput
             style={styles.labelInput}
@@ -628,18 +656,6 @@ const AddAlarmScreen = ({ route, navigation }) => {
             placeholder="Alarm name"
             placeholderTextColor="#777"
           />
-
-          <TouchableOpacity style={styles.optionRow}>
-            <View style={styles.optionTextContainer}>
-              <Text style={styles.optionText}>Ringtone</Text>
-              <Text style={styles.optionSubText}>{soundName}</Text>
-            </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={24}
-              color="#666"
-            />
-          </TouchableOpacity>
 
           <TouchableOpacity style={styles.optionRow}>
             <View style={styles.optionTextContainer}>
@@ -1156,6 +1172,29 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     marginBottom: 10,
+  },
+  settingItem: {
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#333333",
+  },
+  settingContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  settingLabel: {
+    color: "#FFFFFF",
+    fontSize: 17,
+  },
+  settingValue: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  settingValueText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    marginRight: 8,
   },
 });
 

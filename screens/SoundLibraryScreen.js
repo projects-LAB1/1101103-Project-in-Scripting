@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  SafeAreaView,
 } from "react-native";
 import { collection, getDocs, addDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -16,14 +17,15 @@ import { db, storage } from "../firebase/config";
 import { Audio } from "expo-av";
 import Slider from "@react-native-community/slider";
 import * as DocumentPicker from "expo-document-picker";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { Ionicons, MaterialCommunityIcons } from "react-native-vector-icons";
 
 const SoundLibraryScreen = ({ route, navigation }) => {
-  const { onSelect, currentSoundId } = route.params || {};
+  const { selectedSound, onSelectSound } = route.params || {};
+  const [sound, setSound] = useState(null);
+  const [playing, setPlaying] = useState(null);
+  const [selectedId, setSelectedId] = useState(selectedSound?.id || 'default');
   const [sounds, setSounds] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [playingSound, setPlayingSound] = useState(null);
-  const [playingSoundId, setPlayingSoundId] = useState(null);
   const [volume, setVolume] = useState(0.8);
 
   // Load sounds from Firestore
@@ -32,9 +34,9 @@ const SoundLibraryScreen = ({ route, navigation }) => {
 
     // Clean up sound when leaving screen
     return () => {
-      if (playingSound) {
-        playingSound.stopAsync();
-        playingSound.unloadAsync();
+      if (sound) {
+        sound.stopAsync().catch(err => console.log('Error stopping sound:', err));
+        sound.unloadAsync().catch(err => console.log('Error unloading sound:', err));
       }
     };
   }, []);
@@ -43,10 +45,10 @@ const SoundLibraryScreen = ({ route, navigation }) => {
     try {
       // Create default sounds list since we don't have an actual Firebase connection
       const defaultSounds = [
-        { id: "default", name: "Default Alarm", url: null },
-        { id: "bell", name: "Bell", url: null },
-        { id: "digital", name: "Digital", url: null },
-        { id: "rooster", name: "Rooster", url: null },
+        { id: "default", name: "Default Alarm", url: null, icon: 'alarm' },
+        { id: "bell", name: "Bell", url: null, icon: 'bell' },
+        { id: "digital", name: "Digital", url: null, icon: 'alarm-outline' },
+        { id: "rooster", name: "Rooster", url: null, icon: 'bird' },
       ];
       
       setSounds(defaultSounds);
@@ -66,10 +68,10 @@ const SoundLibraryScreen = ({ route, navigation }) => {
       // Add default sounds if none exist
       if (soundsList.length === 0) {
         const defaultSounds = [
-          { id: "default", name: "Default Alarm", url: null },
-          { id: "bell", name: "Bell", url: null },
-          { id: "digital", name: "Digital", url: null },
-          { id: "rooster", name: "Rooster", url: null },
+          { id: "default", name: "Default Alarm", url: null, icon: 'alarm' },
+          { id: "bell", name: "Bell", url: null, icon: 'bell' },
+          { id: "digital", name: "Digital", url: null, icon: 'alarm-outline' },
+          { id: "rooster", name: "Rooster", url: null, icon: 'bird' },
         ];
         setSounds(defaultSounds);
       } else {
@@ -84,10 +86,10 @@ const SoundLibraryScreen = ({ route, navigation }) => {
       
       // Fallback to default sounds on error
       const defaultSounds = [
-        { id: "default", name: "Default Alarm", url: null },
-        { id: "bell", name: "Bell", url: null },
-        { id: "digital", name: "Digital", url: null },
-        { id: "rooster", name: "Rooster", url: null },
+        { id: "default", name: "Default Alarm", url: null, icon: 'alarm' },
+        { id: "bell", name: "Bell", url: null, icon: 'bell' },
+        { id: "digital", name: "Digital", url: null, icon: 'alarm-outline' },
+        { id: "rooster", name: "Rooster", url: null, icon: 'bird' },
       ];
       setSounds(defaultSounds);
       setLoading(false);
@@ -95,67 +97,34 @@ const SoundLibraryScreen = ({ route, navigation }) => {
   };
 
   // Play sound preview
-  const playSound = async (sound) => {
+  const playSound = async (soundItem) => {
     try {
       // Stop current sound if playing
-      if (playingSound) {
-        await playingSound.stopAsync();
-        await playingSound.unloadAsync();
-        setPlayingSound(null);
-
-        // If clicking the same sound, just stop it
-        if (playingSoundId === sound.id) {
-          setPlayingSoundId(null);
-          return;
-        }
+      if (sound) {
+        await sound.stopAsync();
+        await sound.unloadAsync();
+        setSound(null);
       }
 
-      // Get sound URL or use local asset
-      let soundSource;
+      // Play new sound
+      setPlaying(soundItem.id);
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        soundItem.path,
+        { shouldPlay: true }
+      );
       
-      if (sound.url && sound.id.includes('custom_')) {
-        // This is a custom sound with a local URI
-        soundSource = { uri: sound.url };
-      } else {
-        // Use local asset based on sound ID
-        switch (sound.id) {
-          case "default":
-            soundSource = require("../assets/sounds/default-alarm.mp3");
-            break;
-          case "bell":
-            soundSource = require("../assets/sounds/bell-alarm.mp3");
-            break;
-          case "digital":
-            soundSource = require("../assets/sounds/digital-alarm.mp3");
-            break;
-          case "rooster":
-            soundSource = require("../assets/sounds/rooster-alarm.mp3");
-            break;
-          default:
-            soundSource = require("../assets/sounds/default-alarm.mp3");
-        }
-      }
-
-      // Load and play sound
-      const { sound: audioSound } = await Audio.Sound.createAsync(soundSource, {
-        volume: volume,
-      });
-
-      setPlayingSound(audioSound);
-      setPlayingSoundId(sound.id);
-
-      // Play sound
-      await audioSound.playAsync();
-
+      setSound(newSound);
+      
       // Set up listener for when sound finishes playing
-      audioSound.setOnPlaybackStatusUpdate((status) => {
+      newSound.setOnPlaybackStatusUpdate((status) => {
         if (status.didJustFinish) {
-          setPlayingSoundId(null);
+          setPlaying(null);
         }
       });
     } catch (error) {
       console.error("Error playing sound:", error);
       Alert.alert("ข้อผิดพลาด", "ไม่สามารถเล่นเสียงตัวอย่างได้");
+      setPlaying(null);
     }
   };
 
@@ -187,6 +156,7 @@ const SoundLibraryScreen = ({ route, navigation }) => {
         name: fileName.replace(/\.[^/.]+$/, ""), // Remove file extension
         url: file.uri, // Use local URI for demo
         createdAt: new Date(),
+        icon: 'custom'
       };
 
       // Add to local state
@@ -212,6 +182,7 @@ const SoundLibraryScreen = ({ route, navigation }) => {
         name: fileName.replace(/\.[^/.]+$/, ""), // Remove file extension
         url: downloadURL,
         createdAt: new Date(),
+        icon: 'custom'
       };
 
       const docRef = await addDoc(collection(db, "sounds"), soundData);
@@ -230,43 +201,76 @@ const SoundLibraryScreen = ({ route, navigation }) => {
   };
 
   // Select sound and return to previous screen
-  const selectSound = (sound) => {
-    if (onSelect) {
-      onSelect(sound);
-      // ใช้ navigation.goBack() เพื่อให้แน่ใจว่ากลับไปยังหน้าก่อนหน้าได้อย่างถูกต้อง
-      navigation.goBack();
+  const selectSound = (item) => {
+    setSelectedId(item.id);
+    
+    // หากมีฟังก์ชัน callback
+    if (onSelectSound) {
+      onSelectSound(item);
     }
   };
 
   // Render sound item
-  const renderSoundItem = ({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.soundItem,
-        currentSoundId === item.id && styles.selectedSoundItem,
-      ]}
-      onPress={() => selectSound(item)}
-    >
-      <View style={styles.soundInfo}>
-        <Text style={styles.soundName}>{item.name}</Text>
-        {item.url && <Text style={styles.customLabel}>Custom</Text>}
-      </View>
+  const renderSoundItem = ({ item }) => {
+    const isSelected = item.id === selectedId;
+    const isPlaying = item.id === playing;
 
+    return (
       <TouchableOpacity
-        style={styles.playButton}
-        onPress={() => playSound(item)}
+        style={[styles.soundItem, isSelected && styles.selectedItem]}
+        onPress={() => selectSound(item)}
       >
-        <Icon
-          name={playingSoundId === item.id ? "stop" : "play"}
-          size={24}
-          color="#4F46E5"
-        />
+        <View style={styles.soundInfo}>
+          <MaterialCommunityIcons
+            name={item.icon}
+            size={24}
+            color={isSelected ? "#0A84FF" : "#999999"}
+          />
+          <Text style={[styles.soundName, isSelected && styles.selectedText]}>
+            {item.name}
+          </Text>
+        </View>
+        
+        <View style={styles.actions}>
+          {/* เลือกเสียง */}
+          <TouchableOpacity
+            style={[styles.selectButton, isSelected && styles.selectedButton]}
+            onPress={() => selectSound(item)}
+          >
+            {isSelected ? (
+              <Ionicons name="checkmark-circle" size={24} color="#0A84FF" />
+            ) : (
+              <Ionicons name="radio-button-off" size={24} color="#666666" />
+            )}
+          </TouchableOpacity>
+          
+          {/* ปุ่มเล่นเสียง */}
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={() => playSound(item)}
+          >
+            <Ionicons
+              name={isPlaying ? "pause" : "play"}
+              size={22}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
+
+  // ฟังก์ชันบันทึกการเลือก
+  const handleSave = () => {
+    const selectedSound = sounds.find(item => item.id === selectedId);
+    if (selectedSound && onSelectSound) {
+      onSelectSound(selectedSound);
+    }
+    navigation.goBack();
+  };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar
         barStyle="light-content"
         backgroundColor="#12111D"
@@ -300,23 +304,50 @@ const SoundLibraryScreen = ({ route, navigation }) => {
           renderItem={renderSoundItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.soundList}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
 
       {/* Upload Button */}
       <TouchableOpacity style={styles.uploadButton} onPress={uploadSound}>
-        <Icon name="upload" size={20} color="white" />
         <Text style={styles.uploadButtonText}>อัปโหลดเสียงใหม่</Text>
       </TouchableOpacity>
-    </View>
+
+      <View style={styles.footer}>
+        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+          <Text style={styles.saveButtonText}>เสร็จสิ้น</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
-    padding: 20,
+    backgroundColor: "#000000",
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  saveButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+  },
+  saveButtonText: {
+    color: '#0A84FF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   volumeContainer: {
     backgroundColor: "white",
@@ -355,43 +386,52 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   soundItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "white",
-    borderRadius: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 15,
-    marginBottom: 10,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: '#1C1C1E',
   },
-  selectedSoundItem: {
-    borderWidth: 2,
-    borderColor: "#4F46E5",
+  selectedItem: {
+    backgroundColor: '#1C1C1E',
+    borderLeftWidth: 3,
+    borderLeftColor: '#0A84FF',
   },
   soundInfo: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   soundName: {
+    marginLeft: 15,
     fontSize: 16,
-    fontWeight: "500",
-    color: "#111827",
+    color: '#FFFFFF',
   },
-  customLabel: {
-    fontSize: 12,
-    color: "#4F46E5",
-    marginTop: 4,
+  selectedText: {
+    color: '#FFFFFF',
+    fontWeight: '500',
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectButton: {
+    marginRight: 15,
+  },
+  selectedButton: {
+    opacity: 1,
   },
   playButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#0A84FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#333333',
+    marginLeft: 15,
   },
   uploadButton: {
     position: "absolute",
@@ -410,6 +450,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 10,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#333333',
   },
 });
 

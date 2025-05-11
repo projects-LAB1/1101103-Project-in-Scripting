@@ -166,6 +166,101 @@ const AlarmListScreen = ({ navigation }) => {
           // ถ้าเปิดการแจ้งเตือน ให้ตั้งเวลาเตือนตามที่กำหนดไว้
           try {
             console.log("Scheduling notification for alarm:", updatedAlarm);
+            
+            // Calculate time until alarm when turning on
+            const now = new Date();
+            const alarmTime = new Date(now);
+            alarmTime.setHours(updatedAlarm.hour);
+            alarmTime.setMinutes(updatedAlarm.minute);
+            alarmTime.setSeconds(0);
+
+            // If there are repeat days, check for the next occurrence
+            let nextAlarmMessage = "";
+            
+            if (updatedAlarm.repeatDays && updatedAlarm.repeatDays.length > 0) {
+              const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday, etc.
+              const repeatDays = updatedAlarm.repeatDays;
+              
+              // Convert Sunday(0) to index 6 for comparison with our repeatDays array
+              // where Monday is 0, Sunday is 6
+              const currentDayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+              
+              // Find the next day to ring from the repeat days
+              let nextDayIndex = -1;
+              let daysUntilNextAlarm = 7; // Maximum is a week
+              
+              for (const repeatDay of repeatDays) {
+                // Calculate how many days until this repeat day
+                let daysUntil = repeatDay - currentDayIndex;
+                if (daysUntil <= 0) {
+                  daysUntil += 7; // Wrap to next week
+                }
+                
+                // If alarm time is already past for today and the repeat day is today
+                if (repeatDay === currentDayIndex && alarmTime <= now) {
+                  daysUntil = 7; // Schedule for next week
+                }
+                
+                // Keep track of the closest upcoming day
+                if (daysUntil < daysUntilNextAlarm) {
+                  daysUntilNextAlarm = daysUntil;
+                  nextDayIndex = repeatDay;
+                }
+              }
+              
+              // If we found a valid next day
+              if (nextDayIndex !== -1) {
+                // Set the alarm date to the next occurrence
+                alarmTime.setDate(alarmTime.getDate() + daysUntilNextAlarm);
+                
+                // Map our day index (where Monday is 0) to day names
+                const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+                nextAlarmMessage = ` (Next alarm on ${dayNames[nextDayIndex]})`;
+              }
+            } else {
+              // If no repeat days, just add a day if the time has passed
+              if (alarmTime < now) {
+                alarmTime.setDate(alarmTime.getDate() + 1);
+              }
+            }
+
+            // Calculate difference
+            const diffMs = alarmTime - now;
+            const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+            // Display alert with time until alarm
+            let timeDescription = "";
+            
+            if (diffHrs === 0 && diffMins === 0) {
+              timeDescription = "ตอนนี้";
+            } else if (diffHrs === 0) {
+              timeDescription = `อีก ${diffMins} นาที`;
+            } else if (diffMins === 0) {
+              timeDescription = `อีก ${diffHrs} ชั่วโมง`;
+            } else {
+              timeDescription = `อีก ${diffHrs} ชั่วโมง ${diffMins} นาที`;
+            }
+            
+            // Format the alarm time for display
+            const formattedTime = `${alarmTime.getHours().toString().padStart(2, '0')}:${alarmTime.getMinutes().toString().padStart(2, '0')}`;
+            
+            // Format next day in Thai if needed
+            let thaiNextAlarmMessage = "";
+            if (nextAlarmMessage) {
+              const thaiDays = ["วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์", "วันอาทิตย์"];
+              const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+              const dayIndex = dayNames.findIndex(day => nextAlarmMessage.includes(day));
+              if (dayIndex !== -1) {
+                thaiNextAlarmMessage = ` (นาฬิกาปลุกถัดไปใน${thaiDays[dayIndex]})`;
+              }
+            }
+            
+            Alert.alert(
+              "เปิดใช้งานนาฬิกาปลุก",
+              `ตั้งปลุกเวลา ${formattedTime} (${timeDescription})${thaiNextAlarmMessage}`
+            );
+            
             const notificationId = await scheduleAlarmNotification(
               updatedAlarm
             );

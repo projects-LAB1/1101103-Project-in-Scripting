@@ -1,5 +1,5 @@
 // GameSelector.js - ตัวเลือกเกมสำหรับปิดนาฬิกาปลุก
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,19 +11,65 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAlarmSound } from '../../contexts/AlarmSoundContext';
 
 const { width } = Dimensions.get('window');
 const GAME_CARD_WIDTH = width * 0.43;
 
 const GameSelector = ({ route, navigation }) => {
-  const { alarm, onComplete } = route.params || {};
+  const { alarm, onComplete, soundAlreadyStopped = false } = route.params || {};
+  // ใช้ context เพื่อเข้าถึงเสียงปลุก
+  const { isPlaying, stopAlarmSound } = useAlarmSound();
+  // ใช้ ref เพื่อระวังไม่ให้เรียก onComplete ซ้ำ
+  const isCompletedRef = useRef(false);
   
   // แสดงข้อมูลเพื่อการดีบัก
   useEffect(() => {
     console.log('GameSelector loaded');
     console.log('Alarm data:', JSON.stringify(alarm, null, 2));
     console.log('onComplete function available:', !!onComplete);
-  }, []);
+    console.log('Alarm sound is playing:', isPlaying);
+    console.log('Sound already stopped:', soundAlreadyStopped);
+    
+    // หยุดเสียงปลุกเมื่อโหลดหน้าเกม (ถ้ายังไม่ได้หยุดจาก AlarmRingingScreen)
+    if (isPlaying && !soundAlreadyStopped) {
+      console.log('Stopping alarm sound in GameSelector useEffect');
+      stopAlarmSound();
+    }
+    
+    // เมื่อปิดหน้านี้ ตรวจสอบว่าหยุดเสียงแล้วหรือยัง - ไม่ต้องดำเนินการอะไรเพิ่มเติม
+    return () => {}; 
+  }, [isPlaying, stopAlarmSound, soundAlreadyStopped]);
+
+  // ฟังก์ชันเรียกเมื่อเล่นเกมเสร็จแล้ว
+  const handleGameComplete = () => {
+    // ป้องกันการเรียกซ้ำ
+    if (isCompletedRef.current) {
+      return;
+    }
+    
+    isCompletedRef.current = true;
+    console.log('Game completed, calling onComplete');
+    
+    // หยุดเสียงปลุกเมื่อเล่นเกมเสร็จ (ถ้ายังไม่ได้หยุด)
+    if (isPlaying && !soundAlreadyStopped) {
+      console.log('Stopping alarm sound after game completion');
+      stopAlarmSound();
+    } else {
+      console.log('Sound was already stopped or not playing');
+    }
+    
+    // เมื่อเกมเสร็จสิ้น ใช้ฟังก์ชัน onComplete จาก route.params ถ้ามี
+    if (typeof onComplete === 'function') {
+      onComplete();
+    } else {
+      // ถ้าไม่มี onComplete ให้กลับไปที่หน้ารายการนาฬิกาปลุก
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Alarm', params: { screen: 'AlarmList' } }],
+      });
+    }
+  };
   
   const games = [
     {
@@ -50,29 +96,37 @@ const GameSelector = ({ route, navigation }) => {
       difficulty: ['medium'],
       screen: 'PhotoTaskScreen',
     },
+    {
+      id: 'maze',
+      name: 'เกมเขาวงกต',
+      description: 'เคลื่อนที่ไปตามเส้นทางโดยไม่ชนกำแพง',
+      icon: 'map-marker-path',
+      difficulty: ['easy', 'medium', 'hard'],
+      screen: 'MazeGame',
+    },
+    {
+      id: 'jigsaw',
+      name: 'จิ๊กซอว์แสง',
+      description: 'จัดเรียงชิ้นส่วนภาพที่เรืองแสงในความมืด',
+      icon: 'puzzle',
+      difficulty: ['easy', 'medium', 'hard'],
+      screen: 'GlowJigsawGame',
+    },
   ];
   
   const handleSelectGame = (game, difficulty) => {
     // บันทึกข้อมูลเพื่อการดีบัก
     console.log('Game selected:', game.id, 'Difficulty:', difficulty);
     
+    // รีเซ็ต completion status เมื่อเริ่มเกมใหม่
+    isCompletedRef.current = false;
+    
     // Navigate to the selected game screen
     navigation.navigate(game.screen, {
       alarm,
       difficulty,
-      onComplete: () => {
-        console.log('Game completed, calling onComplete');
-        // เมื่อเกมเสร็จสิ้น ใช้ฟังก์ชัน onComplete จาก route.params ถ้ามี
-        if (typeof onComplete === 'function') {
-          onComplete();
-        } else {
-          // ถ้าไม่มี onComplete ให้กลับไปที่หน้ารายการนาฬิกาปลุก
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Alarm', params: { screen: 'AlarmList' } }],
-          });
-        }
-      },
+      onComplete: handleGameComplete,
+      soundAlreadyStopped,  // ส่งต่อ flag ไปยังเกม
     });
   };
   

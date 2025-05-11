@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import AuthNavigator from "./AuthNavigator";
@@ -21,14 +21,41 @@ const CustomDarkTheme = {
   },
 };
 
-const RootNavigator = () => {
+const RootNavigator = forwardRef((props, ref) => {
   const { user, loading } = useAuth();
-  const navigationRef = useRef(null);
+  const internalNavigationRef = useRef(null);
+  
+  // Forward navigation methods to parent component
+  useImperativeHandle(ref, () => ({
+    // Expose the navigation object methods
+    navigate: (name, params) => {
+      if (internalNavigationRef.current) {
+        internalNavigationRef.current.navigate(name, params);
+      }
+    },
+    reset: (state) => {
+      if (internalNavigationRef.current) {
+        internalNavigationRef.current.reset(state);
+      }
+    },
+    goBack: () => {
+      if (internalNavigationRef.current) {
+        internalNavigationRef.current.goBack();
+      }
+    },
+    // Add custom methods if needed
+    getRootState: () => {
+      if (internalNavigationRef.current) {
+        return internalNavigationRef.current.getRootState();
+      }
+      return null;
+    },
+  }));
 
   // Set up notification listeners when the component mounts
   useEffect(() => {
     // ตั้งค่าผู้ฟังการแจ้งเตือนทันทีเมื่อมีการโหลดแอป ไม่ต้องรอให้ผู้ใช้ล็อกอิน
-    const unsubscribe = setupNotificationListeners(navigationRef.current);
+    const unsubscribe = setupNotificationListeners(internalNavigationRef.current);
     console.log("Notification listeners set up in RootNavigator");
 
     // Clean up the notification listeners when the component unmounts
@@ -46,7 +73,7 @@ const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer theme={CustomDarkTheme} ref={navigationRef}>
+    <NavigationContainer theme={CustomDarkTheme} ref={internalNavigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
@@ -56,6 +83,6 @@ const RootNavigator = () => {
       </Stack.Navigator>
     </NavigationContainer>
   );
-};
+});
 
 export default RootNavigator;

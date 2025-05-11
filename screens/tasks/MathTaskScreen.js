@@ -1,24 +1,42 @@
 // MathTaskScreen.js - หน้าโจทย์คณิตศาสตร์สำหรับปิดนาฬิกาปลุก
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   Alert, Vibration, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAlarmSound } from '../../contexts/AlarmSoundContext';
 
 const MathTaskScreen = ({ route, navigation }) => {
-  const { alarm, difficulty, onComplete } = route.params;
+  const { alarm, difficulty = 'medium', onComplete, soundAlreadyStopped = false } = route.params || {};
   const [problem, setProblem] = useState('');
   const [answer, setAnswer] = useState('');
   const [userAnswer, setUserAnswer] = useState('');
   const [attempts, setAttempts] = useState(0);
-  const [maxAttempts, setMaxAttempts] = useState(3);
+  const [maxAttempts, setMaxAttempts] = useState(5);
+  
+  // สร้าง ref เพื่อป้องกันการเรียก onComplete ซ้ำ
+  const isCompletedRef = useRef(false);
+  
+  // ใช้ AlarmSoundContext
+  const { isPlaying, stopAlarmSound } = useAlarmSound();
   
   // Generate math problem based on difficulty
   useEffect(() => {
     generateProblem();
-  }, []);
+    
+    // ฟังก์ชัน cleanup
+    return () => {
+      // ถ้าผู้ใช้ออกจากหน้าโดยไม่ตอบโจทย์ให้ถูกต้อง ให้แน่ใจว่ามีการจัดการเสียงที่เหมาะสม
+      if (isPlaying && !soundAlreadyStopped) {
+        console.log('Stopping alarm sound on MathTaskScreen unmount');
+        stopAlarmSound();
+      } else {
+        console.log('Sound was already stopped or not playing in MathTaskScreen unmount');
+      }
+    };
+  }, [difficulty, isPlaying, stopAlarmSound, soundAlreadyStopped]);
   
   const generateProblem = () => {
     let num1, num2, num3, operator1, operator2, result;
@@ -112,35 +130,73 @@ const MathTaskScreen = ({ route, navigation }) => {
     }
   };
   
-  const checkAnswer = () => {
-    if (userAnswer.trim() === answer) {
-      // Correct answer
+  const handleSuccess = () => {
+    // ป้องกันการเรียกซ้ำ
+    if (isCompletedRef.current) {
+      return;
+    }
+    
+    isCompletedRef.current = true;
+    
+    // หยุดเสียงเมื่อตอบถูก (ถ้ายังไม่ได้หยุด)
+    if (isPlaying && !soundAlreadyStopped) {
+      console.log('Stopping alarm sound in MathTaskScreen');
+      stopAlarmSound();
+    } else {
+      console.log('Sound was already stopped or not playing in MathTaskScreen');
+    }
+    
+    // เรียกใช้ callback onComplete ถ้ามี
+    if (onComplete) {
+      onComplete();
+    }
+  };
+  
+  const handleSubmit = () => {
+    if (userAnswer === answer) {
+      // ถูกต้อง
       Alert.alert(
-        "ถูกต้อง!",
-        "คุณตอบถูกต้อง นาฬิกาปลุกจะถูกปิด",
-        [{ text: "OK", onPress: () => onComplete && onComplete() }]
+        'ถูกต้อง!',
+        'คุณตอบถูกต้อง นาฬิกาปลุกจะหยุดดัง',
+        [
+          {
+            text: 'ตกลง',
+            onPress: handleSuccess,
+          },
+        ]
       );
     } else {
-      // Wrong answer
+      // ผิด
       setAttempts(attempts + 1);
-      Vibration.vibrate(500);
-      
       if (attempts + 1 >= maxAttempts) {
-        // Generate new problem after max attempts
+        // เกินจำนวนครั้งที่พยายาม สร้างโจทย์ใหม่
         Alert.alert(
-          "ผิด!",
-          "คุณตอบผิดหลายครั้ง โจทย์ใหม่จะถูกสร้างขึ้น",
-          [{ text: "OK", onPress: () => {
-            setAttempts(0);
-            setUserAnswer('');
-            generateProblem();
-          }}]
+          'ผิด',
+          `คุณพยายามเกินจำนวนครั้งที่กำหนด จะสร้างโจทย์ใหม่ให้`,
+          [
+            {
+              text: 'ตกลง',
+              onPress: () => {
+                setAttempts(0);
+                setUserAnswer('');
+                generateProblem();
+              },
+            },
+          ]
         );
       } else {
+        // ยังมีโอกาสลองอีก
         Alert.alert(
-          "ผิด!",
-          `ลองอีกครั้ง (พยายามครั้งที่ ${attempts + 1}/${maxAttempts})`,
-          [{ text: "OK", onPress: () => setUserAnswer('') }]
+          'ผิด',
+          `คำตอบไม่ถูกต้อง คุณเหลือโอกาสอีก ${maxAttempts - attempts - 1} ครั้ง`,
+          [
+            {
+              text: 'ลองอีกครั้ง',
+              onPress: () => {
+                setUserAnswer('');
+              },
+            },
+          ]
         );
       }
     }
@@ -176,7 +232,7 @@ const MathTaskScreen = ({ route, navigation }) => {
           
           <TouchableOpacity 
             style={styles.submitButton}
-            onPress={checkAnswer}
+            onPress={handleSubmit}
           >
             <Text style={styles.submitButtonText}>ตรวจคำตอบ</Text>
           </TouchableOpacity>

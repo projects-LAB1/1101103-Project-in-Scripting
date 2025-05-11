@@ -5,10 +5,13 @@ import AddAlarmScreen from '../screens/AddAlarmScreen';
 import AlarmRingingScreen from '../screens/AlarmRingingScreen';
 import RepeatDaysScreen from '../screens/RepeatDaysScreen';
 import SoundLibraryScreen from '../screens/SoundLibraryScreen';
+import SoundPickerScreen from '../screens/SoundPickerScreen';
 import MathTaskScreen from '../screens/tasks/MathTaskScreen';
 import PhotoTaskScreen from '../screens/tasks/PhotoTaskScreen';
 import GameSelector from '../screens/games/GameSelector';
 import MemoryGame from '../screens/games/MemoryGame';
+import MazeGame from '../screens/games/MazeGame';
+import GlowJigsawGame from '../screens/games/GlowJigsawGame';
 import TestingScreen from '../screens/TestingScreen';
 
 const Stack = createStackNavigator();
@@ -73,6 +76,14 @@ const AlarmNavigator = () => {
           headerBackTitle: 'Back',
         }}
       />
+      <Stack.Screen 
+        name="SoundPicker" 
+        component={SoundPickerScreen}
+        options={{
+          title: 'เลือกเสียงปลุก',
+          headerShown: false,
+        }}
+      />
       {/* Testing Screen */}
       <Stack.Screen 
         name="Testing" 
@@ -115,6 +126,24 @@ const AlarmNavigator = () => {
         component={MemoryGame}
         options={{
           title: 'Memory Game',
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen 
+        name="MazeGame" 
+        component={MazeGame}
+        options={{
+          title: 'Maze Game',
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen 
+        name="GlowJigsawGame" 
+        component={GlowJigsawGame}
+        options={{
+          title: 'Glow Jigsaw Game',
           headerShown: false,
           gestureEnabled: false,
         }}

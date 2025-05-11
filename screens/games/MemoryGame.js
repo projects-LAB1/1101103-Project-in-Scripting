@@ -1,5 +1,5 @@
 // MemoryGame.js - เกมความจำสำหรับปิดนาฬิกาปลุก
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAlarmSound } from '../../contexts/AlarmSoundContext';
 
 const { width } = Dimensions.get('window');
 const ITEM_SIZE = (width - 80) / 4;
@@ -22,7 +23,7 @@ const icons = [
 ];
 
 const MemoryGame = ({ route, navigation }) => {
-  const { alarm, difficulty = 'medium', onComplete } = route.params || {};
+  const { alarm, difficulty = 'medium', onComplete, soundAlreadyStopped = false } = route.params || {};
   const [cards, setCards] = useState([]);
   const [flippedIndices, setFlippedIndices] = useState([]);
   const [matchedPairs, setMatchedPairs] = useState([]);
@@ -30,11 +31,28 @@ const MemoryGame = ({ route, navigation }) => {
   const [gameStarted, setGameStarted] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+  
+  // ใช้ context เพื่อเข้าถึงเสียงปลุก
+  const { isPlaying, stopAlarmSound } = useAlarmSound();
+  
+  // สร้าง ref เพื่อป้องกันการเรียก onComplete ซ้ำ
+  const isCompletedRef = useRef(false);
 
   // Setup game based on difficulty
   useEffect(() => {
     setupGame();
-  }, [difficulty]);
+    
+    // ไม่ต้องหยุดเสียงที่นี่ เพราะยังเล่นเกมไม่เสร็จ
+    return () => {
+      // ถ้าผู้ใช้ออกจากหน้าโดยไม่เล่นเกมให้จบ ตรวจสอบว่าควรหยุดเสียงหรือไม่
+      if (isPlaying && !soundAlreadyStopped) {
+        console.log("Stopping alarm sound on MemoryGame unmount");
+        stopAlarmSound();
+      } else {
+        console.log("Sound was already stopped or not playing in MemoryGame unmount");
+      }
+    };
+  }, [difficulty, isPlaying, stopAlarmSound, soundAlreadyStopped]);
 
   // Timer
   useEffect(() => {
@@ -49,6 +67,28 @@ const MemoryGame = ({ route, navigation }) => {
     return () => clearInterval(interval);
   }, [timerActive, timerSeconds]);
 
+  const handleGameComplete = () => {
+    // ป้องกันการเรียกซ้ำ
+    if (isCompletedRef.current) {
+      return;
+    }
+    
+    isCompletedRef.current = true;
+    
+    // หยุดเสียงเมื่อเล่นเกมเสร็จ (ถ้ายังไม่ได้หยุด)
+    if (isPlaying && !soundAlreadyStopped) {
+      console.log("Stopping alarm sound in MemoryGame");
+      stopAlarmSound();
+    } else {
+      console.log("Sound was already stopped or not playing in MemoryGame");
+    }
+    
+    // เรียกใช้ callback onComplete ถ้ามี
+    if (onComplete) {
+      onComplete();
+    }
+  };
+
   const setupGame = () => {
     setGameStarted(false);
     setMoves(0);
@@ -56,6 +96,7 @@ const MemoryGame = ({ route, navigation }) => {
     setMatchedPairs([]);
     setTimerSeconds(0);
     setTimerActive(false);
+    isCompletedRef.current = false;
 
     // Set number of pairs based on difficulty
     let numPairs;
@@ -148,7 +189,7 @@ const MemoryGame = ({ route, navigation }) => {
         Alert.alert(
           "เยี่ยมมาก!",
           `คุณชนะแล้ว!\nจำนวนการเล่น: ${moves}\nเวลา: ${formatTime(timerSeconds)}`,
-          [{ text: "ปิดนาฬิกาปลุก", onPress: () => onComplete && onComplete() }]
+          [{ text: "ปิดนาฬิกาปลุก", onPress: handleGameComplete }]
         );
       }, 500);
     }

@@ -87,6 +87,60 @@ export const testMiniGames = (navigation) => {
         gameType: 'photo',
         gameDifficulty: 'medium'
       })
+    },
+    {
+      name: 'Maze Game - Easy',
+      alarm: createTestAlarm({
+        label: 'Test: Maze Game (Easy)',
+        requireGame: true,
+        gameType: 'maze',
+        gameDifficulty: 'easy'
+      })
+    },
+    {
+      name: 'Maze Game - Medium',
+      alarm: createTestAlarm({
+        label: 'Test: Maze Game (Medium)',
+        requireGame: true,
+        gameType: 'maze',
+        gameDifficulty: 'medium'
+      })
+    },
+    {
+      name: 'Maze Game - Hard',
+      alarm: createTestAlarm({
+        label: 'Test: Maze Game (Hard)',
+        requireGame: true,
+        gameType: 'maze',
+        gameDifficulty: 'hard'
+      })
+    },
+    {
+      name: 'Glow Jigsaw - Easy',
+      alarm: createTestAlarm({
+        label: 'Test: Glow Jigsaw (Easy)',
+        requireGame: true,
+        gameType: 'jigsaw',
+        gameDifficulty: 'easy'
+      })
+    },
+    {
+      name: 'Glow Jigsaw - Medium',
+      alarm: createTestAlarm({
+        label: 'Test: Glow Jigsaw (Medium)',
+        requireGame: true,
+        gameType: 'jigsaw',
+        gameDifficulty: 'medium'
+      })
+    },
+    {
+      name: 'Glow Jigsaw - Hard',
+      alarm: createTestAlarm({
+        label: 'Test: Glow Jigsaw (Hard)',
+        requireGame: true,
+        gameType: 'jigsaw',
+        gameDifficulty: 'hard'
+      })
     }
   ];
   

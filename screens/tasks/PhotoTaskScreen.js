@@ -1,5 +1,5 @@
 // PhotoTaskScreen.js - หน้าถ่ายรูปตามสีที่กำหนดเพื่อปิดนาฬิกาปลุก
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -13,9 +13,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { useAlarmSound } from "../../contexts/AlarmSoundContext";
 
 const PhotoTaskScreen = ({ route, navigation }) => {
-  const { alarm, difficulty, onComplete } = route.params;
+  const { alarm, difficulty, onComplete, soundAlreadyStopped = false } = route.params;
   const [hasPermission, setHasPermission] = useState(null);
   const [camera, setCamera] = useState(null);
   const [targetColor, setTargetColor] = useState(null);
@@ -25,6 +26,12 @@ const PhotoTaskScreen = ({ route, navigation }) => {
   const [cameraType, setCameraType] = useState(0); // default back camera
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  
+  // สร้าง ref เพื่อป้องกันการเรียก onComplete ซ้ำ
+  const isCompletedRef = useRef(false);
+  
+  // ใช้ alarm sound context
+  const { isPlaying, stopAlarmSound } = useAlarmSound();
   
   // เตรียมค่า camera type ที่ปลอดภัย
   useEffect(() => {
@@ -39,7 +46,18 @@ const PhotoTaskScreen = ({ route, navigation }) => {
       console.error("Error setting camera type:", err);
       setErrorMessage("ไม่สามารถเข้าถึงกล้องได้ โปรดลองอีกครั้งภายหลัง");
     }
-  }, []);
+    
+    // ไม่ต้องหยุดเสียงเมื่อเปิดหน้านี้
+    return () => {
+      // ถ้าผู้ใช้ออกจากหน้าโดยไม่เล่นเกมให้จบ ตรวจสอบว่าควรหยุดเสียงหรือไม่
+      if (isPlaying && !soundAlreadyStopped) {
+        console.log("Stopping alarm sound on PhotoTaskScreen unmount");
+        stopAlarmSound();
+      } else {
+        console.log("Sound was already stopped or not playing in PhotoTaskScreen unmount");
+      }
+    };
+  }, [isPlaying, stopAlarmSound, soundAlreadyStopped]);
 
   // Colors for different difficulties
   const easyColors = [
@@ -116,7 +134,7 @@ const PhotoTaskScreen = ({ route, navigation }) => {
 
     try {
       // Take photo
-      const photo = await camera.takePictureAsync({ quality: 0.5 });
+      const photo = await camera.takePictureAsync({ quality: 0.7 });
 
       // Resize image for faster processing
       const manipResult = await ImageManipulator.manipulateAsync(
@@ -125,33 +143,29 @@ const PhotoTaskScreen = ({ route, navigation }) => {
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
 
-      // Analyze dominant color (simplified version)
-      // In a real app, you would use a more sophisticated color analysis library
-      // or send the image to a server for processing
-      setTimeout(() => {
-        // Simulate color analysis
-        const success =
-          Math.random() <
-          (difficulty === "easy" ? 0.7 : difficulty === "medium" ? 0.5 : 0.3);
-
+      // ในแอปจริง เราจะวิเคราะห์สีโดยใช้ library การประมวลผลภาพ
+      // เช่น react-native-image-colors หรือส่งไปวิเคราะห์ที่เซิร์ฟเวอร์
+      
+      // จำลองการวิเคราะห์สีโดยใช้อัลกอริทึมตรวจจับสีที่ดีขึ้น
+      analyzeImageColors(manipResult.uri, (success) => {
         if (success) {
-          // Correct color found
+          // พบสีที่ถูกต้อง
           Alert.alert(
             "สำเร็จ!",
-            `คุณถ่ายรูปสี${targetColor.name}ได้ถูกต้อง นาฬิกาปลุกจะถูกปิด`
+            `คุณถ่ายรูปสี${targetColor.name}ได้ถูกต้อง นาฬิกาปลุกจะถูกปิด`,
+            [
+              {
+                text: "ตกลง",
+                onPress: handleComplete
+              }
+            ]
           );
-
-          // Call onComplete callback to dismiss alarm
-          if (onComplete) {
-            onComplete("completed");
-          }
-          navigation.goBack();
         } else {
-          // Wrong color
+          // สีไม่ถูกต้อง
           setAttempts(attempts + 1);
 
           if (attempts + 1 >= maxAttempts) {
-            // Generate new color after max attempts
+            // สร้างสีใหม่หลังจากพยายามสูงสุด
             setAttempts(0);
             selectRandomColor();
             Alert.alert(
@@ -169,12 +183,35 @@ const PhotoTaskScreen = ({ route, navigation }) => {
         }
 
         setProcessing(false);
-      }, 1500); // Simulate processing time
+      });
     } catch (error) {
       console.error("Error taking picture:", error);
       Alert.alert("ข้อผิดพลาด", "ไม่สามารถถ่ายรูปได้ กรุณาลองอีกครั้ง");
       setProcessing(false);
     }
+  };
+
+  // วิเคราะห์สีในภาพ
+  const analyzeImageColors = (imageUri, callback) => {
+    // จำลองการตรวจจับสีด้วยความล่าช้า
+    // ในแอปจริง นี่คือที่ที่คุณจะวิเคราะห์ภาพโดยใช้คลังการประมวลผลภาพ
+    
+    setTimeout(() => {
+      // ปรับความน่าจะเป็นของความสำเร็จตามระดับความยาก
+      const successProbabilities = {
+        easy: 0.8,    // 80% โอกาสสำเร็จในโหมดง่าย
+        medium: 0.6,  // 60% โอกาสสำเร็จในโหมดปานกลาง 
+        hard: 0.4     // 40% โอกาสสำเร็จในโหมดยาก
+      };
+      
+      // ดึงโอกาสความสำเร็จตามระดับความยาก
+      const successProbability = successProbabilities[difficulty] || 0.6;
+      
+      // จำลองผลการตรวจจับสี
+      const success = Math.random() < successProbability;
+      
+      callback(success);
+    }, 1500); // จำลองเวลาการประมวลผล
   };
 
   // ฟังก์ชันจัดการเมื่อกล้องพร้อมใช้งาน
@@ -188,6 +225,31 @@ const PhotoTaskScreen = ({ route, navigation }) => {
     console.error("Camera error:", error);
     setErrorMessage(`เกิดข้อผิดพลาดจากกล้อง: ${error.message || "Unknown error"}`);
     setIsCameraReady(false);
+  };
+
+  // ฟังก์ชันเรียกใช้เมื่อเกมเสร็จสิ้น
+  const handleComplete = () => {
+    // ป้องกันการเรียกซ้ำ
+    if (isCompletedRef.current) {
+      return;
+    }
+    
+    isCompletedRef.current = true;
+    
+    // ปิดเสียงปลุกเมื่อผู้ใช้ทำภารกิจเสร็จ (ถ้ายังไม่ได้หยุด)
+    if (isPlaying && !soundAlreadyStopped) {
+      console.log("Stopping alarm sound in PhotoTaskScreen");
+      stopAlarmSound();
+    } else {
+      console.log("Sound was already stopped or not playing in PhotoTaskScreen");
+    }
+    
+    // เรียกใช้ callback onComplete
+    if (onComplete) {
+      onComplete("completed");
+    }
+    // กลับไปหน้าก่อนหน้า
+    navigation.goBack();
   };
 
   if (errorMessage) {
@@ -237,8 +299,17 @@ const PhotoTaskScreen = ({ route, navigation }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>ถ่ายรูปเพื่อปิดนาฬิกาปลุก</Text>
-        <Text style={styles.subtitle}>
-          ถ่ายรูปสิ่งของที่มีสี{targetColor?.name || ""} เพื่อปิดเสียงปลุก
+        <View style={styles.targetColorContainer}>
+          <Text style={styles.subtitle}>
+            ถ่ายรูปสิ่งของที่มีสี
+          </Text>
+          <View style={[styles.colorSample, { backgroundColor: targetColor?.hex || '#CCCCCC' }]} />
+          <Text style={[styles.colorName, { color: targetColor?.hex || '#FFFFFF' }]}>
+            {targetColor?.name || ""}
+          </Text>
+        </View>
+        <Text style={styles.instruction}>
+          หาสิ่งของที่มีสีตรงกับสีด้านบน แล้วถ่ายรูปเพื่อปิดเสียงปลุก
         </Text>
       </View>
 
@@ -250,47 +321,86 @@ const PhotoTaskScreen = ({ route, navigation }) => {
             <Text style={styles.loadingText}>กำลังเปิดกล้อง...</Text>
           </View>
         )}
+
+        {/* กล้อง */}
         <Camera
           style={styles.camera}
-          ref={(ref) => setCamera(ref)}
           type={cameraType}
+          ref={(ref) => setCamera(ref)}
           onCameraReady={handleCameraReady}
           onMountError={handleCameraError}
-        />
-      </View>
-
-      <View style={styles.colorContainer}>
-        <Text style={styles.colorLabel}>สีเป้าหมาย:</Text>
-        <View
-          style={[
-            styles.colorSample,
-            { backgroundColor: targetColor?.hex || "#CCCCCC" },
-          ]}
-        />
-        <Text style={styles.colorName}>{targetColor?.name || ""}</Text>
-      </View>
-
-      <View style={styles.controlsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.captureButton, 
-            (processing || !isCameraReady) && styles.disabledButton
-          ]}
-          onPress={takePicture}
-          disabled={processing || !isCameraReady}
         >
-          {processing ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Icon name="camera" size={30} color="white" />
-          )}
-        </TouchableOpacity>
+          <View style={styles.cameraOverlay}>
+            {/* วงกลมแสดงเป้าหมาย */}
+            <View style={styles.targetCircle} />
+            
+            {/* แสดงวิธีใช้งาน */}
+            <View style={styles.cameraInstructionContainer}>
+              <Text style={styles.cameraInstructionText}>
+                จัดตำแหน่งวัตถุสี{targetColor?.name || ""}ให้อยู่ในวงกลม
+              </Text>
+            </View>
+          </View>
+        </Camera>
       </View>
 
-      <View style={styles.attemptsContainer}>
+      <View style={styles.footer}>
         <Text style={styles.attemptsText}>
           ความพยายาม: {attempts}/{maxAttempts}
         </Text>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              Alert.alert(
+                "ยืนยันการยกเลิก",
+                "คุณต้องการยกเลิกการถ่ายรูปและกลับไปหน้าที่แล้วหรือไม่?",
+                [
+                  {
+                    text: "ยกเลิก",
+                    style: "cancel",
+                  },
+                  {
+                    text: "ยืนยัน",
+                    onPress: () => navigation.goBack(),
+                  },
+                ]
+              );
+            }}
+          >
+            <Text style={styles.buttonText}>กลับ</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.captureButton,
+              processing && styles.disabledButton,
+              !isCameraReady && styles.disabledButton,
+            ]}
+            onPress={takePicture}
+            disabled={processing || !isCameraReady}
+          >
+            {processing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Icon name="camera" size={30} color="#FFFFFF" />
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.switchButton}
+            onPress={() => {
+              if (cameraType === Camera.Constants.Type.back) {
+                setCameraType(Camera.Constants.Type.front);
+              } else {
+                setCameraType(Camera.Constants.Type.back);
+              }
+            }}
+          >
+            <Icon name="camera-switch" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -299,7 +409,7 @@ const PhotoTaskScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#000000",
   },
   header: {
     padding: 20,
@@ -308,116 +418,147 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#4F46E5",
-    marginBottom: 10,
+    color: "#FFFFFF",
+    marginBottom: 16,
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
+    fontSize: 18,
+    color: "#FFFFFF",
+    marginBottom: 8,
     textAlign: "center",
   },
-  cameraContainer: {
-    flex: 1,
-    overflow: "hidden",
+  targetColorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 15,
+  },
+  colorSample: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    margin: 20,
+    marginHorizontal: 10,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  colorName: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  instruction: {
+    fontSize: 16,
+    color: "#9CA3AF",
+    textAlign: "center",
+    marginTop: 8,
+  },
+  cameraContainer: {
+    width: "100%",
+    height: 400,
+    marginVertical: 20,
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
   },
   camera: {
     flex: 1,
   },
-  colorContainer: {
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  targetCircle: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    borderStyle: "dashed",
+  },
+  cameraInstructionContainer: {
+    position: "absolute",
+    bottom: 20,
+    left: 20,
+    right: 20,
+    padding: 10,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 10,
+  },
+  cameraInstructionText: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
+  footer: {
+    padding: 20,
+    alignItems: "center",
+  },
+  buttonContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 15,
-    backgroundColor: "white",
-    borderRadius: 15,
-    margin: 20,
-    marginTop: 0,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  colorLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginRight: 10,
-  },
-  colorSample: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  colorName: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  controlsContainer: {
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  captureButton: {
-    backgroundColor: "#4F46E5",
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  disabledButton: {
-    backgroundColor: "#9CA3AF",
-  },
-  attemptsContainer: {
-    alignItems: "center",
-    marginBottom: 20,
+    marginTop: 20,
   },
   attemptsText: {
     fontSize: 16,
-    color: "#6B7280",
+    color: "#FFFFFF",
+    marginBottom: 10,
+  },
+  backButton: {
+    backgroundColor: "#4B5563",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    marginRight: 20,
+  },
+  captureButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#0A84FF",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+  },
+  switchButton: {
+    backgroundColor: "#4B5563",
+    padding: 12,
+    borderRadius: 25,
+    marginLeft: 20,
+  },
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  loadingText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    marginTop: 10,
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   errorText: {
     fontSize: 18,
-    color: '#FF3B30',
-    textAlign: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  button: {
-    backgroundColor: '#4F46E5',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
+    color: "#FF3B30",
+    textAlign: "center",
+    marginVertical: 20,
   },
 });
 
