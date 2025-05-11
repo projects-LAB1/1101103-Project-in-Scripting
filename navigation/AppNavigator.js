@@ -4,8 +4,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import WorldClockNavigator from "./WorldClockNavigator";
 import AlarmNavigator from "./AlarmNavigator";
 import StopwatchScreen from "../screens/StopwatchScreen";
-import TimerScreen from "../screens/TimerScreen";
 import SettingsScreen from "../screens/SettingsScreen";
+import SleepNavigator from "./SleepNavigator";
 
 const Tab = createBottomTabNavigator();
 
@@ -52,22 +52,23 @@ const AppNavigator = () => {
         }}
       />
       <Tab.Screen
+        name="Sleep"
+        component={SleepNavigator}
+        options={{
+          title: "การนอน",
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="sleep" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Stopwatch"
         component={StopwatchScreen}
         options={{
           title: "จับเวลา",
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="timer-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Timer"
-        component={TimerScreen}
-        options={{
-          title: "ตัวจับเวลา",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="timer-sand" size={size} color={color} />
           ),
         }}
       />

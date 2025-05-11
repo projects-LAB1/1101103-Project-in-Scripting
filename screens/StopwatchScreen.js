@@ -78,7 +78,7 @@ const StopwatchScreen = () => {
     const lapNumber = laps.length - index;
     return (
       <View style={styles.lapRow}>
-        <Text style={styles.lapText}>Lap {lapNumber}</Text>
+        <Text style={styles.lapText}>รอบที่ {lapNumber}</Text>
         <Text style={styles.lapTime}>{formatTime(item.lapTime)}</Text>
       </View>
     );
@@ -87,9 +87,6 @@ const StopwatchScreen = () => {
   return (
     <SafeAreaView style={styles.container} edges={['right', 'left']}>
       <StatusBar barStyle="light-content" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>จับเวลา</Text>
-      </View>
 
       <View style={styles.timerContainer}>
         <Animated.View style={[styles.spinnerContainer, { transform: [{ rotate: spin }] }]}>
@@ -170,8 +167,9 @@ const styles = StyleSheet.create({
   spinner: {
     width: 3,
     height: 90,
-    backgroundColor: '#FF9500',
+    backgroundColor: 'transparent',
     borderRadius: 3,
+    visibility: 'hidden',
   },
   timerText: {
     fontSize: 70,

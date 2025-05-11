@@ -85,25 +85,11 @@ const AlarmListScreen = ({ navigation }) => {
     loadStoredAlarms();
   }, []);
 
-  // Add navigation options
+  // Updated headerTitle to reflect that we've removed the timer functionality
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <View style={{ flexDirection: 'row' }}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Testing')}
-            style={[styles.headerButton, styles.testButton]}
-          >
-            <Icon name="test-tube" size={20} color="#FFFFFF" />
-            <Text style={styles.testButtonText}>Testing</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={testMiniGameAlarm}
-            style={[styles.headerButton, styles.gameButton]}
-          >
-            <Icon name="gamepad-variant" size={20} color="#FFFFFF" />
-            <Text style={styles.gameButtonText}>Test Game</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => navigation.navigate('AddAlarm')}
             style={styles.headerButton}
@@ -119,7 +105,7 @@ const AlarmListScreen = ({ navigation }) => {
         elevation: 0,
       },
       headerTintColor: "#FFFFFF",
-      headerTitle: "Alarm",
+      headerTitle: "นาฬิกาปลุก", // Updated to Thai language
       headerTitleStyle: {
         fontSize: 26,
         fontWeight: "600",
@@ -458,52 +444,6 @@ const AlarmListScreen = ({ navigation }) => {
     </Swipeable>
   );
 
-  // Add test mini-game function to quickly test the mini-game feature
-  const testMiniGameAlarm = () => {
-    try {
-      // Create test alarm data with mini-game enabled
-      const testAlarmData = {
-        hour: new Date().getHours(),
-        minute: new Date().getMinutes(),
-        repeatDays: [],
-        isActive: true,
-        userId: "test-user",
-        label: "Mini-Game Test Alarm",
-        soundId: "default",
-        soundName: "Default",
-        snooze: true,
-        isTest: true,
-        // Mini-game settings
-        requireGame: true,
-        gameType: "memory", // Options: math, memory, photo
-        gameDifficulty: "easy", // Options: easy, medium, hard
-      };
-
-      console.log("Testing mini-game alarm with settings:", JSON.stringify(testAlarmData, null, 2));
-
-      // แสดงข้อความยืนยันก่อนทดสอบ
-      Alert.alert(
-        "ทดสอบการปลุกพร้อมเกม",
-        "จะมีการจำลองการปลุกพร้อมเกมจับคู่ (ระดับง่าย) ให้คุณทดสอบ",
-        [
-          { text: "ยกเลิก", style: "cancel" },
-          { 
-            text: "ทดสอบเลย", 
-            onPress: () => {
-              // Navigate to AlarmRinging with our test alarm
-              navigation.navigate("AlarmRinging", {
-                alarm: testAlarmData,
-              });
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error("Error testing mini-game alarm:", error);
-      Alert.alert("Error", "Could not test mini-game alarm");
-    }
-  };
-
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -518,7 +458,7 @@ const AlarmListScreen = ({ navigation }) => {
       {isOffline && (
         <View style={styles.offlineBanner}>
           <Icon name="cloud-off-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.offlineText}>No internet connection</Text>
+          <Text style={styles.offlineText}>ไม่มีการเชื่อมต่ออินเทอร์เน็ต</Text>
         </View>
       )}
 
@@ -538,8 +478,8 @@ const AlarmListScreen = ({ navigation }) => {
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Icon name="alarm-plus" size={64} color="#666666" />
-            <Text style={styles.emptyText}>No alarms</Text>
-            <Text style={styles.emptySubtext}>Tap + to add an alarm</Text>
+            <Text style={styles.emptyText}>ไม่มีการตั้งเวลาปลุก</Text>
+            <Text style={styles.emptySubtext}>แตะปุ่ม + เพื่อเพิ่มการตั้งเวลาปลุก</Text>
           </View>
         )}
       />
@@ -691,32 +631,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
-  },
-  testButton: {
-    backgroundColor: "#0A84FF",
-    flexDirection: 'row',
-    borderRadius: 18,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  testButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 5,
-  },
-  gameButton: {
-    backgroundColor: "#FF9500",
-    flexDirection: 'row',
-    borderRadius: 18,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  gameButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 5,
   },
 });
 

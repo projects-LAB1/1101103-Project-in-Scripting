@@ -4,8 +4,10 @@ import { Platform, LogBox, AppState } from 'react-native';
 import RootNavigator from './navigation/RootNavigator';
 import { AuthProvider } from './contexts/AuthContext';
 import { AlarmSoundProvider } from './contexts/AlarmSoundContext';
+import { SleepProvider } from './contexts/SleepContext';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // Import Firebase configuration
 import './firebase/config';
 // Import AppStateManager
@@ -31,6 +33,20 @@ Notifications.setNotificationHandler({
 export default function App() {
   const navigationRef = useRef(null);
   const appState = useRef(AppState.currentState);
+
+  // ปิดการแสดงหน้า AlarmRinging โดยอัตโนมัติเมื่อแอปเริ่มทำงาน
+  useEffect(() => {
+    const disableAppExitMonitoring = async () => {
+      try {
+        await AsyncStorage.setItem('@app_exit_monitoring_enabled', 'false');
+        console.log('App exit monitoring disabled');
+      } catch (error) {
+        console.error('Error disabling app exit monitoring:', error);
+      }
+    };
+    
+    disableAppExitMonitoring();
+  }, []);
 
   // ตั้งค่าระบบเสียงและการแจ้งเตือนเร็วขึ้น
   useEffect(() => {
@@ -96,7 +112,9 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <AlarmSoundProvider>
-          <RootNavigator ref={navigationRef} />
+          <SleepProvider>
+            <RootNavigator ref={navigationRef} />
+          </SleepProvider>
         </AlarmSoundProvider>
       </AuthProvider>
     </SafeAreaProvider>

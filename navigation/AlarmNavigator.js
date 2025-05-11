@@ -12,7 +12,6 @@ import GameSelector from '../screens/games/GameSelector';
 import MemoryGame from '../screens/games/MemoryGame';
 import MazeGame from '../screens/games/MazeGame';
 import GlowJigsawGame from '../screens/games/GlowJigsawGame';
-import TestingScreen from '../screens/TestingScreen';
 
 const Stack = createStackNavigator();
 
@@ -40,7 +39,7 @@ const AlarmNavigator = () => {
         name="AlarmList" 
         component={AlarmListScreen}
         options={{
-          title: 'Alarms',
+          title: 'นาฬิกาปลุก',
           headerShown: false,
         }}
       />
@@ -48,8 +47,8 @@ const AlarmNavigator = () => {
         name="AddAlarm" 
         component={AddAlarmScreen}
         options={({ route }) => ({
-          title: route.params?.alarm ? 'Edit Alarm' : 'Add Alarm',
-          headerBackTitle: 'Back',
+          title: route.params?.alarm ? 'แก้ไขการปลุก' : 'เพิ่มการปลุก',
+          headerBackTitle: 'กลับ',
         })}
       />
       <Stack.Screen 
@@ -64,16 +63,16 @@ const AlarmNavigator = () => {
         name="RepeatDays" 
         component={RepeatDaysScreen}
         options={{
-          title: 'Repeat',
-          headerBackTitle: 'Back',
+          title: 'ทำซ้ำ',
+          headerBackTitle: 'กลับ',
         }}
       />
       <Stack.Screen 
         name="SoundLibrary" 
         component={SoundLibraryScreen}
         options={{
-          title: 'Sound',
-          headerBackTitle: 'Back',
+          title: 'เสียง',
+          headerBackTitle: 'กลับ',
         }}
       />
       <Stack.Screen 
@@ -84,21 +83,12 @@ const AlarmNavigator = () => {
           headerShown: false,
         }}
       />
-      {/* Testing Screen */}
-      <Stack.Screen 
-        name="Testing" 
-        component={TestingScreen}
-        options={{
-          title: 'Alarm Testing',
-          headerBackTitle: 'Back',
-        }}
-      />
       {/* Mini-game Screens */}
       <Stack.Screen 
         name="GameSelector" 
         component={GameSelector}
         options={{
-          title: 'Select Game',
+          title: 'เลือกเกม',
           headerShown: false,
           gestureEnabled: false,
         }}
@@ -107,7 +97,7 @@ const AlarmNavigator = () => {
         name="MathTaskScreen" 
         component={MathTaskScreen}
         options={{
-          title: 'Math Task',
+          title: 'เกมคณิตศาสตร์',
           headerShown: false,
           gestureEnabled: false,
         }}
@@ -116,7 +106,7 @@ const AlarmNavigator = () => {
         name="PhotoTaskScreen" 
         component={PhotoTaskScreen}
         options={{
-          title: 'Photo Task',
+          title: 'เกมถ่ายภาพ',
           headerShown: false,
           gestureEnabled: false,
         }}
@@ -125,7 +115,7 @@ const AlarmNavigator = () => {
         name="MemoryGame" 
         component={MemoryGame}
         options={{
-          title: 'Memory Game',
+          title: 'เกมความจำ',
           headerShown: false,
           gestureEnabled: false,
         }}
@@ -134,7 +124,7 @@ const AlarmNavigator = () => {
         name="MazeGame" 
         component={MazeGame}
         options={{
-          title: 'Maze Game',
+          title: 'เกมเขาวงกต',
           headerShown: false,
           gestureEnabled: false,
         }}
@@ -143,7 +133,7 @@ const AlarmNavigator = () => {
         name="GlowJigsawGame" 
         component={GlowJigsawGame}
         options={{
-          title: 'Glow Jigsaw Game',
+          title: 'เกมจิ๊กซอว์',
           headerShown: false,
           gestureEnabled: false,
         }}

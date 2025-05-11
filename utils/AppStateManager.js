@@ -45,18 +45,11 @@ const appStateTracker = {
  * @param {Object} navigation - The navigation object to use for routing
  */
 export const initAppStateMonitoring = (navigation) => {
-  if (appStateTracker.isMonitoringEnabled) return;
-  
-  appStateTracker.isMonitoringEnabled = true;
+  appStateTracker.isMonitoringEnabled = false;
   appStateTracker.navigation = navigation;
   
   // Start monitoring app state
   const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-  
-  // Set up periodic checks for app state
-  if (!appStateTracker.exitCheckTimer) {
-    appStateTracker.exitCheckTimer = setInterval(checkAppVisibility, 5000);
-  }
   
   return () => {
     if (appStateSubscription) {
@@ -153,6 +146,13 @@ const handleAppStateChange = async (nextAppState) => {
  */
 const showAppExitNotification = async () => {
   try {
+    // ตรวจสอบว่า monitoring เปิดอยู่หรือไม่
+    const isMonitoringEnabled = await AsyncStorage.getItem('@app_exit_monitoring_enabled');
+    if (isMonitoringEnabled === 'false' || !appStateTracker.isMonitoringEnabled) {
+      console.log('App exit monitoring is disabled. Skipping notification.');
+      return;
+    }
+    
     // Set flag to indicate notification is active
     appStateTracker.isExitNotificationActive = true;
     
@@ -276,7 +276,7 @@ const showAppExitNotification = async () => {
     
     console.log('App exit notification displayed as fallback');
   } catch (error) {
-    console.error('Error showing app exit notification:', error);
+    console.error('Error in showAppExitNotification:', error);
     appStateTracker.isExitNotificationActive = false;
   }
 };
