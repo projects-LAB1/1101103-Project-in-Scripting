@@ -89,66 +89,7 @@ const SleepHomeScreen = ({ navigation }) => {
       return `${hours} ชั่วโมง ${mins} นาที`;
     }
   };
-  
-  // Get sleep quality color
-  const getSleepQualityColor = (qualityScore) => {
-    if (!qualityScore && qualityScore !== 0) return '#666666';
-    
-    if (qualityScore >= 80) return '#4CAF50';  // Good
-    if (qualityScore >= 60) return '#FFC107';  // Fair
-    return '#FF5722';  // Poor
-  };
-  
-  // Render quality indicator
-  const renderQualityIndicator = (qualityScore) => {
-    const color = getSleepQualityColor(qualityScore);
-    
-    return (
-      <View style={[styles.qualityIndicator, { backgroundColor: color }]}>
-        <Text style={styles.qualityScore}>{qualityScore || '?'}</Text>
-      </View>
-    );
-  };
-  
-  // Render a sleep record item
-  const renderSleepItem = ({ item }) => {
-    // Calculate quality score if not available
-    const qualityScore = Math.round((item.durationMinutes / 480) * 100);
-    
-    return (
-      <TouchableOpacity 
-        style={styles.sleepItem}
-        onPress={() => navigation.navigate('SleepEntry', { record: item, editing: true })}
-      >
-        <View style={styles.sleepItemHeader}>
-          <Text style={styles.sleepDate}>{formatDate(item.bedTime)}</Text>
-          {renderQualityIndicator(qualityScore)}
-        </View>
-        
-        <View style={styles.sleepTimes}>
-          <View style={styles.timeBlock}>
-            <MaterialCommunityIcons name="bed" size={20} color="#999999" />
-            <Text style={styles.timeLabel}>เข้านอน</Text>
-            <Text style={styles.timeValue}>{formatTime(item.bedTime)}</Text>
-          </View>
-          
-          <View style={styles.durationBlock}>
-            <Text style={styles.durationValue}>{formatDuration(item.durationMinutes)}</Text>
-          </View>
-          
-          <View style={styles.timeBlock}>
-            <MaterialCommunityIcons name="weather-sunset-up" size={20} color="#999999" />
-            <Text style={styles.timeLabel}>ตื่นนอน</Text>
-            <Text style={styles.timeValue}>{formatTime(item.wakeTime)}</Text>
-          </View>
-        </View>
-        
-        {item.notes && (
-          <Text style={styles.sleepNotes} numberOfLines={1}>{item.notes}</Text>
-        )}
-      </TouchableOpacity>
-    );
-  };
+    // Helper functions removed as they are no longer needed
 
   if (loading) {
     return (
@@ -157,12 +98,6 @@ const SleepHomeScreen = ({ navigation }) => {
       </SafeAreaView>
     );
   }
-
-  // Get the recent sleep records (last 7 days)
-  const recentRecords = sleepRecords
-    .sort((a, b) => new Date(b.bedTime) - new Date(a.bedTime))
-    .slice(0, 7);
-
   return (
     <SafeAreaView style={styles.container} edges={['right', 'left']}>
       <ScrollView
@@ -260,48 +195,7 @@ const SleepHomeScreen = ({ navigation }) => {
               <Text style={styles.goalsSubtitle}>ตั้งค่าเป้าหมายการนอนหลับและรูปแบบการนอน</Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
-          </View>
-        </TouchableOpacity>
-        
-        {/* Recent Sleep section */}
-        <View style={styles.recentSleepSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>ประวัติการนอนล่าสุด</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('SleepHistory')}>
-              <Text style={styles.sectionLink}>ดูทั้งหมด</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {recentRecords.length > 0 ? (
-            <FlatList
-              data={recentRecords}
-              renderItem={renderSleepItem}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-            />
-          ) : (
-            <View style={styles.emptyStateContainer}>
-              <MaterialCommunityIcons name="sleep" size={64} color="#666666" />
-              <Text style={styles.emptyStateText}>ยังไม่มีข้อมูลการนอน</Text>
-              <Text style={styles.emptyStateSubText}>เพิ่มข้อมูลการนอนเพื่อเริ่มติดตามรูปแบบการนอนของคุณ</Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-      
-      {/* Add sleep record button */}
-      <TouchableOpacity 
-        style={styles.addButton}
-        onPress={() => navigation.navigate('SleepEntry')}
-      >
-        <LinearGradient
-          colors={['#FF9500', '#FF5733']}
-          style={styles.addButtonGradient}
-        >
-          <MaterialCommunityIcons name="plus" size={30} color="#FFFFFF" />
-        </LinearGradient>
-      </TouchableOpacity>
+          </View>        </TouchableOpacity>      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -460,133 +354,10 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  goalsSubtitle: {
+  },  goalsSubtitle: {
     fontSize: 13,
     color: '#999999',
     marginTop: 2,
-  },
-  recentSleepSection: {
-    padding: 16,
-    paddingTop: 8,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  sectionLink: {
-    fontSize: 15,
-    color: '#0A84FF',
-  },
-  sleepItem: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-  },
-  sleepItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sleepDate: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  qualityIndicator: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  qualityScore: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  sleepTimes: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  timeBlock: {
-    alignItems: 'center',
-  },
-  timeLabel: {
-    fontSize: 13,
-    color: '#999999',
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  timeValue: {
-    fontSize: 17,
-    color: '#FFFFFF',
-    fontVariant: ['tabular-nums'],
-  },
-  durationBlock: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  durationValue: {
-    fontSize: 15,
-    color: '#999999',
-    textAlign: 'center',
-  },
-  sleepNotes: {
-    fontSize: 14,
-    color: '#999999',
-    marginTop: 8,
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-  },
-  emptyStateText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateSubText: {
-    fontSize: 14,
-    color: '#999999',
-    textAlign: 'center',
-  },
-  separator: {
-    height: 8,
-    backgroundColor: 'transparent',
-  },
-  addButton: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-  },
-  addButtonGradient: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
 });
 

@@ -3,7 +3,6 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import WorldClockNavigator from "./WorldClockNavigator";
 import AlarmNavigator from "./AlarmNavigator";
-import StopwatchScreen from "../screens/StopwatchScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import SleepNavigator from "./SleepNavigator";
 
@@ -63,12 +62,14 @@ const AppNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="Stopwatch"
-        component={StopwatchScreen}
+        name="SleepHistory"
+        component={SleepNavigator}
+        initialParams={{ screen: 'SleepHistory' }}
         options={{
-          title: "จับเวลา",
+          title: "ประวัติการนอน",
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="timer-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="history" size={size} color={color} />
           ),
         }}
       />

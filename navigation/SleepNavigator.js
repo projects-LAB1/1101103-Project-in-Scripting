@@ -1,6 +1,6 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SleepHomeScreen from '../screens/sleep/SleepHomeScreen';
 import SleepHistoryScreen from '../screens/sleep/SleepHistoryScreen';
@@ -11,10 +11,15 @@ import SleepTestScreen from '../screens/sleep/SleepTestScreen';
 
 const Stack = createStackNavigator();
 
-const SleepNavigator = () => {
+const SleepNavigator = ({ route }) => {
+  // Check if we need to initially navigate to SleepHistory
+  const initialRouteName = route?.params?.screen === 'SleepHistory' 
+    ? 'SleepHistory' 
+    : 'SleepHome';
+
   return (
     <Stack.Navigator
-      initialRouteName="SleepHome"
+      initialRouteName={initialRouteName}
       screenOptions={{
         headerStyle: {
           backgroundColor: '#1C1C1E',

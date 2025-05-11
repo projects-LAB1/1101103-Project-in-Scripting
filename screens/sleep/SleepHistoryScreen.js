@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSleep } from '../../contexts/SleepContext';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const SleepHistoryScreen = ({ navigation }) => {
   const { sleepRecords, loading, refreshing, refresh, deleteSleep } = useSleep();
@@ -208,9 +209,22 @@ const SleepHistoryScreen = ({ navigation }) => {
         <View style={styles.emptyContainer}>
           <MaterialCommunityIcons name="sleep" size={64} color="#666666" />
           <Text style={styles.emptyText}>ยังไม่มีประวัติการนอน</Text>
-          <Text style={styles.emptySubText}>เพิ่มการนอนแรกของคุณโดยการกดปุ่ม + ที่หน้าหลัก</Text>
+          <Text style={styles.emptySubText}>เพิ่มการนอนแรกของคุณโดยการกดปุ่ม + ด้านล่าง</Text>
         </View>
       )}
+      
+      {/* Add sleep record button */}
+      <TouchableOpacity 
+        style={styles.addButton}
+        onPress={() => navigation.navigate('SleepEntry')}
+      >
+        <LinearGradient
+          colors={['#FF9500', '#FF5733']}
+          style={styles.addButtonGradient}
+        >
+          <MaterialCommunityIcons name="plus" size={30} color="#FFFFFF" />
+        </LinearGradient>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -345,6 +359,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999999',
     textAlign: 'center',
+  },
+  addButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+  },
+  addButtonGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
 

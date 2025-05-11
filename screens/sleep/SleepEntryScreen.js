@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,31 +10,35 @@ import {
   Alert,
   Switch,
   ActivityIndicator,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSleep } from '../../contexts/SleepContext';
+// Import our safe wrapper for DateTimePicker
+import SafeDateTimePicker from '../../components/SafeDateTimePicker';
 
 const SleepEntryScreen = ({ route, navigation }) => {
   const { addSleep, updateSleep, deleteSleep } = useSleep();
   const editing = route.params?.editing || false;
   const existingRecord = route.params?.record || null;
-  
   // Default to now for wake time and 8 hours ago for bed time
   const now = new Date();
   const defaultBedTime = new Date(now);
   defaultBedTime.setHours(now.getHours() - 8);
-  
   // State for date/time pickers
   const [bedTime, setBedTime] = useState(existingRecord ? new Date(existingRecord.bedTime) : defaultBedTime);
   const [wakeTime, setWakeTime] = useState(existingRecord ? new Date(existingRecord.wakeTime) : now);
-  const [showBedTimePicker, setShowBedTimePicker] = useState(false);
-  const [showWakeTimePicker, setShowWakeTimePicker] = useState(false);
-  const [pickerMode, setPickerMode] = useState('date');
-  const [currentPicker, setCurrentPicker] = useState(null);
+  const [currentPicker, setCurrentPicker] = useState(null); // For tracking which time we're editing (bedTime or wakeTime)
   
-  // Sleep record details
+  // Smart date/time picker state - Different implementations for iOS and Android
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [tempDateTime, setTempDateTime] = useState(new Date());
+    // Sleep record details
   const [quality, setQuality] = useState(existingRecord?.quality || 'average');
   const [interruptions, setInterruptions] = useState(existingRecord?.interruptions || 0);
   const [timeToFallAsleep, setTimeToFallAsleep] = useState(
@@ -43,6 +47,12 @@ const SleepEntryScreen = ({ route, navigation }) => {
   const [notes, setNotes] = useState(existingRecord?.notes || '');
   const [hasDream, setHasDream] = useState(existingRecord?.hasDream || false);
   const [dreamDetails, setDreamDetails] = useState(existingRecord?.dreamDetails || '');
+  
+  // Additional explanation about DateTime picker implementation for Android and iOS
+  // The DateTimePicker component has different behavior between iOS and Android:
+  // - On iOS, it appears as a spinner directly in the UI
+  // - On Android, it appears as a modal dialog
+  // This implementation handles both platforms appropriately
   
   // UI state
   const [saving, setSaving] = useState(false);
@@ -57,77 +67,89 @@ const SleepEntryScreen = ({ route, navigation }) => {
     
     return { hours, minutes, durationMinutes };
   };
-  
   const { hours, minutes, durationMinutes } = calculateDuration();
   
-  // Handle date picker change
-  const onDateTimeChange = (event, selectedDate) => {
-    if (Platform.OS === 'android') {
-      setShowBedTimePicker(false);
-      setShowWakeTimePicker(false);
+  // Handle date/time selection for bedTime
+  const showBedTimePickerHandler = () => {
+    setCurrentPicker('bedTime');
+    setTempDateTime(new Date(bedTime));
+    setShowDatePicker(true);
+  };
+    // Handle date/time selection for wakeTime
+  const showWakeTimePickerHandler = () => {
+    setCurrentPicker('wakeTime');
+    setTempDateTime(new Date(wakeTime));
+    setShowDatePicker(true);
+  };
+    // Switch from date to time picker - handles platform differences
+  const showTimePickerAfterDate = () => {
+    setShowDatePicker(false);
+    // Adding slightly more delay for Android to avoid UI glitches
+    setTimeout(() => setShowTimePicker(true), Platform.OS === 'android' ? 500 : 300);
+  };
+    // Handle date/time changes
+  const handleDateTimeChange = (event, selectedDate) => {
+    // For Android, the event type might be 'dismissed' when the user cancels
+    if (event.type === 'dismissed') {
+      setShowDatePicker(false);
+      setShowTimePicker(false);
+      return;
     }
     
+    // If the user selected a date
     if (selectedDate) {
-      if (currentPicker === 'bedTime') {
-        if (pickerMode === 'date') {
-          // Preserve the time part
-          const newDate = new Date(selectedDate);
-          newDate.setHours(bedTime.getHours(), bedTime.getMinutes());
-          setBedTime(newDate);
+      const currentDate = new Date(selectedDate);
+      setTempDateTime(currentDate);
+      
+      // Always hide the picker on Android after selection
+      if (Platform.OS === 'android') {
+        setShowDatePicker(false);
+        setShowTimePicker(false);
+        
+        // For Android, we need to handle the flow differently
+        if (showDatePicker) {
+          // After date selection on Android, we'll show the time picker after a small delay
+          setTimeout(() => {
+            setShowTimePicker(true);
+          }, 300);
+        } else if (showTimePicker) {
+          // Time was selected on Android
+          // Create a final dateTime with both date and time components
+          const finalDateTime = new Date(tempDateTime);
+          finalDateTime.setHours(currentDate.getHours());
+          finalDateTime.setMinutes(currentDate.getMinutes());
           
-          // On Android, we need to show the time picker separately
-          if (Platform.OS === 'android') {
-            setPickerMode('time');
-            setShowBedTimePicker(true);
+          // Update the appropriate state variable
+          if (currentPicker === 'bedTime') {
+            setBedTime(finalDateTime);
+          } else {
+            setWakeTime(finalDateTime);
           }
-        } else {
-          // Update just the time part
-          const newDate = new Date(bedTime);
-          newDate.setHours(selectedDate.getHours(), selectedDate.getMinutes());
-          setBedTime(newDate);
         }
-      } else if (currentPicker === 'wakeTime') {
-        if (pickerMode === 'date') {
-          // Preserve the time part
-          const newDate = new Date(selectedDate);
-          newDate.setHours(wakeTime.getHours(), wakeTime.getMinutes());
-          setWakeTime(newDate);
+      } else {
+        // iOS flow remains the same
+        if (showDatePicker) {
+          showTimePickerAfterDate();
+        } else if (showTimePicker) {
+          // Time was selected, update the final date
+          setShowTimePicker(false);
           
-          // On Android, we need to show the time picker separately
-          if (Platform.OS === 'android') {
-            setPickerMode('time');
-            setShowWakeTimePicker(true);
+          // Create a final dateTime with both date and time components
+          const finalDateTime = new Date(tempDateTime);
+          finalDateTime.setHours(currentDate.getHours());
+          finalDateTime.setMinutes(currentDate.getMinutes());
+          
+          // Update the appropriate state variable
+          if (currentPicker === 'bedTime') {
+            setBedTime(finalDateTime);
+          } else {
+            setWakeTime(finalDateTime);
           }
-        } else {
-          // Update just the time part
-          const newDate = new Date(wakeTime);
-          newDate.setHours(selectedDate.getHours(), selectedDate.getMinutes());
-          setWakeTime(newDate);
         }
       }
     }
-    
-    // If iOS or done with time picker on Android
-    if (Platform.OS === 'ios' || (Platform.OS === 'android' && pickerMode === 'time')) {
-      setShowBedTimePicker(false);
-      setShowWakeTimePicker(false);
-      setPickerMode('date');
-    }
   };
-  
-  // Show bed time picker
-  const showBedTimePickerHandler = () => {
-    setCurrentPicker('bedTime');
-    setPickerMode('date');
-    setShowBedTimePicker(true);
-  };
-  
-  // Show wake time picker
-  const showWakeTimePickerHandler = () => {
-    setCurrentPicker('wakeTime');
-    setPickerMode('date');
-    setShowWakeTimePicker(true);
-  };
+    // Format time and date functions
   
   // Format time as HH:MM
   const formatTime = (date) => {
@@ -467,18 +489,51 @@ const SleepEntryScreen = ({ route, navigation }) => {
               </>
             )}
           </TouchableOpacity>
-        )}
-      </ScrollView>
+        )}      </ScrollView>
+        {/* Date Picker */}
+      {showDatePicker && Platform.OS === 'ios' && (
+        <SafeDateTimePicker
+          value={tempDateTime}
+          mode="date"
+          display="spinner"
+          onChange={handleDateTimeChange}
+          textColor="#FFFFFF"
+          themeVariant="dark"
+          locale="th-TH"
+        />
+      )}
       
-      {/* Date Time Pickers */}
-      {(showBedTimePicker || showWakeTimePicker) && (
-        <DateTimePicker
-          testID="dateTimePicker"
-          value={currentPicker === 'bedTime' ? bedTime : wakeTime}
-          mode={pickerMode}
+      {/* Time Picker for iOS */}
+      {showTimePicker && Platform.OS === 'ios' && (
+        <SafeDateTimePicker
+          value={tempDateTime}
+          mode="time"
+          display="spinner"
+          onChange={handleDateTimeChange}
+          textColor="#FFFFFF"
+          themeVariant="dark"
+          locale="th-TH"
           is24Hour={true}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onDateTimeChange}
+        />
+      )}
+        {/* Android date picker - rendered as a modal */}
+      {(showDatePicker && Platform.OS === 'android') && (
+        <SafeDateTimePicker
+          testID="androidDatePicker"
+          value={tempDateTime}
+          mode="date"
+          onChange={handleDateTimeChange}
+        />
+      )}
+      
+      {/* Android time picker - rendered as a modal */}
+      {(showTimePicker && Platform.OS === 'android') && (
+        <SafeDateTimePicker
+          testID="androidTimePicker"
+          value={tempDateTime}
+          mode="time"
+          is24Hour={true}
+          onChange={handleDateTimeChange}
         />
       )}
     </SafeAreaView>
@@ -663,4 +718,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SleepEntryScreen; 
+export default SleepEntryScreen;
