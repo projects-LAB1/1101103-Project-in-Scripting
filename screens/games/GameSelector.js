@@ -34,11 +34,26 @@ const GameSelector = ({ route, navigation }) => {
     // หยุดเสียงปลุกเมื่อโหลดหน้าเกม (ถ้ายังไม่ได้หยุดจาก AlarmRingingScreen)
     if (isPlaying && !soundAlreadyStopped) {
       console.log('Stopping alarm sound in GameSelector useEffect');
+      // เรียกใช้งาน stopAlarmSound เพื่อหยุดเสียง
       stopAlarmSound();
+      
+      // ตรวจสอบอีกครั้งหลังจากรอสักครู่เพื่อให้แน่ใจว่าเสียงถูกหยุดจริงๆ
+      setTimeout(() => {
+        if (isPlaying) {
+          console.log('Trying to stop sound again after delay in GameSelector');
+          stopAlarmSound();
+        }
+      }, 500);
     }
     
     // เมื่อปิดหน้านี้ ตรวจสอบว่าหยุดเสียงแล้วหรือยัง - ไม่ต้องดำเนินการอะไรเพิ่มเติม
-    return () => {}; 
+    return () => {
+      // ตรวจสอบว่าเสียงหยุดแล้วหรือยัง และหยุดอีกครั้งถ้ายังไม่หยุด
+      if (isPlaying) {
+        console.log('Stopping sound in GameSelector cleanup');
+        stopAlarmSound();
+      }
+    }; 
   }, [isPlaying, stopAlarmSound, soundAlreadyStopped]);
 
   // ฟังก์ชันเรียกเมื่อเล่นเกมเสร็จแล้ว
@@ -54,7 +69,16 @@ const GameSelector = ({ route, navigation }) => {
     // หยุดเสียงปลุกเมื่อเล่นเกมเสร็จ (ถ้ายังไม่ได้หยุด)
     if (isPlaying && !soundAlreadyStopped) {
       console.log('Stopping alarm sound after game completion');
+      // เรียกใช้ stopAlarmSound เพื่อหยุดเสียง
       stopAlarmSound();
+      
+      // ตรวจสอบอีกครั้งหลังจากรอสักครู่
+      setTimeout(() => {
+        if (isPlaying) {
+          console.log('Final check to stop sound after game completion');
+          stopAlarmSound();
+        }
+      }, 500);
     } else {
       console.log('Sound was already stopped or not playing');
     }

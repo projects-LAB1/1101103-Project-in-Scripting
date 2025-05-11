@@ -78,7 +78,16 @@ const MemoryGame = ({ route, navigation }) => {
     // หยุดเสียงเมื่อเล่นเกมเสร็จ (ถ้ายังไม่ได้หยุด)
     if (isPlaying && !soundAlreadyStopped) {
       console.log("Stopping alarm sound in MemoryGame");
+      // เรียกใช้ stopAlarmSound ซ้ำหลายครั้งเพื่อให้แน่ใจว่าเสียงถูกหยุดจริงๆ
       stopAlarmSound();
+      
+      // เรียกใช้ stopAlarmSound อีกครั้งหลังจากรอเล็กน้อย
+      setTimeout(() => {
+        if (isPlaying) {
+          console.log("Trying to stop sound again after delay");
+          stopAlarmSound();
+        }
+      }, 500);
     } else {
       console.log("Sound was already stopped or not playing in MemoryGame");
     }
