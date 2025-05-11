@@ -214,6 +214,11 @@ const showAppExitNotification = async () => {
       }
     }
     
+    // ตรวจสอบว่า Notifications.AndroidAction.DEFAULT มีค่าหรือไม่
+    const defaultAction = Notifications.AndroidAction && Notifications.AndroidAction.DEFAULT 
+      ? Notifications.AndroidAction.DEFAULT 
+      : 'default';
+    
     // Fallback: Schedule an immediate notification with full-screen intent
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -251,7 +256,7 @@ const showAppExitNotification = async () => {
               {
                 title: 'กลับเข้าสู่แอป',
                 icon: 'ic_launcher',
-                buttonAction: Notifications.AndroidAction.DEFAULT,
+                buttonAction: defaultAction,
                 id: 'open',
               }
             ],

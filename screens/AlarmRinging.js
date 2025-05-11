@@ -19,16 +19,24 @@ import { getStatusBarHeight } from "react-native-status-bar-height";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ScreenOrientation from "expo-screen-orientation";
+import { useAlarmSound } from "../contexts/AlarmSoundContext";
 
 const AlarmRinging = ({ route, navigation }) => {
-  const { alarm, isFullscreen, actionId } = route.params || {};
+  const { alarm, isFullscreen, actionId, isAppExitAlert } = route.params || {};
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isPlaying, setIsPlaying] = useState(true);
   const [remainingSnoozes, setRemainingSnoozes] = useState(
     alarm?.snoozeCount || 3
   );
-  const [sound, setSound] = useState();
+  
+  // ใช้ context สำหรับจัดการเสียง
+  const { 
+    sound,
+    isPlaying: soundIsPlaying,
+    playAlarmSound, 
+    stopAlarmSound 
+  } = useAlarmSound();
 
   // Animation values
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -94,20 +102,8 @@ const AlarmRinging = ({ route, navigation }) => {
 
   // Start playing sound when component mounts
   useEffect(() => {
-    const playSound = async () => {
+    const handleAlarmStart = async () => {
       try {
-        // Load sound
-        const { sound } = await Audio.Sound.createAsync(
-          require("../assets/sounds/alarm-sound.mp3"), // Add your alarm sound file
-          {
-            shouldPlay: true,
-            isLooping: true,
-            volume: 1.0,
-          }
-        );
-
-        setSound(sound);
-
         // Set audio mode for alarm
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
@@ -119,16 +115,16 @@ const AlarmRinging = ({ route, navigation }) => {
           playThroughEarpieceAndroid: false,
         });
 
-        // Start vibration pattern
+        // Start vibration pattern if vibration is enabled
         if (alarm?.vibrate) {
           const pattern = [0, 1000, 500, 1000, 500, 1000];
           Vibration.vibrate(pattern, true);
         }
 
-        // Play sound
-        await sound.playAsync();
+        // เล่นเสียงด้วย context
+        await playAlarmSound(alarm);
       } catch (error) {
-        console.error("Error playing alarm sound:", error);
+        console.error("Error handling alarm start:", error);
       }
     };
 
@@ -141,14 +137,13 @@ const AlarmRinging = ({ route, navigation }) => {
       handleSnooze();
     } else {
       // Start playing normally
-      playSound();
+      handleAlarmStart();
     }
 
     // Clean up
     return () => {
-      if (sound) {
-        sound.unloadAsync();
-      }
+      // หยุดเสียงด้วย context
+      stopAlarmSound();
       Vibration.cancel();
     };
   }, [alarm]);
@@ -156,11 +151,8 @@ const AlarmRinging = ({ route, navigation }) => {
   // Handle stopping the alarm
   const handleStopAlarm = async () => {
     try {
-      // Stop sound
-      if (sound) {
-        await sound.stopAsync();
-        await sound.unloadAsync();
-      }
+      // หยุดเสียงด้วย context
+      stopAlarmSound();
 
       // Stop vibration
       Vibration.cancel();
@@ -182,12 +174,8 @@ const AlarmRinging = ({ route, navigation }) => {
   // Handle snoozing the alarm
   const handleSnooze = async () => {
     try {
-      // Stop current alarm sound and vibration
-      if (sound) {
-        await sound.stopAsync();
-        await sound.unloadAsync();
-      }
-
+      // Stop current alarm sound and vibration using context
+      stopAlarmSound();
       Vibration.cancel();
       setIsPlaying(false);
 
