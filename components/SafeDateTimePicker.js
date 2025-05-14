@@ -1,6 +1,6 @@
 // SafeDateTimePicker.js - A wrapper for DateTimePicker that handles platform differences
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, Text } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 /**
@@ -22,6 +22,29 @@ const SafeDateTimePicker = (props) => {
     // Keep locale for proper localization
   }
 
+  // On Android, we need to be extra careful about text rendering
+  if (Platform.OS === 'android') {
+    try {
+      return (
+        <View>
+          {/* This hidden text component helps prevent the "Text strings must be rendered within a <Text> component" error */}
+          <Text style={{ height: 0, width: 0, opacity: 0 }}>placeholder text to prevent rendering errors</Text>
+          <DateTimePicker {...pickerProps} />
+        </View>
+      );
+    } catch (error) {
+      console.error('DateTimePicker error:', error);
+      return (
+        <View style={{ padding: 10, backgroundColor: '#333', borderRadius: 8 }}>
+          <Text style={{ color: '#FFFFFF', textAlign: 'center' }}>
+            Error loading date picker. Please try again.
+          </Text>
+        </View>
+      );
+    }
+  }
+  
+  // iOS rendering is more straightforward
   return (
     <View>
       <DateTimePicker {...pickerProps} />

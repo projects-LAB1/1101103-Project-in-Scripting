@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Platform, LogBox, AppState } from 'react-native';
+import { Platform, LogBox, AppState, View, Text } from 'react-native';
 import RootNavigator from './navigation/RootNavigator';
 import { AuthProvider } from './contexts/AuthContext';
 import { AlarmSoundProvider } from './contexts/AlarmSoundContext';
@@ -18,6 +18,7 @@ LogBox.ignoreLogs([
   'AsyncStorage has been extracted',
   'Setting a timer for a long period of time',
   'expo-permissions is now deprecated',
+  'interruptionModeIOS', // เพิ่มการ ignore log เกี่ยวกับ interruptionModeIOS
 ]);
 
 // ตั้งค่าการแจ้งเตือนตั้งแต่เริ่มแอป
@@ -33,6 +34,36 @@ Notifications.setNotificationHandler({
 export default function App() {
   const navigationRef = useRef(null);
   const appState = useRef(AppState.currentState);
+  const [audioInitialized, setAudioInitialized] = useState(false);
+
+  // ฟังก์ชันตั้งค่า Audio Mode แยกตาม Platform
+  const setAudioMode = async (playMode = true) => {
+    try {
+      await Audio.setIsEnabledAsync(true);
+      
+      // แยกการตั้งค่าตาม platform เพื่อหลีกเลี่ยงปัญหา invalid value
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          staysActiveInBackground: playMode,
+          interruptionModeIOS: playMode ? 1 : 0, // 1=DO_NOT_MIX, 0=MIX_WITH_OTHERS
+          playsInSilentModeIOS: playMode,
+        });
+      } else if (Platform.OS === 'android') {
+        await Audio.setAudioModeAsync({
+          staysActiveInBackground: playMode,
+          shouldDuckAndroid: playMode,
+          interruptionModeAndroid: 1, // DO_NOT_MIX
+          playThroughEarpieceAndroid: false,
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error setting audio mode:', error);
+      return false;
+    }
+  };
 
   // ปิดการแสดงหน้า AlarmRinging โดยอัตโนมัติเมื่อแอปเริ่มทำงาน
   useEffect(() => {
@@ -52,17 +83,9 @@ export default function App() {
   useEffect(() => {
     const setupAudio = async () => {
       try {
-        // เตรียมระบบเสียงให้พร้อมใช้งาน
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          staysActiveInBackground: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-          playThroughEarpieceAndroid: false,
-        }).catch(() => {});
-
+        // ตั้งค่า audio mode ด้วยฟังก์ชันที่ปลอดภัย
+        const success = await setAudioMode(false);
+        
         // ตั้งค่าช่องทางการแจ้งเตือนสำหรับ Android
         if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync('alarms', {
@@ -74,19 +97,56 @@ export default function App() {
             enableLights: true,
             lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
             bypassDnd: true,
-          }).catch(() => {});
+          });
         }
+        
+        setAudioInitialized(success);
       } catch (error) {
         console.error('Error setting up audio:', error);
+        
+        // Try to recover audio system
+        try {
+          await Audio.setIsEnabledAsync(false);
+          await Audio.setIsEnabledAsync(true);
+          setAudioInitialized(true);
+        } catch (recoveryError) {
+          console.error('Failed to recover audio system:', recoveryError);
+        }
       }
     };
 
     setupAudio();
+    
+    // Clean up audio on app exit
+    return () => {
+      const cleanupAudio = async () => {
+        try {
+          await Audio.setIsEnabledAsync(false);
+        } catch (error) {
+          // Ignore cleanup errors
+        }
+      };
+      
+      cleanupAudio();
+    };
   }, []);
 
   // ติดตามสถานะแอปเพื่อลดการล่าช้า
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
+      // When app comes to foreground from background, reinitialize audio if needed
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        const reinitAudio = async () => {
+          try {
+            await setAudioMode(false);
+          } catch (error) {
+            console.error('Error reinitializing audio:', error);
+          }
+        };
+        
+        reinitAudio();
+      }
+      
       appState.current = nextAppState;
     });
 

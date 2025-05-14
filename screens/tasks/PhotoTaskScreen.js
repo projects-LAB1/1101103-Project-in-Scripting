@@ -15,6 +15,12 @@ import * as ImageManipulator from "expo-image-manipulator";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useAlarmSound } from "../../contexts/AlarmSoundContext";
 
+// Define camera types directly to avoid dependency on Camera.Constants
+const CAMERA_TYPES = {
+  front: 'front',
+  back: 'back'
+};
+
 const PhotoTaskScreen = ({ route, navigation }) => {
   const { alarm, difficulty, onComplete, soundAlreadyStopped = false } = route.params;
   const [hasPermission, setHasPermission] = useState(null);
@@ -23,7 +29,7 @@ const PhotoTaskScreen = ({ route, navigation }) => {
   const [processing, setProcessing] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [maxAttempts, setMaxAttempts] = useState(5);
-  const [cameraType, setCameraType] = useState(0); // default back camera
+  const [cameraType, setCameraType] = useState(Camera.Constants?.Type?.back || 'back');
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   
@@ -35,16 +41,9 @@ const PhotoTaskScreen = ({ route, navigation }) => {
   
   // เตรียมค่า camera type ที่ปลอดภัย
   useEffect(() => {
-    try {
-      // ตรวจสอบว่า Camera และ Constants มีอยู่หรือไม่
-      if (Camera && Camera.Constants && Camera.Constants.Type) {
-        setCameraType(Camera.Constants.Type.back);
-      } else {
-        console.warn("Camera.Constants.Type is not available, using default value");
-      }
-    } catch (err) {
-      console.error("Error setting camera type:", err);
-      setErrorMessage("ไม่สามารถเข้าถึงกล้องได้ โปรดลองอีกครั้งภายหลัง");
+    // ตรวจสอบว่า Camera.Constants มีอยู่หรือไม่
+    if (!Camera.Constants) {
+      console.warn("Camera.Constants is not available, using fallback values");
     }
     
     // ไม่ต้องหยุดเสียงเมื่อเปิดหน้านี้
@@ -88,18 +87,12 @@ const PhotoTaskScreen = ({ route, navigation }) => {
         const { status } = await Camera.requestCameraPermissionsAsync();
         setHasPermission(status === "granted");
         
-        // ตรวจสอบว่า Camera.Constants มีค่าหรือไม่
-        if (!Camera.Constants) {
-          console.error("Camera.Constants is undefined");
-          setErrorMessage("กล้องไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง");
-          return;
-        }
-        
         // Select random target color based on difficulty
         selectRandomColor();
       } catch (err) {
-        console.error("Error initializing camera:", err);
-        setErrorMessage("เกิดข้อผิดพลาดในการเริ่มต้นกล้อง: " + err.message);
+        console.error("Error requesting camera permissions:", err);
+        setErrorMessage("ไม่สามารถขอสิทธิ์การใช้กล้อง: " + (err.message || "Unknown error"));
+        setHasPermission(false);
       }
     })();
   }, []);
@@ -323,25 +316,41 @@ const PhotoTaskScreen = ({ route, navigation }) => {
         )}
 
         {/* กล้อง */}
-        <Camera
-          style={styles.camera}
-          type={cameraType}
-          ref={(ref) => setCamera(ref)}
-          onCameraReady={handleCameraReady}
-          onMountError={handleCameraError}
-        >
-          <View style={styles.cameraOverlay}>
-            {/* วงกลมแสดงเป้าหมาย */}
-            <View style={styles.targetCircle} />
-            
-            {/* แสดงวิธีใช้งาน */}
-            <View style={styles.cameraInstructionContainer}>
-              <Text style={styles.cameraInstructionText}>
-                จัดตำแหน่งวัตถุสี{targetColor?.name || ""}ให้อยู่ในวงกลม
-              </Text>
-            </View>
-          </View>
-        </Camera>
+        {(() => {
+          try {
+            return (
+              <Camera
+                style={styles.camera}
+                type={cameraType}
+                ref={(ref) => setCamera(ref)}
+                onCameraReady={handleCameraReady}
+                onMountError={handleCameraError}
+              >
+                <View style={styles.cameraOverlay}>
+                  {/* วงกลมแสดงเป้าหมาย */}
+                  <View style={styles.targetCircle} />
+                  
+                  {/* แสดงวิธีใช้งาน */}
+                  <View style={styles.cameraInstructionContainer}>
+                    <Text style={styles.cameraInstructionText}>
+                      จัดตำแหน่งวัตถุสี{targetColor?.name || ""}ให้อยู่ในวงกลม
+                    </Text>
+                  </View>
+                </View>
+              </Camera>
+            );
+          } catch (err) {
+            console.error("Error rendering camera:", err);
+            return (
+              <View style={[styles.camera, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a1a' }]}>
+                <Icon name="camera-off" size={60} color="#FF3B30" />
+                <Text style={{ color: '#FFFFFF', textAlign: 'center', marginTop: 10 }}>
+                  ไม่สามารถเปิดกล้องได้
+                </Text>
+              </View>
+            );
+          }
+        })()}
       </View>
 
       <View style={styles.footer}>
@@ -391,10 +400,10 @@ const PhotoTaskScreen = ({ route, navigation }) => {
           <TouchableOpacity
             style={styles.switchButton}
             onPress={() => {
-              if (cameraType === Camera.Constants.Type.back) {
-                setCameraType(Camera.Constants.Type.front);
+              if (cameraType === Camera.Constants?.Type?.back || cameraType === 'back') {
+                setCameraType(Camera.Constants?.Type?.front || 'front');
               } else {
-                setCameraType(Camera.Constants.Type.back);
+                setCameraType(Camera.Constants?.Type?.back || 'back');
               }
             }}
           >

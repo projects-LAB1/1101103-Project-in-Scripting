@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Audio } from 'expo-av';
+import { Platform } from 'react-native';
 
 const AlarmSoundContext = createContext();
 
@@ -11,8 +12,55 @@ export const AlarmSoundProvider = ({ children }) => {
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [alarmData, setAlarmData] = useState(null);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+
+  // ฟังก์ชันตั้งค่า Audio Mode แยกตาม Platform
+  const setAudioMode = async (playMode = true) => {
+    try {
+      await Audio.setIsEnabledAsync(true);
+      
+      // แยกการตั้งค่าตาม platform เพื่อหลีกเลี่ยงปัญหา invalid value
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          staysActiveInBackground: playMode,
+          interruptionModeIOS: playMode ? 1 : 0, // 1=DO_NOT_MIX, 0=MIX_WITH_OTHERS
+          playsInSilentModeIOS: playMode,
+        });
+      } else if (Platform.OS === 'android') {
+        await Audio.setAudioModeAsync({
+          staysActiveInBackground: playMode,
+          shouldDuckAndroid: playMode,
+          interruptionModeAndroid: 1, // DO_NOT_MIX
+          playThroughEarpieceAndroid: false,
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error setting audio mode:', error);
+      return false;
+    }
+  };
 
   useEffect(() => {
+    // Initialize audio system when component mounts
+    const initAudio = async () => {
+      try {
+        // Make sure audio is enabled
+        await Audio.setIsEnabledAsync(true);
+        
+        // Set initial audio mode using our safe function
+        const success = await setAudioMode(false);
+        setAudioEnabled(success);
+      } catch (error) {
+        console.error('Error initializing audio system:', error);
+        setAudioEnabled(false);
+      }
+    };
+
+    initAudio();
+
     // ทำความสะอาดเมื่อ component unmount
     return () => {
       if (sound) {
@@ -25,39 +73,27 @@ export const AlarmSoundProvider = ({ children }) => {
   const stopAndUnloadSound = async (soundObj) => {
     try {
       if (!soundObj) {
-        console.log('ไม่มี sound object ที่จะหยุดเสียง');
         return;
       }
       
-      // ตรวจสอบสถานะของเสียงก่อนพยายามหยุด
-      let isPlayable = false;
+      // Safe stop - don't throw errors
       try {
-        const status = await soundObj.getStatusAsync().catch(() => null);
-        isPlayable = status && (status.isLoaded !== false);
-      } catch (statusError) {
-        console.log('ไม่สามารถตรวจสอบสถานะของเสียงได้:', statusError);
-      }
-      
-      // หยุดเสียงเฉพาะเมื่อเสียงมีสถานะที่สามารถเล่นได้
-      if (isPlayable) {
-        try {
-          await soundObj.stopAsync().catch(err => {
-            console.log('Error stopping sound:', err);
-          });
-        } catch (stopError) {
-          console.log('ไม่สามารถหยุดเสียงได้:', stopError);
+        const status = await soundObj.getStatusAsync();
+        if (status.isLoaded) {
+          await soundObj.stopAsync();
         }
+      } catch (e) {
+        // Ignore errors on stop
       }
       
-      // พยายาม unload ไม่ว่าจะตรวจสอบสถานะได้หรือไม่
+      // Safe unload - don't throw errors
       try {
-        await soundObj.unloadAsync().catch(err => {
-          console.log('Error unloading sound:', err);
-        });
-      } catch (unloadError) {
-        console.log('ไม่สามารถนำเสียงออกจากหน่วยความจำได้:', unloadError);
+        await soundObj.unloadAsync();
+      } catch (e) {
+        // Ignore errors on unload
       }
     } catch (error) {
+      // Just log the error, don't throw
       console.error('Error cleaning up sound:', error);
     }
   };
@@ -65,187 +101,154 @@ export const AlarmSoundProvider = ({ children }) => {
   // เล่นเสียงปลุกใหม่
   const playAlarmSound = async (alarmConfig) => {
     try {
-      // หยุดเสียงที่เล่นอยู่ก่อน (ถ้ามี) แบบเร็ว
-      if (sound) {
+      // If audio system is not enabled, try to enable it first
+      if (!audioEnabled) {
         try {
-          await sound.stopAsync().catch(() => {});
-          await sound.unloadAsync().catch(() => {});
-          setSound(null);
+          await Audio.setIsEnabledAsync(true);
+          setAudioEnabled(true);
         } catch (error) {
-          // ไม่แสดงข้อผิดพลาดเพื่อเพิ่มความเร็ว
+          console.error('Cannot enable audio system:', error);
+          return null;
         }
+      }
+
+      // หยุดเสียงที่เล่นอยู่ก่อน (ถ้ามี) - ปรับปรุงให้รอจนหยุดเสียงเดิมเสร็จก่อนเล่นเสียงใหม่
+      if (sound) {
+        console.log('มีเสียงกำลังเล่นอยู่ กำลังหยุดเสียงเดิมก่อนเล่นเสียงใหม่...');
+        await stopAlarmSound(); // เรียกใช้ stopAlarmSound เพื่อหยุดเสียงและทำความสะอาดทรัพยากรให้เรียบร้อย
+        
+        // รอให้เสียงเดิมหยุดเล่นจริงๆ
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       // ตรวจสอบว่า alarmConfig มีค่าหรือไม่
       if (!alarmConfig) {
-        console.log('ไม่มีข้อมูล alarmConfig ในการเล่นเสียง');
         setAlarmData(null);
         return null;
       }
 
       setAlarmData(alarmConfig);
       
-      // เลือกไฟล์เสียงตามการตั้งค่า - ทำให้เร็วขึ้นโดยกำหนดค่าเริ่มต้น
+      // Reset audio mode to ensure it works properly using our safe function
+      await setAudioMode(true);
+      
+      // เลือกไฟล์เสียงตามการตั้งค่า
       const selectedSoundId = alarmConfig?.soundId || "default";
       
       let soundFile;
-      try {
-        switch (selectedSoundId) {
-          case "digital":
-            soundFile = require('../assets/sounds/digital-alarm.mp3');
-            break;
-          case "rooster":
-            soundFile = require('../assets/sounds/rooster-alarm.mp3');
-            break;
-          case "default":
-          default:
-            soundFile = require('../assets/sounds/default-alarm.mp3');
-            break;
-        }
-      } catch (loadError) {
-        // กรณีเกิดข้อผิดพลาด ใช้เสียงเริ่มต้นทันที
-        soundFile = require('../assets/sounds/default-alarm.mp3');
+      switch (selectedSoundId) {
+        case "digital":
+          soundFile = require('../assets/sounds/digital-alarm.mp3');
+          break;
+        case "rooster":
+          soundFile = require('../assets/sounds/rooster-alarm.mp3');
+          break;
+        case "default":
+        default:
+          soundFile = require('../assets/sounds/default-alarm.mp3');
+          break;
       }
       
-      // สร้างและเล่นเสียงแบบเร็ว
-      try {
-        // ตั้งค่า Audio ล่วงหน้าเพื่อให้เล่นได้รวดเร็ว
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-        }).catch(() => {});
-        
-        const { sound: newSound } = await Audio.Sound.createAsync(
+      // Use different approach for Android vs iOS
+      let newSound;
+      if (Platform.OS === 'android') {
+        // On Android, load first then play separately
+        const soundObject = new Audio.Sound();
+        await soundObject.loadAsync(soundFile);
+        await soundObject.setIsLoopingAsync(true);
+        await soundObject.playAsync();
+        newSound = soundObject;
+      } else {
+        // On iOS, use createAsync which is more reliable
+        const { sound: createdSound } = await Audio.Sound.createAsync(
           soundFile,
           { 
             shouldPlay: true, 
             isLooping: true, 
             volume: 1.0,
-            progressUpdateIntervalMillis: 1000, // ลดการอัพเดทสถานะ
-          },
-          // ไม่ใช้ callback เพื่อเพิ่มความเร็ว
+          }
         );
-        
-        setSound(newSound);
-        setIsPlaying(true);
-        
-        return newSound;
-      } catch (playError) {
-        // กรณีเกิดข้อผิดพลาด ใช้วิธีเล่นแบบสำรอง
-        try {
-          const fallbackSound = new Audio.Sound();
-          await fallbackSound.loadAsync(soundFile);
-          await fallbackSound.setIsLoopingAsync(true);
-          await fallbackSound.setVolumeAsync(1.0);
-          await fallbackSound.playAsync();
-          
-          setSound(fallbackSound);
-          setIsPlaying(true);
-          
-          return fallbackSound;
-        } catch (fallbackError) {
-          console.error('ไม่สามารถเล่นเสียงได้เลย:', fallbackError);
-          return null;
-        }
+        newSound = createdSound;
       }
+      
+      setSound(newSound);
+      setIsPlaying(true);
+      
+      return newSound;
     } catch (error) {
-      console.error('เกิดข้อผิดพลาดในการเล่นเสียงปลุก:', error);
+      console.error('Error playing alarm sound:', error);
+      // Try to recover audio system
+      try {
+        await Audio.setIsEnabledAsync(false);
+        await Audio.setIsEnabledAsync(true);
+      } catch (e) {
+        // Ignore recovery errors
+      }
       return null;
     }
   };
 
   // หยุดเสียงปลุก
   const stopAlarmSound = async () => {
-    console.log('===== เริ่มหยุดเสียงปลุก =====');
     try {
       if (!sound) {
-        console.log('ไม่มีเสียงที่กำลังเล่นอยู่ - สำเร็จแล้ว');
         setIsPlaying(false);
         setAlarmData(null);
-        setSound(null);
         return;
       }
       
-      // ตรวจสอบสถานะเสียงก่อนเพื่อดูว่ายังเล่นอยู่หรือไม่
-      let isPlayable = false;
-      let isCurrentlyPlaying = false;
-      
+      // เพิ่มการตรวจสอบว่าเสียงยังคงเล่นอยู่หรือไม่
       try {
-        const status = await sound.getStatusAsync().catch(err => {
-          console.log('เกิดข้อผิดพลาดในการเรียกดูสถานะเสียง:', err);
-          return null;
-        });
-        
-        isPlayable = status && status.isLoaded !== false;
-        isCurrentlyPlaying = isPlayable && status.isPlaying;
-        
-        console.log(`สถานะเสียง: isLoaded=${status?.isLoaded}, isPlaying=${status?.isPlaying}`);
-      } catch (statusError) {
-        console.log('ไม่สามารถตรวจสอบสถานะเสียงได้:', statusError);
-      }
-      
-      // หยุดเสียงถ้ายังเล่นอยู่
-      if (isPlayable) {
-        try {
-          console.log('กำลังพยายามหยุดเสียง...');
-          await sound.stopAsync().catch(err => {
-            console.log('Error stopping sound:', err);
-          });
-          console.log('หยุดเสียงสำเร็จ');
-        } catch (stopError) {
-          console.log('ไม่สามารถหยุดเสียงได้:', stopError);
+        const status = await sound.getStatusAsync();
+        if (status.isLoaded && status.isPlaying) {
+          await sound.stopAsync();
         }
-      } else {
-        console.log('ไม่จำเป็นต้องหยุดเสียงเพราะไม่ได้อยู่ในสถานะที่เล่นได้');
+      } catch (e) {
+        // ถ้าเกิดข้อผิดพลาดในการตรวจสอบสถานะ ลองหยุดเสียงโดยตรง
+        try {
+          await sound.stopAsync();
+        } catch (stopError) {
+          // ไม่ต้องทำอะไรถ้าหยุดไม่ได้
+        }
       }
       
-      // Unload เสียงไม่ว่าจะอยู่ในสถานะใด
+      await stopAndUnloadSound(sound);
+      
+      // พยายามยกเลิกทุกเสียงในระบบซ้ำอีกครั้ง
       try {
-        console.log('กำลังพยายาม unload เสียง...');
-        await sound.unloadAsync().catch(err => {
-          console.log('Error unloading sound:', err);
-        });
-        console.log('Unload เสียงสำเร็จ');
-      } catch (unloadError) {
-        console.log('ไม่สามารถ unload เสียงได้:', unloadError);
-        // แม้จะมีข้อผิดพลาด ให้ดำเนินการต่อไป
+        await Audio.stopAndUnloadAsync();
+      } catch (e) {
+        console.log('ไม่สามารถยกเลิกทุกเสียงในระบบได้:', e);
       }
       
-      // อีกทางเลือกหนึ่งคือใช้ Audio API โดยตรงเพื่อหยุดเสียงทั้งหมด
+      // รีเซ็ตระบบเสียงด้วยการปิดและเปิดใหม่
       try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: false,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: false,
-        }).catch(err => {
-          console.log('Error setting audio mode:', err);
-        });
-      } catch (audioModeError) {
-        console.log('ไม่สามารถตั้งค่าโหมดเสียงได้:', audioModeError);
+        await Audio.setIsEnabledAsync(false);
+        await new Promise(resolve => setTimeout(resolve, 300)); 
+        await Audio.setIsEnabledAsync(true);
+      } catch (e) {
+        console.log('ไม่สามารถรีเซ็ตระบบเสียงได้:', e);
       }
       
-      // คืนค่าทรัพยากรที่เสียงใช้
-      try {
-        await Audio.setIsEnabledAsync(false).catch(() => {});
-        await Audio.setIsEnabledAsync(true).catch(() => {});
-      } catch (audioResetError) {
-        console.log('ไม่สามารถรีเซ็ต audio system ได้:', audioResetError);
-      }
+      // Reset audio mode using our safe function
+      await setAudioMode(false);
       
-      // อัพเดตสถานะไม่ว่าการหยุดเสียงจะสำเร็จหรือไม่
-      setSound(null);
-      setIsPlaying(false);
-      setAlarmData(null);
-      console.log('การหยุดเสียงเสร็จสมบูรณ์');
     } catch (error) {
-      console.error('เกิดข้อผิดพลาดในการหยุดเสียงปลุก:', error);
-      // แม้จะมีข้อผิดพลาด ยังต้องอัพเดตสถานะเพื่อป้องกันการค้างของ UI
+      console.error('Error stopping alarm sound:', error);
+      
+      // ถ้าเกิดข้อผิดพลาด พยายามรีเซ็ตระบบเสียงทั้งหมด
+      try {
+        await Audio.setIsEnabledAsync(false);
+        await Audio.setIsEnabledAsync(true);
+        await Audio.stopAndUnloadAsync();
+      } catch (e) {
+        // ไม่ต้องทำอะไรถ้าการกู้คืนไม่สำเร็จ
+      }
+    } finally {
       setSound(null);
       setIsPlaying(false);
       setAlarmData(null);
     }
-    console.log('===== จบการหยุดเสียงปลุก =====');
   };
 
   // เปลี่ยนระดับเสียง
@@ -255,22 +258,25 @@ export const AlarmSoundProvider = ({ children }) => {
         await sound.setVolumeAsync(volume);
       }
     } catch (error) {
-      console.error('เกิดข้อผิดพลาดในการปรับระดับเสียง:', error);
+      console.error('Error setting volume:', error);
     }
   };
 
+  const value = {
+    sound,
+    isPlaying,
+    alarmData,
+    playAlarmSound,
+    stopAlarmSound,
+    setAlarmVolume,
+    audioEnabled
+  };
+
   return (
-    <AlarmSoundContext.Provider
-      value={{
-        sound,
-        isPlaying,
-        alarmData,
-        playAlarmSound,
-        stopAlarmSound,
-        setAlarmVolume
-      }}
-    >
+    <AlarmSoundContext.Provider value={value}>
       {children}
     </AlarmSoundContext.Provider>
   );
-}; 
+};
+
+export default AlarmSoundProvider; 

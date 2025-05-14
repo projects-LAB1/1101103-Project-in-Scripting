@@ -249,6 +249,25 @@ const AddAlarmScreen = ({ route, navigation }) => {
   // ฟังก์ชันทดสอบการปลุกทันที - จะแสดงการแจ้งเตือนและหน้าปลุกทันที
   const handleTestAlarm = () => {
     try {
+      // เพิ่มตัวแปรเพื่อป้องกันการกดทดสอบหลายครั้งซ้อนกัน
+      if (window.isTestingAlarm) {
+        Alert.alert(
+          "กำลังทดสอบ",
+          "กรุณารอสักครู่ ระบบกำลังทดสอบเสียงปลุกอยู่"
+        );
+        return;
+      }
+      
+      // ตั้งค่าตัวแปรเพื่อป้องกันการกดซ้ำ
+      window.isTestingAlarm = true;
+      
+      // แสดงข้อความกำลังทดสอบ
+      Alert.alert(
+        "ทดสอบเสียงปลุก",
+        "กำลังทดสอบเสียงปลุก โปรดรอสักครู่...",
+        [{ text: "รอสักครู่..." }]
+      );
+      
       // สร้างข้อมูลสำหรับการทดสอบโดยเฉพาะ
       const testAlarmData = {
         hour: time.getHours(),
@@ -274,10 +293,18 @@ const AddAlarmScreen = ({ route, navigation }) => {
           screen: "AlarmRinging",
           params: { alarm: alarmData },
         });
+        
+        // รีเซ็ตตัวแปรหลังจากนำทางไปยังหน้าปลุกแล้ว
+        setTimeout(() => {
+          window.isTestingAlarm = false;
+        }, 1000);
       });
     } catch (error) {
       console.error("Error testing alarm:", error);
       Alert.alert("ข้อผิดพลาด", "ไม่สามารถทดสอบการปลุกได้");
+      
+      // รีเซ็ตตัวแปรในกรณีที่เกิดข้อผิดพลาด
+      window.isTestingAlarm = false;
     }
   };
 

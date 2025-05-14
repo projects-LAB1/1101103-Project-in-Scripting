@@ -87,66 +87,73 @@ const SleepEntryScreen = ({ route, navigation }) => {
     // Adding slightly more delay for Android to avoid UI glitches
     setTimeout(() => setShowTimePicker(true), Platform.OS === 'android' ? 500 : 300);
   };
-    // Handle date/time changes
+    // Handle date/time changes with extra error handling
   const handleDateTimeChange = (event, selectedDate) => {
-    // For Android, the event type might be 'dismissed' when the user cancels
-    if (event.type === 'dismissed') {
-      setShowDatePicker(false);
-      setShowTimePicker(false);
-      return;
-    }
-    
-    // If the user selected a date
-    if (selectedDate) {
-      const currentDate = new Date(selectedDate);
-      setTempDateTime(currentDate);
-      
-      // Always hide the picker on Android after selection
-      if (Platform.OS === 'android') {
+    try {
+      // For Android, the event type might be 'dismissed' when the user cancels
+      if (event?.type === 'dismissed' || !selectedDate) {
         setShowDatePicker(false);
         setShowTimePicker(false);
+        return;
+      }
+      
+      // If the user selected a date
+      if (selectedDate) {
+        const currentDate = new Date(selectedDate);
+        setTempDateTime(currentDate);
         
-        // For Android, we need to handle the flow differently
-        if (showDatePicker) {
-          // After date selection on Android, we'll show the time picker after a small delay
-          setTimeout(() => {
-            setShowTimePicker(true);
-          }, 300);
-        } else if (showTimePicker) {
-          // Time was selected on Android
-          // Create a final dateTime with both date and time components
-          const finalDateTime = new Date(tempDateTime);
-          finalDateTime.setHours(currentDate.getHours());
-          finalDateTime.setMinutes(currentDate.getMinutes());
-          
-          // Update the appropriate state variable
-          if (currentPicker === 'bedTime') {
-            setBedTime(finalDateTime);
-          } else {
-            setWakeTime(finalDateTime);
-          }
-        }
-      } else {
-        // iOS flow remains the same
-        if (showDatePicker) {
-          showTimePickerAfterDate();
-        } else if (showTimePicker) {
-          // Time was selected, update the final date
+        // Always hide the picker on Android after selection
+        if (Platform.OS === 'android') {
+          setShowDatePicker(false);
           setShowTimePicker(false);
           
-          // Create a final dateTime with both date and time components
-          const finalDateTime = new Date(tempDateTime);
-          finalDateTime.setHours(currentDate.getHours());
-          finalDateTime.setMinutes(currentDate.getMinutes());
-          
-          // Update the appropriate state variable
-          if (currentPicker === 'bedTime') {
-            setBedTime(finalDateTime);
-          } else {
-            setWakeTime(finalDateTime);
+          // For Android, we need to handle the flow differently
+          if (showDatePicker) {
+            // After date selection on Android, we'll show the time picker after a small delay
+            setTimeout(() => {
+              setShowTimePicker(true);
+            }, 300);
+          } else if (showTimePicker) {
+            // Time was selected on Android
+            // Create a final dateTime with both date and time components
+            const finalDateTime = new Date(tempDateTime);
+            finalDateTime.setHours(currentDate.getHours());
+            finalDateTime.setMinutes(currentDate.getMinutes());
+            
+            // Update the appropriate state variable
+            if (currentPicker === 'bedTime') {
+              setBedTime(finalDateTime);
+            } else {
+              setWakeTime(finalDateTime);
+            }
+          }
+        } else {
+          // iOS flow remains the same
+          if (showDatePicker) {
+            showTimePickerAfterDate();
+          } else if (showTimePicker) {
+            // Time was selected, update the final date
+            setShowTimePicker(false);
+            
+            // Create a final dateTime with both date and time components
+            const finalDateTime = new Date(tempDateTime);
+            finalDateTime.setHours(currentDate.getHours());
+            finalDateTime.setMinutes(currentDate.getMinutes());
+            
+            // Update the appropriate state variable
+            if (currentPicker === 'bedTime') {
+              setBedTime(finalDateTime);
+            } else {
+              setWakeTime(finalDateTime);
+            }
           }
         }
       }
+    } catch (error) {
+      console.error('Error handling date/time change:', error);
+      // Reset pickers if there's an error
+      setShowDatePicker(false);
+      setShowTimePicker(false);
     }
   };
     // Format time and date functions
@@ -271,226 +278,259 @@ const SleepEntryScreen = ({ route, navigation }) => {
   
   return (
     <SafeAreaView style={styles.container} edges={['right', 'left', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Sleep Duration Card */}
-        <View style={styles.durationCard}>
-          <Text style={styles.durationTitle}>ระยะเวลาการนอน</Text>
-          <Text style={styles.durationValue}>{hours} ชั่วโมง {minutes} นาที</Text>
-        </View>
-        
-        {/* Date Time Selectors */}
-        <View style={styles.sectionCard}>
-          <View style={styles.dateTimeRow}>
-            <View style={styles.dateTimeLabel}>
-              <MaterialCommunityIcons name="bed" size={22} color="#FF9500" />
-              <Text style={styles.labelText}>เข้านอน</Text>
-            </View>
-            <TouchableOpacity 
-              onPress={showBedTimePickerHandler}
-              style={styles.dateTimeValue}
-            >
-              <Text style={styles.dateTimeText}>
-                {formatDate(bedTime)} | {formatTime(bedTime)}
-              </Text>
-              <MaterialCommunityIcons name="chevron-right" size={20} color="#666666" />
-            </TouchableOpacity>
+      <View style={{ flex: 1 }}>
+        {/* Hidden text component to prevent rendering errors */}
+        <Text style={{ height: 0, width: 0, opacity: 0 }}>placeholder for text rendering</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Hidden text component to prevent rendering errors */}
+          <Text style={{ height: 0, width: 0, opacity: 0 }}>placeholder for scroll content</Text>
+          
+          {/* Sleep Duration Card */}
+          <View style={styles.durationCard}>
+            <Text style={styles.durationTitle}>ระยะเวลาการนอน</Text>
+            <Text style={styles.durationValue}>{hours} ชั่วโมง {minutes} นาที</Text>
           </View>
           
-          <View style={styles.divider} />
-          
-          <View style={styles.dateTimeRow}>
-            <View style={styles.dateTimeLabel}>
-              <MaterialCommunityIcons name="weather-sunset-up" size={22} color="#FF9500" />
-              <Text style={styles.labelText}>ตื่นนอน</Text>
-            </View>
-            <TouchableOpacity 
-              onPress={showWakeTimePickerHandler}
-              style={styles.dateTimeValue}
-            >
-              <Text style={styles.dateTimeText}>
-                {formatDate(wakeTime)} | {formatTime(wakeTime)}
-              </Text>
-              <MaterialCommunityIcons name="chevron-right" size={20} color="#666666" />
-            </TouchableOpacity>
-          </View>
-        </View>
-        
-        {/* Sleep Quality */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>คุณภาพการนอน</Text>
-          
-          <View style={styles.qualitySelector}>
-            <TouchableOpacity
-              style={[styles.qualityButton, quality === 'bad' && styles.qualityButtonSelected]}
-              onPress={() => setQuality('bad')}
-            >
-              <MaterialCommunityIcons 
-                name="emoticon-sad-outline" 
-                size={24} 
-                color={quality === 'bad' ? '#FFFFFF' : '#999999'} 
-              />
-              <Text style={[styles.qualityText, quality === 'bad' && styles.qualityTextSelected]}>
-                แย่
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.qualityButton, quality === 'poor' && styles.qualityButtonSelected]}
-              onPress={() => setQuality('poor')}
-            >
-              <MaterialCommunityIcons 
-                name="emoticon-confused-outline" 
-                size={24} 
-                color={quality === 'poor' ? '#FFFFFF' : '#999999'} 
-              />
-              <Text style={[styles.qualityText, quality === 'poor' && styles.qualityTextSelected]}>
-                ไม่ดี
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.qualityButton, quality === 'average' && styles.qualityButtonSelected]}
-              onPress={() => setQuality('average')}
-            >
-              <MaterialCommunityIcons 
-                name="emoticon-neutral-outline" 
-                size={24} 
-                color={quality === 'average' ? '#FFFFFF' : '#999999'} 
-              />
-              <Text style={[styles.qualityText, quality === 'average' && styles.qualityTextSelected]}>
-                ปานกลาง
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.qualityButton, quality === 'good' && styles.qualityButtonSelected]}
-              onPress={() => setQuality('good')}
-            >
-              <MaterialCommunityIcons 
-                name="emoticon-happy-outline" 
-                size={24} 
-                color={quality === 'good' ? '#FFFFFF' : '#999999'} 
-              />
-              <Text style={[styles.qualityText, quality === 'good' && styles.qualityTextSelected]}>
-                ดี
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.qualityButton, quality === 'excellent' && styles.qualityButtonSelected]}
-              onPress={() => setQuality('excellent')}
-            >
-              <MaterialCommunityIcons 
-                name="emoticon-excited-outline" 
-                size={24} 
-                color={quality === 'excellent' ? '#FFFFFF' : '#999999'} 
-              />
-              <Text style={[styles.qualityText, quality === 'excellent' && styles.qualityTextSelected]}>
-                ดีเยี่ยม
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        
-        {/* Sleep Details */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>รายละเอียดเพิ่มเติม</Text>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>จำนวนครั้งที่ตื่นระหว่างการนอน</Text>
-            <View style={styles.counterContainer}>
-              <TouchableOpacity
-                style={styles.counterButton}
-                onPress={() => setInterruptions(Math.max(0, parseInt(interruptions) - 1))}
-              >
-                <MaterialCommunityIcons name="minus" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-              <Text style={styles.counterValue}>{interruptions}</Text>
-              <TouchableOpacity
-                style={styles.counterButton}
-                onPress={() => setInterruptions(parseInt(interruptions) + 1)}
-              >
-                <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          <View style={styles.divider} />
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>เวลาที่ใช้ในการเข้านอน (นาที)</Text>
-            <TextInput
-              style={styles.detailInput}
-              value={timeToFallAsleep}
-              onChangeText={setTimeToFallAsleep}
-              keyboardType="number-pad"
-              maxLength={3}
-            />
-          </View>
-          
-          <View style={styles.divider} />
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>ฝันหรือไม่</Text>
-            <Switch
-              value={hasDream}
-              onValueChange={setHasDream}
-              trackColor={{ false: '#767577', true: '#FF9500' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-          
-          {hasDream && (
-            <>
-              <View style={styles.divider} />
-              <View style={styles.textAreaContainer}>
-                <Text style={styles.detailLabel}>รายละเอียดความฝัน</Text>
-                <TextInput
-                  style={styles.textArea}
-                  value={dreamDetails}
-                  onChangeText={setDreamDetails}
-                  placeholder="เล่าความฝันของคุณ..."
-                  placeholderTextColor="#666666"
-                  multiline={true}
-                  numberOfLines={4}
-                />
+          {/* Date Time Selectors */}
+          <View style={styles.sectionCard}>
+            <View style={styles.dateTimeRow}>
+              <View style={styles.dateTimeLabel}>
+                <Text>
+                  <MaterialCommunityIcons name="bed" size={22} color="#FF9500" />
+                </Text>
+                <Text style={styles.labelText}>เข้านอน</Text>
               </View>
-            </>
-          )}
-        </View>
-        
-        {/* Notes */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>บันทึกเพิ่มเติม</Text>
-          <TextInput
-            style={styles.notesInput}
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="บันทึกข้อมูลเพิ่มเติมเกี่ยวกับการนอนของคุณ (ตัวอย่าง: รู้สึกปวดหัว, ทานยาเพิ่ม, ฯลฯ)"
-            placeholderTextColor="#666666"
-            multiline={true}
-            numberOfLines={4}
-          />
-        </View>
-        
-        {/* Delete Button (only in edit mode) */}
-        {editing && existingRecord && (
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={deleteSleepRecord}
-            disabled={deleting}
-          >
-            {deleting ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
+              <TouchableOpacity 
+                onPress={showBedTimePickerHandler}
+                style={styles.dateTimeValue}
+              >
+                <Text style={styles.dateTimeText}>
+                  {formatDate(bedTime)} | {formatTime(bedTime)}
+                </Text>
+                <Text>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color="#666666" />
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.divider} />
+            
+            <View style={styles.dateTimeRow}>
+              <View style={styles.dateTimeLabel}>
+                <Text>
+                  <MaterialCommunityIcons name="weather-sunset-up" size={22} color="#FF9500" />
+                </Text>
+                <Text style={styles.labelText}>ตื่นนอน</Text>
+              </View>
+              <TouchableOpacity 
+                onPress={showWakeTimePickerHandler}
+                style={styles.dateTimeValue}
+              >
+                <Text style={styles.dateTimeText}>
+                  {formatDate(wakeTime)} | {formatTime(wakeTime)}
+                </Text>
+                <Text>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color="#666666" />
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {/* Sleep Quality */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>คุณภาพการนอน</Text>
+            
+            <View style={styles.qualitySelector}>
+              <TouchableOpacity
+                style={[styles.qualityButton, quality === 'bad' && styles.qualityButtonSelected]}
+                onPress={() => setQuality('bad')}
+              >
+                <Text>
+                  <MaterialCommunityIcons 
+                    name="emoticon-sad-outline" 
+                    size={24} 
+                    color={quality === 'bad' ? '#FFFFFF' : '#999999'} 
+                  />
+                </Text>
+                <Text style={[styles.qualityText, quality === 'bad' && styles.qualityTextSelected]}>
+                  แย่
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.qualityButton, quality === 'poor' && styles.qualityButtonSelected]}
+                onPress={() => setQuality('poor')}
+              >
+                <Text>
+                  <MaterialCommunityIcons 
+                    name="emoticon-confused-outline" 
+                    size={24} 
+                    color={quality === 'poor' ? '#FFFFFF' : '#999999'} 
+                  />
+                </Text>
+                <Text style={[styles.qualityText, quality === 'poor' && styles.qualityTextSelected]}>
+                  ไม่ดี
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.qualityButton, quality === 'average' && styles.qualityButtonSelected]}
+                onPress={() => setQuality('average')}
+              >
+                <Text>
+                  <MaterialCommunityIcons 
+                    name="emoticon-neutral-outline" 
+                    size={24} 
+                    color={quality === 'average' ? '#FFFFFF' : '#999999'} 
+                  />
+                </Text>
+                <Text style={[styles.qualityText, quality === 'average' && styles.qualityTextSelected]}>
+                  ปานกลาง
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.qualityButton, quality === 'good' && styles.qualityButtonSelected]}
+                onPress={() => setQuality('good')}
+              >
+                <Text>
+                  <MaterialCommunityIcons 
+                    name="emoticon-happy-outline" 
+                    size={24} 
+                    color={quality === 'good' ? '#FFFFFF' : '#999999'} 
+                  />
+                </Text>
+                <Text style={[styles.qualityText, quality === 'good' && styles.qualityTextSelected]}>
+                  ดี
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.qualityButton, quality === 'excellent' && styles.qualityButtonSelected]}
+                onPress={() => setQuality('excellent')}
+              >
+                <Text>
+                  <MaterialCommunityIcons 
+                    name="emoticon-excited-outline" 
+                    size={24} 
+                    color={quality === 'excellent' ? '#FFFFFF' : '#999999'} 
+                  />
+                </Text>
+                <Text style={[styles.qualityText, quality === 'excellent' && styles.qualityTextSelected]}>
+                  ดีเยี่ยม
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {/* Sleep Details */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>รายละเอียดเพิ่มเติม</Text>
+            
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>จำนวนครั้งที่ตื่นระหว่างการนอน</Text>
+              <View style={styles.counterContainer}>
+                <TouchableOpacity
+                  style={styles.counterButton}
+                  onPress={() => setInterruptions(Math.max(0, parseInt(interruptions) - 1))}
+                >
+                  <Text>
+                    <MaterialCommunityIcons name="minus" size={18} color="#FFFFFF" />
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.counterValue}>{interruptions}</Text>
+                <TouchableOpacity
+                  style={styles.counterButton}
+                  onPress={() => setInterruptions(parseInt(interruptions) + 1)}
+                >
+                  <Text>
+                    <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.divider} />
+            
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>เวลาที่ใช้ในการเข้านอน (นาที)</Text>
+              <TextInput
+                style={styles.detailInput}
+                value={timeToFallAsleep}
+                onChangeText={setTimeToFallAsleep}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+            </View>
+            
+            <View style={styles.divider} />
+            
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>ฝันหรือไม่</Text>
+              <Switch
+                value={hasDream}
+                onValueChange={setHasDream}
+                trackColor={{ false: '#767577', true: '#FF9500' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+            
+            {hasDream && (
               <>
-                <MaterialCommunityIcons name="trash-can-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.deleteButtonText}>ลบข้อมูลการนอน</Text>
+                <View style={styles.divider} />
+                <View style={styles.textAreaContainer}>
+                  <Text style={styles.detailLabel}>รายละเอียดความฝัน</Text>
+                  <TextInput
+                    style={styles.textArea}
+                    value={dreamDetails}
+                    onChangeText={setDreamDetails}
+                    placeholder="เล่าความฝันของคุณ..."
+                    placeholderTextColor="#666666"
+                    multiline={true}
+                    numberOfLines={4}
+                  />
+                </View>
               </>
             )}
-          </TouchableOpacity>
-        )}      </ScrollView>
-        {/* Date Picker */}
+          </View>
+          
+          {/* Notes */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>บันทึกเพิ่มเติม</Text>
+            <TextInput
+              style={styles.notesInput}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="บันทึกข้อมูลเพิ่มเติมเกี่ยวกับการนอนของคุณ (ตัวอย่าง: รู้สึกปวดหัว, ทานยาเพิ่ม, ฯลฯ)"
+              placeholderTextColor="#666666"
+              multiline={true}
+              numberOfLines={4}
+            />
+          </View>
+          
+          {/* Delete Button (only in edit mode) */}
+          {editing && existingRecord && (
+            <TouchableOpacity 
+              style={styles.deleteButton}
+              onPress={deleteSleepRecord}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text>
+                    <MaterialCommunityIcons name="trash-can-outline" size={20} color="#FFFFFF" />
+                  </Text>
+                  <Text style={styles.deleteButtonText}>ลบข้อมูลการนอน</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      </View>
+      
+      {/* Date Picker */}
       {showDatePicker && Platform.OS === 'ios' && (
         <SafeDateTimePicker
           value={tempDateTime}

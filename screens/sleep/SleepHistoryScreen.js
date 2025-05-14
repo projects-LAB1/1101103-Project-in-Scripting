@@ -222,7 +222,9 @@ const SleepHistoryScreen = ({ navigation }) => {
           colors={['#FF9500', '#FF5733']}
           style={styles.addButtonGradient}
         >
-          <MaterialCommunityIcons name="plus" size={30} color="#FFFFFF" />
+          <Text style={styles.addButtonText}>
+            <MaterialCommunityIcons name="plus" size={30} color="#FFFFFF" />
+          </Text>
         </LinearGradient>
       </TouchableOpacity>
     </SafeAreaView>
@@ -376,6 +378,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });
 
