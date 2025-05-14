@@ -235,6 +235,18 @@ export const cancelAlarm = async (notificationId) => {
 // ทดสอบการแจ้งเตือนแบบทันที
 export const triggerTestAlarm = async (alarmData) => {
   try {
+    // ยกเลิกการแจ้งเตือนทดสอบที่อาจมีอยู่ก่อนหน้า
+    const notifications = await Notifications.getAllScheduledNotificationsAsync();
+    for (const notification of notifications) {
+      if (notification.content?.data?.isTest) {
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier)
+          .catch(err => console.log('Error cancelling test notification:', err));
+      }
+    }
+    
+    // รอให้ระบบได้ยกเลิกการแจ้งเตือนจริงๆ
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
     // สร้างข้อมูลทดสอบแบบเร็ว
     const testAlarmData = {
       ...alarmData,

@@ -38,6 +38,35 @@ const AlarmRinging = ({ route, navigation }) => {
     stopAlarmSound 
   } = useAlarmSound();
 
+  // ฟังก์ชันตั้งค่า Audio Mode แยกตาม Platform
+  const setAudioMode = async (playMode = true) => {
+    try {
+      await Audio.setIsEnabledAsync(true);
+      
+      // แยกการตั้งค่าตาม platform เพื่อหลีกเลี่ยงปัญหา invalid value
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          staysActiveInBackground: playMode,
+          interruptionModeIOS: playMode ? 1 : 0, // 1=DO_NOT_MIX, 0=MIX_WITH_OTHERS
+          playsInSilentModeIOS: playMode,
+        });
+      } else if (Platform.OS === 'android') {
+        await Audio.setAudioModeAsync({
+          staysActiveInBackground: playMode,
+          shouldDuckAndroid: playMode,
+          interruptionModeAndroid: 1, // DO_NOT_MIX
+          playThroughEarpieceAndroid: false,
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error setting audio mode:', error);
+      return false;
+    }
+  };
+
   // Animation values
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -104,16 +133,12 @@ const AlarmRinging = ({ route, navigation }) => {
   useEffect(() => {
     const handleAlarmStart = async () => {
       try {
-        // Set audio mode for alarm
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          staysActiveInBackground: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-          playThroughEarpieceAndroid: false,
-        });
+        // ตรวจสอบว่าเป็นการทดสอบหรือไม่ เพื่อแสดงข้อความที่เหมาะสม
+        const isTestMode = alarm?.isTest === true;
+        console.log(`เริ่มการปลุก ${isTestMode ? '(โหมดทดสอบ)' : '(ปลุกจริง)'}`);
+        
+        // Set audio mode for alarm - with better error handling
+        await setAudioMode(true);
 
         // Start vibration pattern if vibration is enabled
         if (alarm?.vibrate) {
@@ -142,42 +167,143 @@ const AlarmRinging = ({ route, navigation }) => {
 
     // Clean up
     return () => {
+      console.log("กำลังออกจากหน้าจอ AlarmRinging - ทำความสะอาดทรัพยากร");
       // หยุดเสียงด้วย context
       stopAlarmSound();
       Vibration.cancel();
+      
+      // ถ้าเป็นการทดสอบ รีเซ็ตตัวแปรป้องกันการกดซ้ำ
+      if (alarm?.isTest && window.isTestingAlarm !== undefined) {
+        window.isTestingAlarm = false;
+      }
     };
   }, [alarm]);
 
   // Handle stopping the alarm
   const handleStopAlarm = async () => {
     try {
-      // หยุดเสียงด้วย context
-      stopAlarmSound();
+      console.log("กำลังหยุดเสียงปลุก - เริ่มต้นกระบวนการ");
+      
+      // หยุดเสียงทันทีด้วยการทำงาน 3 วิธี
+      
+      // 1. หยุดเสียงด้วย context
+      await stopAlarmSound();
+      
+      // 2. ใช้ Audio API โดยตรงเพื่อรีเซ็ตระบบเสียง (ช่วยในกรณีที่เสียงค้าง)
+      try {
+        await Audio.setIsEnabledAsync(false);
+        await new Promise(resolve => setTimeout(resolve, 300)); // เพิ่มเวลารอให้มากขึ้น
+        await Audio.setIsEnabledAsync(true);
+      } catch (e) {
+        console.log("ไม่สามารถรีเซ็ตระบบเสียงได้:", e);
+      }
+
+      // 3. ตรวจสอบอีกครั้งว่ายังมีเสียงเล่นอยู่หรือไม่ (กรณีที่ context ไม่สามารถหยุดได้)
+      if (sound && typeof sound.getStatusAsync === 'function') {
+        try {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded && status.isPlaying) {
+            await sound.stopAsync();
+            await sound.unloadAsync();
+          }
+        } catch (e) {
+          console.log("ไม่สามารถหยุดเสียงเดิมได้:", e);
+        }
+      }
+
+      // 4. หยุดทุกเสียงที่กำลังเล่นอยู่ในระบบอย่างเด็ดขาด
+      try {
+        // หยุดเสียงทั้งหมดในระบบอย่างเด็ดขาด
+        await Audio.stopAndUnloadAsync();
+      } catch (e) {
+        console.log("ไม่สามารถหยุดเสียงทั้งหมดได้:", e);
+      }
 
       // Stop vibration
       Vibration.cancel();
 
       setIsPlaying(false);
 
-      // Navigate back after a brief delay
+      // ถ้าเป็นการทดสอบ รีเซ็ตตัวแปรป้องกันการกดซ้ำ
+      if (alarm?.isTest && window.isTestingAlarm !== undefined) {
+        window.isTestingAlarm = false;
+      }
+      
+      console.log("สำเร็จ: หยุดเสียงปลุกแล้ว กำลังย้อนกลับไปหน้าหลัก");
+
+      // Navigate back after a brief delay - เพิ่มเวลารอให้มากขึ้นเพื่อให้แน่ใจว่าเสียงหยุดแล้ว
       setTimeout(() => {
         navigation.reset({
           index: 0,
           routes: [{ name: "AlarmList" }],
         });
-      }, 500);
+      }, 1000);
     } catch (error) {
       console.error("Error stopping alarm:", error);
+      
+      // หยุดทุกเสียงในระบบเมื่อเกิดข้อผิดพลาด
+      try {
+        await Audio.setIsEnabledAsync(false);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await Audio.setIsEnabledAsync(true);
+        await Audio.stopAndUnloadAsync();
+      } catch (e) {
+        console.log("ไม่สามารถรีเซ็ตระบบเสียงได้ในตอนเกิดข้อผิดพลาด:", e);
+      }
+      
+      // Even if there's an error, try to navigate back
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "AlarmList" }],
+      });
     }
   };
 
   // Handle snoozing the alarm
   const handleSnooze = async () => {
     try {
-      // Stop current alarm sound and vibration using context
-      stopAlarmSound();
+      console.log("กำลังเลื่อนปลุก - เริ่มต้นกระบวนการ");
+      
+      // 1. หยุดเสียงด้วย context
+      await stopAlarmSound();
+      
+      // 2. ใช้ Audio API โดยตรงเพื่อรีเซ็ตระบบเสียง (ช่วยในกรณีที่เสียงค้าง)
+      try {
+        await Audio.setIsEnabledAsync(false);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await Audio.setIsEnabledAsync(true);
+      } catch (e) {
+        console.log("ไม่สามารถรีเซ็ตระบบเสียงได้:", e);
+      }
+      
+      // 3. ตรวจสอบอีกครั้งว่ายังมีเสียงเล่นอยู่หรือไม่ (กรณีที่ context ไม่สามารถหยุดได้)
+      if (sound && typeof sound.getStatusAsync === 'function') {
+        try {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded && status.isPlaying) {
+            await sound.stopAsync();
+            await sound.unloadAsync();
+          }
+        } catch (e) {
+          console.log("ไม่สามารถหยุดเสียงเดิมได้:", e);
+        }
+      }
+      
+      // 4. หยุดทุกเสียงที่กำลังเล่นอยู่ในระบบอย่างเด็ดขาด
+      try {
+        await Audio.stopAndUnloadAsync();
+      } catch (e) {
+        console.log("ไม่สามารถหยุดเสียงทั้งหมดได้:", e);
+      }
+      
+      // Stop vibration
       Vibration.cancel();
       setIsPlaying(false);
+
+      // ถ้าเป็นการทดสอบ รีเซ็ตตัวแปรป้องกันการกดซ้ำ
+      if (alarm?.isTest && window.isTestingAlarm !== undefined) {
+        window.isTestingAlarm = false;
+      }
 
       if (remainingSnoozes > 0) {
         // Calculate snooze time
@@ -198,6 +324,9 @@ const AlarmRinging = ({ route, navigation }) => {
         // Schedule a new notification for snooze
         // This would use the scheduleAlarmNotification with modified time
 
+        // รอเล็กน้อยเพื่อให้แน่ใจว่าเสียงหยุดแล้ว
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Navigate back
         navigation.reset({
           index: 0,
@@ -209,6 +338,23 @@ const AlarmRinging = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error("Error snoozing alarm:", error);
+      
+      // หากเกิดข้อผิดพลาด ให้พยายามหยุดเสียงอีกครั้ง
+      try {
+        await Audio.setIsEnabledAsync(false);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await Audio.setIsEnabledAsync(true);
+        await Audio.stopAndUnloadAsync();
+        Vibration.cancel();
+      } catch (e) {
+        console.log("ไม่สามารถรีเซ็ตระบบเสียงได้ในตอนเกิดข้อผิดพลาด:", e);
+      }
+      
+      // แม้เกิดข้อผิดพลาดให้กลับไปหน้าหลัก
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "AlarmList" }],
+      });
     }
   };
 

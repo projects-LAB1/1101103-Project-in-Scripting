@@ -195,7 +195,24 @@ const SleepHomeScreen = ({ navigation }) => {
               <Text style={styles.goalsSubtitle}>ตั้งค่าเป้าหมายการนอนหลับและรูปแบบการนอน</Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
-          </View>        </TouchableOpacity>      </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </ScrollView>
+      
+      {/* Add sleep record button */}
+      <TouchableOpacity 
+        style={styles.addButton}
+        onPress={() => navigation.navigate('SleepEntry')}
+      >
+        <LinearGradient
+          colors={['#FF9500', '#FF5733']}
+          style={styles.addButtonGradient}
+        >
+          <Text style={styles.addButtonText}>
+            <MaterialCommunityIcons name="plus" size={30} color="#FFFFFF" />
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -354,10 +371,33 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
-  },  goalsSubtitle: {
+  },
+  goalsSubtitle: {
     fontSize: 13,
     color: '#999999',
     marginTop: 2,
+  },
+  addButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 

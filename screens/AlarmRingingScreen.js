@@ -171,17 +171,25 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     if (alarm && alarm.requireGame) {
       console.log("Navigating to GameSelector screen");
       
-      // หยุดเสียงเมื่อกดปุ่ม Dismiss ไม่ว่าจะไปที่หน้าเกมหรือไม่
-      console.log("Stopping sound before navigating to game");
+      // หยุดการสั่นก่อนนำทางไปยังหน้าเกม
       Vibration.cancel();
-      stopAlarmSound();
       
-      // Navigate to game selector โดยหยุดเสียงก่อน
-      navigation.navigate("GameSelector", {
-        alarm,
-        onComplete: () => completeAlarm("completed"),
-        soundAlreadyStopped: true, // เพิ่ม flag เพื่อบอกว่าเสียงถูกหยุดแล้ว
-      });
+      try {
+        // นำทางไปที่หน้าเลือกเกมโดยไม่หยุดเสียงก่อน
+        // เพื่อให้ context จัดการเสียงในหน้าเกมแทน
+        navigation.navigate("GameSelector", {
+          alarm,
+          onComplete: () => completeAlarm("completed"),
+          soundAlreadyStopped: false, // เปลี่ยนเป็น false เพื่อให้หน้าเกมจัดการเสียงเอง
+        });
+      } catch (error) {
+        console.error("Navigation error:", error);
+        // หากเกิดข้อผิดพลาดในการนำทาง ให้หยุดเสียงและกลับไปที่หน้ารายการนาฬิกาปลุก
+        stopAlarmSound();
+        navigation.navigate("Alarm", {
+          screen: "AlarmList",
+        });
+      }
     } else {
       // Standard dismiss with confirmation
       Alert.alert("Turn off alarm", "Do you want to turn off this alarm?", [

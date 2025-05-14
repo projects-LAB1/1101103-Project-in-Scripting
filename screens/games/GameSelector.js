@@ -35,13 +35,21 @@ const GameSelector = ({ route, navigation }) => {
     if (isPlaying && !soundAlreadyStopped) {
       console.log('Stopping alarm sound in GameSelector useEffect');
       // เรียกใช้งาน stopAlarmSound เพื่อหยุดเสียง
-      stopAlarmSound();
+      try {
+        stopAlarmSound();
+      } catch (error) {
+        console.error('Error stopping alarm sound:', error);
+      }
       
       // ตรวจสอบอีกครั้งหลังจากรอสักครู่เพื่อให้แน่ใจว่าเสียงถูกหยุดจริงๆ
       setTimeout(() => {
         if (isPlaying) {
           console.log('Trying to stop sound again after delay in GameSelector');
-          stopAlarmSound();
+          try {
+            stopAlarmSound();
+          } catch (error) {
+            console.error('Error stopping alarm sound in timeout:', error);
+          }
         }
       }, 500);
     }
@@ -51,10 +59,14 @@ const GameSelector = ({ route, navigation }) => {
       // ตรวจสอบว่าเสียงหยุดแล้วหรือยัง และหยุดอีกครั้งถ้ายังไม่หยุด
       if (isPlaying) {
         console.log('Stopping sound in GameSelector cleanup');
-        stopAlarmSound();
+        try {
+          stopAlarmSound();
+        } catch (error) {
+          console.error('Error stopping alarm sound in cleanup:', error);
+        }
       }
     }; 
-  }, [isPlaying, stopAlarmSound, soundAlreadyStopped]);
+  }, [isPlaying, stopAlarmSound, soundAlreadyStopped, alarm]);
 
   // ฟังก์ชันเรียกเมื่อเล่นเกมเสร็จแล้ว
   const handleGameComplete = () => {
@@ -70,13 +82,21 @@ const GameSelector = ({ route, navigation }) => {
     if (isPlaying && !soundAlreadyStopped) {
       console.log('Stopping alarm sound after game completion');
       // เรียกใช้ stopAlarmSound เพื่อหยุดเสียง
-      stopAlarmSound();
+      try {
+        stopAlarmSound();
+      } catch (error) {
+        console.error('Error stopping alarm sound after game completion:', error);
+      }
       
       // ตรวจสอบอีกครั้งหลังจากรอสักครู่
       setTimeout(() => {
         if (isPlaying) {
           console.log('Final check to stop sound after game completion');
-          stopAlarmSound();
+          try {
+            stopAlarmSound();
+          } catch (error) {
+            console.error('Error in final check to stop alarm sound:', error);
+          }
         }
       }, 500);
     } else {
@@ -84,14 +104,24 @@ const GameSelector = ({ route, navigation }) => {
     }
     
     // เมื่อเกมเสร็จสิ้น ใช้ฟังก์ชัน onComplete จาก route.params ถ้ามี
-    if (typeof onComplete === 'function') {
-      onComplete();
-    } else {
-      // ถ้าไม่มี onComplete ให้กลับไปที่หน้ารายการนาฬิกาปลุก
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Alarm', params: { screen: 'AlarmList' } }],
-      });
+    try {
+      if (typeof onComplete === 'function') {
+        onComplete();
+      } else {
+        // ถ้าไม่มี onComplete ให้กลับไปที่หน้ารายการนาฬิกาปลุก
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Alarm', params: { screen: 'AlarmList' } }],
+        });
+      }
+    } catch (error) {
+      console.error('Error in navigation after game completion:', error);
+      // ถ้าเกิดข้อผิดพลาดในการนำทาง ให้พยายามกลับไปที่หน้ารายการนาฬิกาปลุกโดยตรง
+      try {
+        navigation.navigate('Alarm', { screen: 'AlarmList' });
+      } catch (navError) {
+        console.error('Failed to navigate after error:', navError);
+      }
     }
   };
   
