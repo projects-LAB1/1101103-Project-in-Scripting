@@ -95,7 +95,13 @@ export const registerForPushNotificationsAsync = async () => {
     return null;
   }
 
-  // ดึง token สำหรับการแจ้งเตือน
+  // ในสภาพแวดล้อม Expo Go ให้ข้าม token และใช้เฉพาะการแจ้งเตือนภายในเครื่อง
+  if (Constants.appOwnership === 'expo') {
+    console.log('INFO: Using local notifications only in Expo Go environment');
+    return null;
+  }
+
+  // ดึง token สำหรับการแจ้งเตือน (เฉพาะ development build)
   try {
     // ใช้ projectId จาก app.json ผ่าน Constants
     // ตรวจสอบว่ามี Constants.manifest หรือไม่

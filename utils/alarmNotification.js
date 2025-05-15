@@ -1,8 +1,15 @@
 import * as Notifications from "expo-notifications";
 import { Platform, Alert, Linking } from "react-native";
+import Constants from "expo-constants";
 
-// NOTE: This app uses LOCAL notifications for alarms, which WILL continue to work in Expo Go even in SDK 53+
+// ======================= EXPO GO COMPATIBILITY NOTE =======================
+// This app uses LOCAL notifications for alarms, which WILL continue to work in Expo Go even in SDK 53+
 // Only REMOTE (push) notifications are being removed from Expo Go.
+//
+// SDK 53+ WARNING:
+// If you're seeing an error about push notifications, this is expected behavior in Expo Go
+// and can be safely ignored as we only use local notifications for alarms.
+// =========================================================================
 
 // ตั้งค่าการแจ้งเตือน
 Notifications.setNotificationHandler({
@@ -54,6 +61,9 @@ export const requestNotificationPermissions = async () => {
           },
           bypassDnd: true,
         });
+        
+        // Log successful notification channel creation
+        console.log("Android notification channel 'alarms' created successfully");
       } catch (error) {
         console.error("Error creating notification channel:", error);
       }
