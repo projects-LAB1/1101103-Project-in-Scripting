@@ -48,7 +48,7 @@ const RegisterScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const result = await register(email.trim(), password, name);
+      const result = await register(email.trim(), password, name.trim());
       if (!result.success) {
         throw new Error(result.error);
       }
@@ -143,7 +143,7 @@ const RegisterScreen = ({ navigation }) => {
 
             <View style={styles.loginContainer}>
               <Text style={styles.loginText}>มีบัญชีอยู่แล้ว? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+              <TouchableOpacity onPress={() => navigation.navigate("LoginRoot")}>
                 <Text style={styles.loginLink}>เข้าสู่ระบบ</Text>
               </TouchableOpacity>
             </View>

@@ -62,18 +62,6 @@ const AppNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="SleepHistory"
-        component={SleepNavigator}
-        initialParams={{ screen: 'SleepHistory' }}
-        options={{
-          title: "ประวัติการนอน",
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="history" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
         name="Settings"
         component={SettingsScreen}
         options={{

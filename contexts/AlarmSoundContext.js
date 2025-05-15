@@ -214,13 +214,6 @@ export const AlarmSoundProvider = ({ children }) => {
       
       await stopAndUnloadSound(sound);
       
-      // พยายามยกเลิกทุกเสียงในระบบซ้ำอีกครั้ง
-      try {
-        await Audio.stopAndUnloadAsync();
-      } catch (e) {
-        console.log('ไม่สามารถยกเลิกทุกเสียงในระบบได้:', e);
-      }
-      
       // รีเซ็ตระบบเสียงด้วยการปิดและเปิดใหม่
       try {
         await Audio.setIsEnabledAsync(false);
@@ -240,7 +233,6 @@ export const AlarmSoundProvider = ({ children }) => {
       try {
         await Audio.setIsEnabledAsync(false);
         await Audio.setIsEnabledAsync(true);
-        await Audio.stopAndUnloadAsync();
       } catch (e) {
         // ไม่ต้องทำอะไรถ้าการกู้คืนไม่สำเร็จ
       }

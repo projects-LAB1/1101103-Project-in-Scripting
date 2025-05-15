@@ -9,8 +9,6 @@ import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants'; // Import Constants to check for Expo Go environment
-// Import Firebase configuration
-import { auth, db } from './firebase/config';
 // Import AppStateManager
 import { initAppStateMonitoring, setupAppStateNotificationHandlers } from './utils/AppStateManager';
 
@@ -23,6 +21,9 @@ LogBox.ignoreLogs([
   // เพิ่มการ ignore สำหรับการแจ้งเตือนของ expo-notifications ใน Expo Go
   'Android Push notifications (remote notifications) functionality provided by expo-notifications',
   '`expo-notifications` functionality is not fully supported in Expo Go',
+  // เพิ่ม Firebase logging
+  '@firebase/auth',
+  'Firebase has been initialized',
 ]);
 
 // แสดงข้อความสำหรับ developer ว่าเราใช้เฉพาะ local notifications
@@ -49,37 +50,6 @@ export default function App() {
   const navigationRef = useRef(null);
   const appState = useRef(AppState.currentState);
   const [audioInitialized, setAudioInitialized] = useState(false);
-  const [firebaseReady, setFirebaseReady] = useState(false);
-
-  // ตรวจสอบการเชื่อมต่อ Firebase
-  useEffect(() => {
-    // กำหนดเวลาสูงสุดที่รอ Firebase (5 วินาที)
-    const timeoutId = setTimeout(() => {
-      console.log("Firebase connection timed out, continuing without Firebase...");
-      setFirebaseReady(true); // ให้แอปทำงานต่อไปแม้ Firebase จะไม่พร้อม
-    }, 5000);
-
-    // ทดสอบการเชื่อมต่อ Firebase
-    const checkFirebaseConnection = async () => {
-      try {
-        console.log("Testing Firebase connection...");
-        
-        // ทำการเรียก API ง่ายๆ เพื่อตรวจสอบการเชื่อมต่อ
-        if (auth) {
-          console.log("Firebase auth instance exists");
-          setFirebaseReady(true);
-          clearTimeout(timeoutId);
-        }
-      } catch (error) {
-        console.error("Firebase connection error:", error);
-        // ไม่ต้องตั้งค่า firebaseReady ที่นี่ เพราะ timeout จะทำให้แอปทำงานต่อไปได้
-      }
-    };
-
-    checkFirebaseConnection();
-
-    return () => clearTimeout(timeoutId);
-  }, []);
 
   // ฟังก์ชันตั้งค่า Audio Mode แยกตาม Platform
   const setAudioMode = async (playMode = true) => {
@@ -213,8 +183,6 @@ export default function App() {
     };
   }, []);
 
-  // ถ้ามีปัญหากับ Firebase หรือระบบเสียง ให้สามารถใช้แอปได้อยู่
-  // แสดงแอปเสมอ ไม่ว่า Firebase หรือ audio จะพร้อมหรือไม่
   return (
     <SafeAreaProvider>
       <AuthProvider>

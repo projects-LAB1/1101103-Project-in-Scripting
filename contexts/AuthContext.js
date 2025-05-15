@@ -1,7 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { register, login, logout, getCurrentUser } from '../utils/authStorage';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../firebase/config';
 
 const AuthContext = createContext(null);
 
@@ -17,67 +15,28 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Debug function to check Firebase initialization
+  // โหลดข้อมูลผู้ใช้จาก AsyncStorage เมื่อแอปเริ่มทำงาน
   useEffect(() => {
-    console.log("Checking Firebase initialization...");
-    try {
-      console.log("Firebase auth object:", auth);
-      console.log("Firebase initialized:", auth._initializationPromise !== undefined);
-    } catch (error) {
-      console.error("Error checking Firebase:", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    console.log("Setting up auth state listener...");
-    let unsubscribe;
+    console.log("Setting up local auth...");
+    const checkAsyncStorage = async () => {
+      try {
+        const asyncUser = await getCurrentUser();
+        console.log("AsyncStorage user:", asyncUser ? "Found" : "Not found");
+        setUser(asyncUser);
+      } catch (error) {
+        console.error("Error checking AsyncStorage:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    try {
-      // ตรวจสอบสถานะการเข้าสู่ระบบเมื่อแอพเริ่มทำงาน
-      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        console.log("Auth state changed:", firebaseUser ? "User found" : "No user");
-        try {
-          if (firebaseUser) {
-            console.log("Firebase user data:", {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName || "No display name"
-            });
-            
-            const userData = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-            };
-            setUser(userData);
-          } else {
-            // ถ้าไม่มีผู้ใช้ใน Firebase ให้ลองเช็คใน AsyncStorage
-            console.log("Checking AsyncStorage for user data...");
-            const asyncUser = await getCurrentUser();
-            console.log("AsyncStorage user:", asyncUser ? "Found" : "Not found");
-            setUser(asyncUser);
-          }
-        } catch (error) {
-          console.error("Error in auth state listener:", error);
-        } finally {
-          setLoading(false);
-        }
-      });
-    } catch (error) {
-      console.error("Critical error setting up auth state listener:", error);
-      setLoading(false);
-    }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    }
+    checkAsyncStorage();
   }, []);
 
-  const handleRegister = async (email, password) => {
+  const handleRegister = async (email, password, displayName = '') => {
     console.log("Attempting to register user:", email);
     try {
-      const newUser = await register(email, password);
+      const newUser = await register(email, password, displayName);
       console.log("Registration successful:", newUser);
       setUser(newUser);
       return { success: true, user: newUser };
@@ -90,13 +49,23 @@ export const AuthProvider = ({ children }) => {
   const handleLogin = async (email, password) => {
     console.log("Attempting to login user:", email);
     try {
+      setLoading(true);
       const loggedInUser = await login(email, password);
       console.log("Login successful:", loggedInUser);
+      
+      // ตรวจสอบว่า loggedInUser มีค่าหรือไม่
+      if (!loggedInUser) {
+        throw new Error('ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบอีเมลและรหัสผ่าน');
+      }
+      
       setUser(loggedInUser);
       return { success: true, user: loggedInUser };
     } catch (error) {
       console.error("Login error:", error);
-      return { success: false, error: error.message };
+      let errorMessage = error.message || 'ไม่สามารถเข้าสู่ระบบได้ กรุณาลองอีกครั้ง';
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
     }
   };
 

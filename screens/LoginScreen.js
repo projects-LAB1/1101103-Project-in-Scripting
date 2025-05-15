@@ -49,18 +49,24 @@ const LoginScreen = ({ navigation }) => {
       
       let result;
       if (isRegistering) {
-        result = await register(email, password);
+        // ถ้าเป็นการสมัครสมาชิก ให้ใช้ register แทนที่จะนำทางไปยังหน้า Register
+        result = await register(email, password, "");
       } else {
+        console.log("Attempting login with:", email);
         result = await login(email, password);
       }
       
-      if (result.success) {
+      if (result && result.success) {
+        console.log("Authentication successful, navigating to Main");
         navigation.navigate('Main');
       } else {
-        Alert.alert('เกิดข้อผิดพลาด', result.error || 'ไม่สามารถเข้าสู่ระบบได้');
+        const errorMsg = result?.error || 'ไม่สามารถดำเนินการได้ กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง';
+        console.log("Authentication failed:", errorMsg);
+        Alert.alert(isRegistering ? 'สมัครสมาชิกไม่สำเร็จ' : 'เข้าสู่ระบบไม่สำเร็จ', errorMsg);
       }
     } catch (error) {
-      Alert.alert('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถดำเนินการได้');
+      console.error("Authentication exception:", error);
+      Alert.alert('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);
     }
