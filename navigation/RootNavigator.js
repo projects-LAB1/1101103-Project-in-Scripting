@@ -84,7 +84,7 @@ const RootNavigator = forwardRef((props, ref) => {
         {/* เริ่มต้นด้วยหน้า Main เสมอไม่ว่าจะล็อกอินหรือไม่ */}
         <Stack.Screen name="Main" component={AppNavigator} />
         <Stack.Screen name="Auth" component={AuthNavigator} />
-        <Stack.Screen name="Login" component={AuthNavigator} />
+        <Stack.Screen name="LoginRoot" component={AuthNavigator} initialParams={{ screen: 'Login' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

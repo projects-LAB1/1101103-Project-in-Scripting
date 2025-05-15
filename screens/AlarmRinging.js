@@ -210,13 +210,13 @@ const AlarmRinging = ({ route, navigation }) => {
           console.log("ไม่สามารถหยุดเสียงเดิมได้:", e);
         }
       }
-
-      // 4. หยุดทุกเสียงที่กำลังเล่นอยู่ในระบบอย่างเด็ดขาด
+      
+      // ทำความสะอาดระบบเสียงเพิ่มเติม
       try {
-        // หยุดเสียงทั้งหมดในระบบอย่างเด็ดขาด
-        await Audio.stopAndUnloadAsync();
+        // รีเซ็ตระบบเสียงอีกครั้ง
+        await Audio.setIsEnabledAsync(true);
       } catch (e) {
-        console.log("ไม่สามารถหยุดเสียงทั้งหมดได้:", e);
+        console.log("ไม่สามารถเปิดใช้งานระบบเสียงอีกครั้ง:", e);
       }
 
       // Stop vibration
@@ -246,7 +246,6 @@ const AlarmRinging = ({ route, navigation }) => {
         await Audio.setIsEnabledAsync(false);
         await new Promise(resolve => setTimeout(resolve, 300));
         await Audio.setIsEnabledAsync(true);
-        await Audio.stopAndUnloadAsync();
       } catch (e) {
         console.log("ไม่สามารถรีเซ็ตระบบเสียงได้ในตอนเกิดข้อผิดพลาด:", e);
       }
@@ -287,13 +286,6 @@ const AlarmRinging = ({ route, navigation }) => {
         } catch (e) {
           console.log("ไม่สามารถหยุดเสียงเดิมได้:", e);
         }
-      }
-      
-      // 4. หยุดทุกเสียงที่กำลังเล่นอยู่ในระบบอย่างเด็ดขาด
-      try {
-        await Audio.stopAndUnloadAsync();
-      } catch (e) {
-        console.log("ไม่สามารถหยุดเสียงทั้งหมดได้:", e);
       }
       
       // Stop vibration
@@ -344,7 +336,6 @@ const AlarmRinging = ({ route, navigation }) => {
         await Audio.setIsEnabledAsync(false);
         await new Promise(resolve => setTimeout(resolve, 300));
         await Audio.setIsEnabledAsync(true);
-        await Audio.stopAndUnloadAsync();
         Vibration.cancel();
       } catch (e) {
         console.log("ไม่สามารถรีเซ็ตระบบเสียงได้ในตอนเกิดข้อผิดพลาด:", e);

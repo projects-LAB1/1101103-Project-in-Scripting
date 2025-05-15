@@ -1,5 +1,5 @@
 // GameSelector.js - ตัวเลือกเกมสำหรับปิดนาฬิกาปลุก
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,12 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAlarmSound } from '../../contexts/AlarmSoundContext';
+import { Audio } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 const GAME_CARD_WIDTH = width * 0.43;
@@ -22,6 +24,29 @@ const GameSelector = ({ route, navigation }) => {
   const { isPlaying, stopAlarmSound } = useAlarmSound();
   // ใช้ ref เพื่อระวังไม่ให้เรียก onComplete ซ้ำ
   const isCompletedRef = useRef(false);
+  // เพิ่ม state เพื่อตรวจสอบสถานะเสียง
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  
+  // ตรวจสอบและเตรียมระบบเสียง
+  useEffect(() => {
+    const prepareAudio = async () => {
+      try {
+        // ตรวจสอบว่าระบบเสียงพร้อมใช้งานหรือไม่
+        await Audio.setIsEnabledAsync(true);
+        setAudioEnabled(true);
+      } catch (error) {
+        console.error('Error enabling audio:', error);
+        setAudioEnabled(false);
+        // แสดงข้อความแจ้งเตือนถ้าไม่สามารถเปิดใช้งานระบบเสียงได้
+        Alert.alert(
+          'ไม่สามารถเปิดใช้งานระบบเสียง',
+          'แอปอาจไม่สามารถเล่นเสียงปลุกได้ กรุณาตรวจสอบการอนุญาตการใช้งานเสียงของแอป'
+        );
+      }
+    };
+    
+    prepareAudio();
+  }, []);
   
   // แสดงข้อมูลเพื่อการดีบัก
   useEffect(() => {
@@ -72,6 +97,7 @@ const GameSelector = ({ route, navigation }) => {
   const handleGameComplete = () => {
     // ป้องกันการเรียกซ้ำ
     if (isCompletedRef.current) {
+      console.log('Game completion already handled, ignoring duplicate call');
       return;
     }
     
@@ -87,18 +113,6 @@ const GameSelector = ({ route, navigation }) => {
       } catch (error) {
         console.error('Error stopping alarm sound after game completion:', error);
       }
-      
-      // ตรวจสอบอีกครั้งหลังจากรอสักครู่
-      setTimeout(() => {
-        if (isPlaying) {
-          console.log('Final check to stop sound after game completion');
-          try {
-            stopAlarmSound();
-          } catch (error) {
-            console.error('Error in final check to stop alarm sound:', error);
-          }
-        }
-      }, 500);
     } else {
       console.log('Sound was already stopped or not playing');
     }
@@ -106,8 +120,10 @@ const GameSelector = ({ route, navigation }) => {
     // เมื่อเกมเสร็จสิ้น ใช้ฟังก์ชัน onComplete จาก route.params ถ้ามี
     try {
       if (typeof onComplete === 'function') {
+        console.log('Calling provided onComplete function');
         onComplete();
       } else {
+        console.log('No onComplete function provided, navigating to AlarmList');
         // ถ้าไม่มี onComplete ให้กลับไปที่หน้ารายการนาฬิกาปลุก
         navigation.reset({
           index: 0,
@@ -121,6 +137,12 @@ const GameSelector = ({ route, navigation }) => {
         navigation.navigate('Alarm', { screen: 'AlarmList' });
       } catch (navError) {
         console.error('Failed to navigate after error:', navError);
+        // ถ้าไม่สามารถนำทางได้ ให้แสดงข้อความแจ้งเตือนและให้ผู้ใช้กดปุ่มย้อนกลับเอง
+        Alert.alert(
+          'เกิดข้อผิดพลาด',
+          'ไม่สามารถกลับไปยังหน้าหลักได้ กรุณากดปุ่มย้อนกลับ',
+          [{ text: 'ตกลง' }]
+        );
       }
     }
   };

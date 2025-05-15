@@ -100,7 +100,7 @@ const SettingsScreen = ({ navigation }) => {
             try {
               const result = await logout();
               if (result.success) {
-                navigation.navigate('Login');
+                navigation.navigate('LoginRoot');
               } else {
                 Alert.alert('เกิดข้อผิดพลาด', result.error || 'ไม่สามารถออกจากระบบได้');
               }
@@ -185,7 +185,7 @@ const SettingsScreen = ({ navigation }) => {
           ) : (
             <TouchableOpacity 
               style={[styles.settingItem, styles.loginButton]}
-              onPress={() => navigation.navigate('Login')}
+              onPress={() => navigation.navigate('LoginRoot')}
             >
               <Text style={styles.loginText}>เข้าสู่ระบบ</Text>
               <MaterialCommunityIcons
