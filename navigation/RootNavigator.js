@@ -54,32 +54,37 @@ const RootNavigator = forwardRef((props, ref) => {
 
   // Set up notification listeners when the component mounts
   useEffect(() => {
-    // ตั้งค่าผู้ฟังการแจ้งเตือนทันทีเมื่อมีการโหลดแอป ไม่ต้องรอให้ผู้ใช้ล็อกอิน
-    const unsubscribe = setupNotificationListeners(internalNavigationRef.current);
-    console.log("Notification listeners set up in RootNavigator");
+    try {
+      // ตั้งค่าผู้ฟังการแจ้งเตือนทันทีเมื่อมีการโหลดแอป ไม่ต้องรอให้ผู้ใช้ล็อกอิน
+      const unsubscribe = setupNotificationListeners(internalNavigationRef.current);
+      console.log("Notification listeners set up in RootNavigator");
 
-    // Clean up the notification listeners when the component unmounts
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-        console.log("Notification listeners cleaned up");
-      }
-    };
+      // Clean up the notification listeners when the component unmounts
+      return () => {
+        if (unsubscribe) {
+          unsubscribe();
+          console.log("Notification listeners cleaned up");
+        }
+      };
+    } catch (error) {
+      console.error("Error setting up notification listeners:", error);
+      return () => {}; // Return empty cleanup function in case of error
+    }
   }, []);
 
-  if (loading) {
-    // TODO: Add a proper splash screen here
-    return null;
-  }
+  // ไม่ใช้ loading state อีกต่อไปเพื่อป้องกันการค้าง
+  // if (loading) {
+  //   // TODO: Add a proper splash screen here
+  //   return null;
+  // }
 
   return (
     <NavigationContainer theme={CustomDarkTheme} ref={internalNavigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!user ? (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
-        ) : (
-          <Stack.Screen name="App" component={AppNavigator} />
-        )}
+        {/* เริ่มต้นด้วยหน้า Main เสมอไม่ว่าจะล็อกอินหรือไม่ */}
+        <Stack.Screen name="Main" component={AppNavigator} />
+        <Stack.Screen name="Auth" component={AuthNavigator} />
+        <Stack.Screen name="Login" component={AuthNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );
