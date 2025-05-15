@@ -2,26 +2,64 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 
 // Your Firebase configuration
-// Replace these values with your actual Firebase project configuration
-// You can find these values in your Firebase project settings
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIza9yCrzWZYgcLj2i17GH4am1c_t3cKySEJLho",
+  authDomain: "lesson01-61612.firebaseapp.com",
+  projectId: "lesson01-61612",
+  storageBucket: "lesson01-61612.firebasestorage.app",
+  messagingSenderId: "988759262513",
+  appId: "1:988759262513:web:8c2fc6df14d6e8ee8b0648",
+  measurementId: "G-WANCSBGD"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase with error handling
+let app;
+let db;
+let storage;
+let auth;
 
-// Initialize Firestore
-export const db = getFirestore(app);
+try {
+  console.log("Initializing Firebase...");
+  app = initializeApp(firebaseConfig);
+  
+  // Initialize services
+  try {
+    db = getFirestore(app);
+    console.log("Firestore initialized successfully");
+  } catch (firestoreError) {
+    console.error("Error initializing Firestore:", firestoreError);
+    db = null;
+  }
+  
+  try {
+    storage = getStorage(app);
+    console.log("Storage initialized successfully");
+  } catch (storageError) {
+    console.error("Error initializing Storage:", storageError);
+    storage = null;
+  }
+  
+  try {
+    auth = getAuth(app);
+    console.log("Auth initialized successfully");
+  } catch (authError) {
+    console.error("Error initializing Auth:", authError);
+    auth = null;
+  }
+  
+  console.log("Firebase initialization completed");
+} catch (error) {
+  console.error("Critical error initializing Firebase:", error);
+  // Create empty placeholders so the app doesn't crash when these variables are used
+  app = null;
+  db = null;
+  storage = null;
+  auth = null;
+}
 
-// Initialize Storage
-export const storage = getStorage(app);
-
+// Export the Firebase services
+export { db, storage, auth };
 export default app; 

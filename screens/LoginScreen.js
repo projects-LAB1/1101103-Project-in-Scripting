@@ -7,101 +7,60 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  Animated,
+  TouchableWithoutFeedback,
   Keyboard,
-  Dimensions,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../contexts/AuthContext';
-import { BlurView } from 'expo-blur';
-
-const { width } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  const { login } = useAuth();
 
-  // Animation values
-  const logoOpacity = new Animated.Value(1);
-  const formTranslateY = new Animated.Value(0);
+  const { login, register } = useAuth();
 
-  React.useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-        Animated.parallel([
-          Animated.timing(logoOpacity, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.timing(formTranslateY, {
-            toValue: -100,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      }
-    );
-
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-        Animated.parallel([
-          Animated.timing(logoOpacity, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.timing(formTranslateY, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      }
-    );
-
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
-  }, []);
-
-  const handleLogin = async () => {
+  const handleAuthentication = async () => {
     if (!email || !password) {
-      Alert.alert("ข้อผิดพลาด", "กรุณากรอกอีเมลและรหัสผ่าน");
+      Alert.alert("แจ้งเตือน", "กรุณากรอกอีเมลและรหัสผ่าน");
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      Alert.alert("ข้อผิดพลาด", "รูปแบบอีเมลไม่ถูกต้อง");
+      Alert.alert("แจ้งเตือน", "กรุณากรอกอีเมลให้ถูกต้อง");
       return;
     }
 
-    setLoading(true);
+    if (password.length < 6) {
+      Alert.alert("แจ้งเตือน", "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร");
+      return;
+    }
+
     try {
-      const result = await login(email.trim(), password);
-      if (!result.success) {
-        throw new Error(result.error);
+      setLoading(true);
+      
+      let result;
+      if (isRegistering) {
+        result = await register(email, password);
+      } else {
+        result = await login(email, password);
+      }
+      
+      if (result.success) {
+        navigation.navigate('Main');
+      } else {
+        Alert.alert('เกิดข้อผิดพลาด', result.error || 'ไม่สามารถเข้าสู่ระบบได้');
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert(
-        "ล็อกอินไม่สำเร็จ",
-        "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
-      );
+      Alert.alert('เกิดข้อผิดพลาด', error.message || 'ไม่สามารถดำเนินการได้');
     } finally {
       setLoading(false);
     }
@@ -111,85 +70,86 @@ const LoginScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardContainer}
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Animated.View style={[styles.logoContainer, { opacity: logoOpacity }]}>
-            <View style={styles.logoBackground}>
-              <MaterialCommunityIcons name="alarm" size={80} color="#FF9500" />
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.inner}>
+            {/* Clock App Logo */}
+            <View style={styles.logoContainer}>
+              <View style={styles.clockIconContainer}>
+                <MaterialCommunityIcons name="clock-outline" size={80} color="#FF9500" />
+              </View>
+              <Text style={styles.appTitle}>นาฬิกา</Text>
+              <Text style={styles.appSubtitle}>นาฬิกาปลุกอัจฉริยะ</Text>
             </View>
-            <Text style={styles.appName}>Clock</Text>
-            <Text style={styles.appSubtitle}>นาฬิกาปลุกอัจฉริยะ</Text>
-          </Animated.View>
-
-          <Animated.View 
-            style={[
-              styles.formContainer,
-              { transform: [{ translateY: formTranslateY }] }
-            ]}
-          >
-            <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons name="email-outline" size={24} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="อีเมล"
-                placeholderTextColor="#666"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-              />
+            
+            <View style={styles.formContainer}>
+              <Text style={styles.headerTitle}>{isRegistering ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}</Text>
+            
+              <View style={styles.inputContainer}>
+                <View style={styles.inputWrapper}>
+                  <MaterialCommunityIcons name="email-outline" size={22} color="#767676" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="อีเมล"
+                    placeholderTextColor="#767676"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                </View>
+              </View>
+              
+              <View style={styles.inputContainer}>
+                <View style={styles.inputWrapper}>
+                  <MaterialCommunityIcons name="lock-outline" size={22} color="#767676" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="รหัสผ่าน"
+                    placeholderTextColor="#767676"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                </View>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleAuthentication}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    {isRegistering ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              
+              <View style={styles.switchContainer}>
+                <Text style={styles.switchText}>
+                  {isRegistering ? 'มีบัญชีอยู่แล้ว?' : 'ยังไม่มีบัญชี?'}
+                </Text>
+                <TouchableOpacity onPress={() => setIsRegistering(!isRegistering)}>
+                  <Text style={styles.switchActionText}>
+                    {isRegistering ? 'เข้าสู่ระบบ' : 'สร้างบัญชีใหม่'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons name="lock-outline" size={24} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="รหัสผ่าน"
-                placeholderTextColor="#666"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete="password"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
+            
+            <TouchableOpacity 
+              style={styles.skipButton}
+              onPress={() => navigation.navigate('Main')}
             >
-              <Text style={styles.loginButtonText}>
-                {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
-              </Text>
+              <Text style={styles.skipButtonText}>ข้ามการเข้าสู่ระบบ</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.forgotButton}
-              onPress={() => navigation.navigate("ForgotPassword")}
-            >
-              <Text style={styles.forgotButtonText}>ลืมรหัสผ่าน?</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>หรือ</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <TouchableOpacity
-              style={styles.registerButton}
-              onPress={() => navigation.navigate("Register")}
-            >
-              <Text style={styles.registerButtonText}>สมัครสมาชิกใหม่</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </ScrollView>
+          </View>
+        </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -198,124 +158,111 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: '#000',
   },
-  keyboardContainer: {
+  keyboardAvoidingView: {
     flex: 1,
   },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
+  inner: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: 24,
   },
   logoContainer: {
-    alignItems: "center",
-    marginTop: 40,
-    marginBottom: 48,
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 40,
   },
-  logoBackground: {
+  clockIconContainer: {
     width: 120,
     height: 120,
     borderRadius: 60,
     backgroundColor: 'rgba(255, 149, 0, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  appName: {
+  appTitle: {
     fontSize: 36,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 8,
+    fontWeight: 'bold',
+    color: '#FFF',
+    marginTop: 16,
+    marginBottom: 4,
   },
   appSubtitle: {
-    fontSize: 17,
-    color: "#666",
-    marginBottom: 24,
+    fontSize: 16,
+    color: '#767676',
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFF',
+    marginBottom: 20,
   },
   formContainer: {
-    width: "100%",
-    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  inputContainer: {
+    marginBottom: 16,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: "#1C1C1E",
-    borderRadius: 12,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    height: 56,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 50,
   },
   inputIcon: {
     marginRight: 12,
   },
   input: {
     flex: 1,
-    color: "#FFFFFF",
-    fontSize: 17,
-    height: '100%',
+    fontSize: 16,
+    color: '#FFF',
+    height: 50,
   },
-  loginButton: {
-    backgroundColor: "#FF9500",
-    borderRadius: 12,
-    height: 56,
-    justifyContent: "center",
-    alignItems: "center",
+  primaryButton: {
+    backgroundColor: '#FF9500', // iOS orange color
+    borderRadius: 10,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginTop: 24,
-    shadowColor: "#FF9500",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowColor: '#FF9500',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
   },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
-    color: "#000000",
+  primaryButtonText: {
+    color: '#000', // Black text on orange button like iOS
     fontSize: 17,
-    fontWeight: "600",
+    fontWeight: '600',
   },
-  forgotButton: {
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 16,
+  switchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 24,
+    alignItems: 'center',
   },
-  forgotButtonText: {
-    color: "#FF9500",
+  switchText: {
+    color: '#999',
     fontSize: 15,
+    marginRight: 5,
   },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 32,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#333",
-  },
-  dividerText: {
-    color: "#666",
+  switchActionText: {
+    color: '#FF9500', // iOS orange
     fontSize: 15,
-    marginHorizontal: 16,
+    fontWeight: '600',
   },
-  registerButton: {
-    height: 56,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FF9500",
+  skipButton: {
+    paddingVertical: 15,
+    alignItems: 'center',
   },
-  registerButtonText: {
-    color: "#FF9500",
-    fontSize: 17,
-    fontWeight: "600",
+  skipButtonText: {
+    color: '#767676',
+    fontSize: 15,
   },
 });
 
