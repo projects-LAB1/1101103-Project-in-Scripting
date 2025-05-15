@@ -8,6 +8,7 @@ import { SleepProvider } from './contexts/SleepContext';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants'; // Import Constants to check for Expo Go environment
 // Import Firebase configuration
 import './firebase/config';
 // Import AppStateManager
@@ -19,7 +20,20 @@ LogBox.ignoreLogs([
   'Setting a timer for a long period of time',
   'expo-permissions is now deprecated',
   'interruptionModeIOS', // เพิ่มการ ignore log เกี่ยวกับ interruptionModeIOS
+  // เพิ่มการ ignore สำหรับการแจ้งเตือนของ expo-notifications ใน Expo Go
+  'Android Push notifications (remote notifications) functionality provided by expo-notifications',
+  '`expo-notifications` functionality is not fully supported in Expo Go',
 ]);
+
+// แสดงข้อความสำหรับ developer ว่าเราใช้เฉพาะ local notifications
+if (__DEV__ && Constants.appOwnership === 'expo') {
+  console.log('\n############### NOTIFICATION INFO ###############');
+  console.log('This app only uses LOCAL notifications for alarms, which continue to work in Expo Go.');
+  console.log('The SDK 53 warning about push notifications can be safely ignored.');
+  console.log('For production builds, we recommend creating a development build using:');
+  console.log('npx eas build --profile development --platform android');
+  console.log('###############################################\n');
+}
 
 // ตั้งค่าการแจ้งเตือนตั้งแต่เริ่มแอป
 Notifications.setNotificationHandler({
