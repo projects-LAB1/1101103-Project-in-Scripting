@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform, LogBox, AppState, View, Text, Alert } from 'react-native';
+import { Provider } from 'react-redux';
+import store from './redux/store';
 import RootNavigator from './navigation/RootNavigator';
 import { AuthProvider } from './contexts/AuthContext';
 import { AlarmProvider } from './contexts/AlarmFirebaseContext';
@@ -25,6 +27,8 @@ LogBox.ignoreLogs([
   // เพิ่ม Firebase logging
   '@firebase/auth',
   'Firebase has been initialized',
+  // เพิ่ม Redux logging
+  'serializableCheck', // เพิ่มเพื่อ ignore warning เกี่ยวกับ non-serializable values
 ]);
 
 // แสดงข้อความสำหรับ developer ว่าเราใช้เฉพาะ local notifications
@@ -185,16 +189,18 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <AlarmProvider>
-            <SleepProvider>
-              <RootNavigator ref={navigationRef} />
-            </SleepProvider>
-          </AlarmProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <Provider store={store}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AlarmProvider>
+              <SleepProvider>
+                <RootNavigator ref={navigationRef} />
+              </SleepProvider>
+            </AlarmProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </Provider>
   );
 }

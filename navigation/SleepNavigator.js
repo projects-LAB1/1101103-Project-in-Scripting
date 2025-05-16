@@ -8,6 +8,8 @@ import SleepEntryScreen from '../screens/sleep/SleepEntryScreen';
 import SleepAnalyticsScreen from '../screens/sleep/SleepAnalyticsScreen';
 import SleepGoalsScreen from '../screens/sleep/SleepGoalsScreen';
 import SleepTestScreen from '../screens/sleep/SleepTestScreen';
+import SleepDetectionScreen from '../screens/sleep/SleepDetectionScreen';
+import LightSensorScreen from '../screens/sleep/LightSensorScreen';
 
 const Stack = createStackNavigator();
 
@@ -39,12 +41,20 @@ const SleepNavigator = ({ route }) => {
         options={({ navigation }) => ({
           title: 'การนอนหลับ',
           headerRight: () => (
-            <TouchableOpacity
-              style={{ marginRight: 16 }}
-              onPress={() => navigation.navigate('SleepTest')}
-            >
-              <MaterialCommunityIcons name="test-tube" size={24} color="#0A84FF" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row' }}>
+              <TouchableOpacity
+                style={{ marginRight: 16 }}
+                onPress={() => navigation.navigate('SleepDetection')}
+              >
+                <MaterialCommunityIcons name="motion-sensor" size={24} color="#0A84FF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ marginRight: 16 }}
+                onPress={() => navigation.navigate('SleepTest')}
+              >
+                <MaterialCommunityIcons name="test-tube" size={24} color="#0A84FF" />
+              </TouchableOpacity>
+            </View>
           ),
         })}
       />
@@ -84,6 +94,22 @@ const SleepNavigator = ({ route }) => {
         component={SleepTestScreen}
         options={{
           title: 'ทดสอบการวิเคราะห์ AI',
+        }}
+      />
+      <Stack.Screen
+        name="SleepDetection"
+        component={SleepDetectionScreen}
+        options={{
+          title: 'ตรวจจับการนอนอัตโนมัติ',
+          headerBackTitle: 'กลับ',
+        }}
+      />
+      <Stack.Screen
+        name="LightSensor"
+        component={LightSensorScreen}
+        options={{
+          title: 'ตรวจวัดแสงในห้อง',
+          headerBackTitle: 'กลับ',
         }}
       />
     </Stack.Navigator>

@@ -401,6 +401,44 @@ const SleepHomeScreen = ({ navigation }) => {
             </View>
           </View>
         </TouchableOpacity>
+
+        {/* Sleep Detection Card */}
+        <TouchableOpacity 
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('SleepDetection')}
+        >
+          <View style={styles.featureCardContent}>
+            <View style={[styles.featureIconContainer, { backgroundColor: 'rgba(10, 132, 255, 0.1)' }]}>
+              <MaterialCommunityIcons name="motion-sensor" size={28} color="#0A84FF" />
+            </View>
+            <View style={styles.featureTextContainer}>
+              <Text style={styles.featureTitle}>ตรวจจับการนอนอัตโนมัติ</Text>
+              <Text style={styles.featureSubtitle}>ใช้เซนเซอร์การเคลื่อนไหวเพื่อตรวจจับการนอนอัตโนมัติ</Text>
+            </View>
+            <View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Light Sensor Card */}
+        <TouchableOpacity 
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('LightSensor')}
+        >
+          <View style={styles.featureCardContent}>
+            <View style={[styles.featureIconContainer, { backgroundColor: 'rgba(64, 156, 255, 0.1)' }]}>
+              <MaterialCommunityIcons name="brightness-6" size={28} color="#40CCFF" />
+            </View>
+            <View style={styles.featureTextContainer}>
+              <Text style={styles.featureTitle}>ตรวจวัดแสงในห้อง</Text>
+              <Text style={styles.featureSubtitle}>ตรวจวัดความสว่างของห้องและรับคำแนะนำสำหรับการนอนที่ดีขึ้น</Text>
+            </View>
+            <View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
+            </View>
+          </View>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -648,6 +686,39 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   goalsSubtitle: {
+    fontSize: 13,
+    color: '#999999',
+    marginTop: 2,
+  },
+  featureCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    margin: 16,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  featureCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  featureIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  featureTextContainer: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  featureSubtitle: {
     fontSize: 13,
     color: '#999999',
     marginTop: 2,
