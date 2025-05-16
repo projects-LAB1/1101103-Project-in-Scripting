@@ -3,7 +3,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform, LogBox, AppState, View, Text, Alert } from 'react-native';
 import RootNavigator from './navigation/RootNavigator';
 import { AuthProvider } from './contexts/AuthContext';
-import { AlarmSoundProvider } from './contexts/AlarmSoundContext';
+import { AlarmProvider } from './contexts/AlarmFirebaseContext';
 import { SleepProvider } from './contexts/SleepContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Audio } from 'expo-av';
@@ -188,11 +188,11 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <AlarmSoundProvider>
+          <AlarmProvider>
             <SleepProvider>
               <RootNavigator ref={navigationRef} />
             </SleepProvider>
-          </AlarmSoundProvider>
+          </AlarmProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

@@ -1,14 +1,16 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { 
-  loadSleepData, 
-  saveSleepData, 
-  addSleepRecord, 
-  updateSleepRecord, 
-  deleteSleepRecord,
-  loadSleepGoals,
-  saveSleepGoals,
-  analyzeSleepPatterns
-} from '../utils/sleepStorage';
+  fetchSleepData, 
+  addSleepRecordToFirestore, 
+  updateSleepRecordInFirestore, 
+  deleteSleepRecordFromFirestore,
+  fetchSleepGoals,
+  saveSleepGoalsToFirestore
+} from '../utils/firebaseStorage';
+
+// ยังคงใช้ฟังก์ชันวิเคราะห์ข้อมูลจาก sleepStorage
+import { analyzeSleepPatterns } from '../utils/sleepStorage';
+import { auth } from '../firebase/config';
 
 // Create the context
 const SleepContext = createContext();
@@ -23,51 +25,74 @@ export const SleepProvider = ({ children }) => {
   const [sleepAnalytics, setSleepAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Load sleep data on mount
+  // ตรวจสอบสถานะการเข้าสู่ระบบ
   useEffect(() => {
-    loadSleepDataFromStorage();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setIsLoggedIn(!!user);
+      if (user) {
+        loadSleepDataFromFirestore();
+      } else {
+        // รีเซ็ตข้อมูลเมื่อออกจากระบบ
+        setSleepRecords([]);
+        setSleepGoals(null);
+        setSleepAnalytics(null);
+        setLoading(false);
+      }
+    });
+    
+    return () => unsubscribe();
   }, []);
 
-  // Load sleep data and analytics
-  const loadSleepDataFromStorage = async () => {
+  // โหลดข้อมูลจาก Firestore
+  const loadSleepDataFromFirestore = async () => {
     try {
       setLoading(true);
       
-      // Load sleep records
-      const records = await loadSleepData();
+      // โหลดข้อมูลการนอน
+      const records = await fetchSleepData();
       setSleepRecords(records);
       
-      // Load sleep goals
-      const goals = await loadSleepGoals();
+      // โหลดเป้าหมายการนอน
+      const goals = await fetchSleepGoals();
       setSleepGoals(goals);
       
-      // Generate analytics if we have records
+      // วิเคราะห์ข้อมูลถ้ามีข้อมูลเพียงพอ
       if (records.length > 0) {
         const analytics = analyzeSleepPatterns(records);
         setSleepAnalytics(analytics);
       }
     } catch (error) {
-      console.error('Error loading sleep data in context:', error);
+      console.error('Error loading sleep data from Firestore:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // Refresh data
+  // รีเฟรชข้อมูล
   const refresh = async () => {
+    if (!isLoggedIn) {
+      setRefreshing(false);
+      return;
+    }
+    
     setRefreshing(true);
-    await loadSleepDataFromStorage();
+    await loadSleepDataFromFirestore();
   };
 
-  // Add a new sleep record
+  // เพิ่มข้อมูลการนอนใหม่
   const addSleep = async (sleepRecord) => {
     try {
-      const newRecord = await addSleepRecord(sleepRecord);
+      if (!isLoggedIn) {
+        throw new Error('กรุณาเข้าสู่ระบบก่อนบันทึกข้อมูล');
+      }
+      
+      const newRecord = await addSleepRecordToFirestore(sleepRecord);
       setSleepRecords(prev => [...prev, newRecord]);
       
-      // Update analytics
+      // อัพเดทการวิเคราะห์
       const analytics = analyzeSleepPatterns([...sleepRecords, newRecord]);
       setSleepAnalytics(analytics);
       
@@ -78,18 +103,22 @@ export const SleepProvider = ({ children }) => {
     }
   };
 
-  // Update a sleep record
+  // อัพเดทข้อมูลการนอน
   const updateSleep = async (id, data) => {
     try {
-      const success = await updateSleepRecord(id, data);
+      if (!isLoggedIn) {
+        throw new Error('กรุณาเข้าสู่ระบบก่อนอัพเดทข้อมูล');
+      }
+      
+      const success = await updateSleepRecordInFirestore(id, data);
       if (success) {
-        // Update the state with the updated record
+        // อัพเดทข้อมูลใน state
         const updatedRecords = sleepRecords.map(record => 
           record.id === id ? { ...record, ...data } : record
         );
         setSleepRecords(updatedRecords);
         
-        // Update analytics
+        // อัพเดทการวิเคราะห์
         const analytics = analyzeSleepPatterns(updatedRecords);
         setSleepAnalytics(analytics);
       }
@@ -100,16 +129,20 @@ export const SleepProvider = ({ children }) => {
     }
   };
 
-  // Delete a sleep record
+  // ลบข้อมูลการนอน
   const deleteSleep = async (id) => {
     try {
-      const success = await deleteSleepRecord(id);
+      if (!isLoggedIn) {
+        throw new Error('กรุณาเข้าสู่ระบบก่อนลบข้อมูล');
+      }
+      
+      const success = await deleteSleepRecordFromFirestore(id);
       if (success) {
-        // Remove the record from state
+        // ลบข้อมูลออกจาก state
         const updatedRecords = sleepRecords.filter(record => record.id !== id);
         setSleepRecords(updatedRecords);
         
-        // Update analytics
+        // อัพเดทการวิเคราะห์
         const analytics = analyzeSleepPatterns(updatedRecords);
         setSleepAnalytics(analytics);
       }
@@ -120,10 +153,14 @@ export const SleepProvider = ({ children }) => {
     }
   };
 
-  // Update sleep goals
+  // อัพเดทเป้าหมายการนอน
   const updateSleepGoals = async (goals) => {
     try {
-      const success = await saveSleepGoals(goals);
+      if (!isLoggedIn) {
+        throw new Error('กรุณาเข้าสู่ระบบก่อนตั้งค่าเป้าหมาย');
+      }
+      
+      const success = await saveSleepGoalsToFirestore(goals);
       if (success) {
         setSleepGoals(goals);
       }
@@ -134,13 +171,13 @@ export const SleepProvider = ({ children }) => {
     }
   };
 
-  // Calculate summary statistics for the past week
+  // คำนวณสรุปสถิติสำหรับช่วง 7 วันที่ผ่านมา
   const getWeeklySummary = () => {
     if (sleepRecords.length === 0) {
       return null;
     }
     
-    // Get records for the past 7 days
+    // ดึงข้อมูลย้อนหลัง 7 วัน
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     
@@ -152,11 +189,11 @@ export const SleepProvider = ({ children }) => {
       return null;
     }
     
-    // Average sleep duration
+    // คำนวณระยะเวลาเฉลี่ย
     const totalDuration = weekRecords.reduce((sum, record) => sum + record.durationMinutes, 0);
     const avgDuration = totalDuration / weekRecords.length;
     
-    // Best and worst days
+    // หาวันที่นอนมากที่สุดและน้อยที่สุด
     weekRecords.sort((a, b) => b.durationMinutes - a.durationMinutes);
     const bestSleep = weekRecords[0];
     const worstSleep = weekRecords[weekRecords.length - 1];
@@ -182,7 +219,8 @@ export const SleepProvider = ({ children }) => {
     updateSleep,
     deleteSleep,
     updateSleepGoals,
-    getWeeklySummary
+    getWeeklySummary,
+    isLoggedIn
   };
 
   return (
