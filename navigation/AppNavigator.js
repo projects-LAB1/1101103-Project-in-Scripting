@@ -62,7 +62,7 @@ const AppNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="SleepHistory"
+        name="SleepHistoryTab"
         component={SleepNavigator}
         initialParams={{ screen: 'SleepHistory' }}
         options={{

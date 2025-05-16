@@ -132,7 +132,9 @@ const SleepHomeScreen = ({ navigation }) => {
               onPress={() => navigation.navigate('SleepAnalytics')}
             >
               <Text style={styles.aiViewMoreButtonText}>ดูการวิเคราะห์เพิ่มเติม</Text>
-              <MaterialCommunityIcons name="chevron-right" size={20} color="#0A84FF" />
+              <View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#0A84FF" />
+              </View>
             </TouchableOpacity>
           </View>
         )}
@@ -177,7 +179,9 @@ const SleepHomeScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('SleepAnalytics')}
           >
             <Text style={styles.viewMoreButtonText}>ดูการวิเคราะห์ทั้งหมด</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#0A84FF" />
+            <View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#0A84FF" />
+            </View>
           </TouchableOpacity>
         </View>
         
@@ -194,8 +198,12 @@ const SleepHomeScreen = ({ navigation }) => {
               <Text style={styles.goalsTitle}>เป้าหมายการนอน</Text>
               <Text style={styles.goalsSubtitle}>ตั้งค่าเป้าหมายการนอนหลับและรูปแบบการนอน</Text>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
-          </View>        </TouchableOpacity>      </ScrollView>
+            <View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -354,7 +362,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
-  },  goalsSubtitle: {
+  },
+  goalsSubtitle: {
     fontSize: 13,
     color: '#999999',
     marginTop: 2,
