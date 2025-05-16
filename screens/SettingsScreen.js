@@ -14,13 +14,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { StatusBar } from 'expo-status-bar';
 import { isAppExitMonitoringEnabled, setAppExitMonitoring } from '../utils/AppStateManager';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+
+// Import animations
+import FadeIn from '../components/animations/FadeIn';
+import SlideIn from '../components/animations/SlideIn';
 
 const SettingsScreen = ({ navigation }) => {
   const [exitMonitoringEnabled, setExitMonitoringEnabled] = useState(true);
   const [notificationsPermissionGranted, setNotificationsPermissionGranted] = useState(false);
   const { user, logout } = useAuth();
+  const { theme, isDark, toggleTheme, themeType, setTheme } = useTheme();
   
   // Load settings on component mount
   useEffect(() => {
@@ -113,96 +120,178 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
+  // เลือกธีม
+  const handleSelectTheme = (selectedTheme) => {
+    setTheme(selectedTheme);
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.screenTitle}>ตั้งค่า</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar style={theme.statusBar} />
+      <Text style={[styles.screenTitle, { color: theme.colors.text }]}>ตั้งค่า</Text>
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>การแจ้งเตือน</Text>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={[styles.section, { borderBottomColor: theme.colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>ธีม</Text>
           
           <View style={styles.settingItem}>
             <View style={styles.settingTextContainer}>
-              <Text style={styles.settingTitle}>แจ้งเตือนเมื่อออกจากแอป</Text>
-              <Text style={styles.settingDescription}>
+              <Text style={[styles.settingTitle, { color: theme.colors.text }]}>โหมดมืด</Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.secondaryText }]}>
+                สลับระหว่างธีมสว่างและธีมมืด
+              </Text>
+            </View>
+            <Switch
+              value={isDark}
+              onValueChange={toggleTheme}
+              trackColor={{ false: theme.colors.switchTrackInactive, true: `${theme.colors.primary}50` }}
+              thumbColor={isDark ? theme.colors.primary : '#f4f3f4'}
+              ios_backgroundColor={theme.colors.card}
+            />
+          </View>
+          
+          <View style={styles.themeOptions}>
+            <TouchableOpacity 
+              style={[
+                styles.themeOption, 
+                { backgroundColor: theme.colors.card },
+                themeType === 'light' && styles.selectedThemeOption
+              ]}
+              onPress={() => handleSelectTheme('light')}
+            >
+              <View style={[styles.themePreview, styles.lightThemePreview]}>
+                <View style={styles.previewBar} />
+              </View>
+              <Text style={[
+                styles.themeOptionText,
+                { color: theme.colors.text }
+              ]}>สว่าง</Text>
+              {themeType === 'light' && (
+                <MaterialCommunityIcons 
+                  name="check-circle" 
+                  size={20} 
+                  color={theme.colors.primary} 
+                  style={styles.checkIcon}
+                />
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.themeOption,
+                { backgroundColor: theme.colors.card },
+                themeType === 'dark' && styles.selectedThemeOption
+              ]}
+              onPress={() => handleSelectTheme('dark')}
+            >
+              <View style={[styles.themePreview, styles.darkThemePreview]}>
+                <View style={[styles.previewBar, styles.darkPreviewBar]} />
+              </View>
+              <Text style={[
+                styles.themeOptionText,
+                { color: theme.colors.text }
+              ]}>มืด</Text>
+              {themeType === 'dark' && (
+                <MaterialCommunityIcons 
+                  name="check-circle" 
+                  size={20} 
+                  color={theme.colors.primary} 
+                  style={styles.checkIcon}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        <View style={[styles.section, { borderBottomColor: theme.colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>การแจ้งเตือน</Text>
+          
+          <View style={[styles.settingItem, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingTitle, { color: theme.colors.text }]}>แจ้งเตือนเมื่อออกจากแอป</Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.secondaryText }]}>
                 แสดงการแจ้งเตือนเต็มหน้าจอเมื่อออกจากแอปหรือปิดหน้าจอ
               </Text>
             </View>
             <Switch
               value={exitMonitoringEnabled}
               onValueChange={toggleExitMonitoring}
-              trackColor={{ false: '#767577', true: '#FF950050' }}
-              thumbColor={exitMonitoringEnabled ? '#FF9500' : '#f4f3f4'}
-              ios_backgroundColor='#3e3e3e'
+              trackColor={{ false: theme.colors.switchTrackInactive, true: `${theme.colors.primary}50` }}
+              thumbColor={exitMonitoringEnabled ? theme.colors.primary : '#f4f3f4'}
+              ios_backgroundColor={theme.colors.card}
             />
           </View>
           
           <TouchableOpacity 
-            style={styles.settingItem}
+            style={[styles.settingItem, { borderBottomColor: theme.colors.border }]}
             onPress={openSettings}
           >
             <View style={styles.settingTextContainer}>
-              <Text style={styles.settingTitle}>การตั้งค่าการแจ้งเตือน</Text>
-              <Text style={styles.settingDescription}>
+              <Text style={[styles.settingTitle, { color: theme.colors.text }]}>การตั้งค่าการแจ้งเตือน</Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.secondaryText }]}>
                 ตั้งค่าการแจ้งเตือนในการตั้งค่าระบบ
               </Text>
             </View>
             <MaterialCommunityIcons
               name="chevron-right"
               size={24}
-              color="#666"
+              color={theme.colors.secondaryText}
             />
           </TouchableOpacity>
         </View>
         
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>บัญชีผู้ใช้</Text>
+        <View style={[styles.section, { borderBottomColor: theme.colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>บัญชีผู้ใช้</Text>
           
           {user ? (
             <>
               <View style={styles.userInfoContainer}>
-                <View style={styles.userAvatarPlaceholder}>
-                  <MaterialCommunityIcons name="account" size={40} color="#666" />
+                <View style={[styles.userAvatarPlaceholder, { backgroundColor: theme.colors.card }]}>
+                  <MaterialCommunityIcons name="account" size={40} color={theme.colors.secondaryText} />
                 </View>
                 <View style={styles.userDetails}>
-                  <Text style={styles.userName}>{user.displayName || 'ผู้ใช้งาน'}</Text>
-                  <Text style={styles.userEmail}>{user.email}</Text>
+                  <Text style={[styles.userName, { color: theme.colors.text }]}>{user.displayName || 'ผู้ใช้งาน'}</Text>
+                  <Text style={[styles.userEmail, { color: theme.colors.secondaryText }]}>{user.email}</Text>
                 </View>
               </View>
               
               <TouchableOpacity 
-                style={[styles.settingItem, styles.logoutButton]}
+                style={[styles.settingItem, styles.logoutButton, { borderBottomColor: theme.colors.border }]}
                 onPress={handleLogout}
               >
-                <Text style={styles.logoutText}>ออกจากระบบ</Text>
+                <Text style={[styles.logoutText, { color: theme.colors.danger }]}>ออกจากระบบ</Text>
                 <MaterialCommunityIcons
                   name="logout"
                   size={24}
-                  color="#FF3B30"
+                  color={theme.colors.danger}
                 />
               </TouchableOpacity>
             </>
           ) : (
             <TouchableOpacity 
-              style={[styles.settingItem, styles.loginButton]}
+              style={[styles.settingItem, styles.loginButton, { borderBottomColor: theme.colors.border }]}
               onPress={() => navigation.navigate('LoginRoot')}
             >
-              <Text style={styles.loginText}>เข้าสู่ระบบ</Text>
+              <Text style={[styles.loginText, { color: theme.colors.primary }]}>เข้าสู่ระบบ</Text>
               <MaterialCommunityIcons
                 name="login"
                 size={24}
-                color="#FF9500"
+                color={theme.colors.primary}
               />
             </TouchableOpacity>
           )}
         </View>
         
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>เกี่ยวกับแอป</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>เกี่ยวกับแอป</Text>
           
-          <TouchableOpacity style={styles.settingItem}>
-            <Text style={styles.settingTitle}>เวอร์ชัน</Text>
-            <Text style={styles.versionText}>1.0.0</Text>
+          <TouchableOpacity style={[styles.settingItem, { borderBottomColor: theme.colors.border }]}>
+            <Text style={[styles.settingTitle, { color: theme.colors.text }]}>เวอร์ชัน</Text>
+            <Text style={[styles.versionText, { color: theme.colors.secondaryText }]}>1.0.0</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -213,12 +302,10 @@ const SettingsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   screenTitle: {
     fontSize: 34,
     fontWeight: 'bold',
-    color: '#FFFFFF',
     marginTop: 10,
     marginBottom: 20,
     marginLeft: 16,
@@ -226,14 +313,18 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 30,
+  },
   section: {
     marginBottom: 32,
     paddingHorizontal: 16,
+    borderBottomWidth: 0.5,
+    paddingBottom: 8,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#FF9500',
     marginBottom: 16,
   },
   settingItem: {
@@ -242,7 +333,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#333',
   },
   settingTextContainer: {
     flex: 1,
@@ -250,25 +340,21 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     fontSize: 17,
-    color: '#FFFFFF',
+    fontWeight: '500',
     marginBottom: 4,
   },
   settingDescription: {
     fontSize: 14,
-    color: '#999',
   },
   userInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 16,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#333',
   },
   userAvatarPlaceholder: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#333',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -278,33 +364,82 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
     marginBottom: 4,
   },
   userEmail: {
-    fontSize: 14,
-    color: '#999',
-  },
-  versionText: {
-    fontSize: 17,
-    color: '#999',
+    fontSize: 15,
   },
   logoutButton: {
-    borderBottomColor: '#FF3B3030',
-    borderBottomWidth: 0.5,
-  },
-  logoutText: {
-    fontSize: 17,
-    color: '#FF3B30',
-    fontWeight: '500',
+    borderTopWidth: 0,
   },
   loginButton: {
-    borderBottomColor: '#FF950030',
+    paddingVertical: 16,
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   loginText: {
-    fontSize: 17,
-    color: '#FF9500',
+    fontSize: 16,
     fontWeight: '500',
+  },
+  versionText: {
+    fontSize: 15,
+  },
+  themeOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  themeOption: {
+    width: '48%',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  selectedThemeOption: {
+    borderWidth: 2,
+    borderColor: '#FF9500',
+  },
+  themePreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginBottom: 8,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 8,
+  },
+  lightThemePreview: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DDDDDD',
+  },
+  darkThemePreview: {
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  previewBar: {
+    width: '80%',
+    height: 10,
+    backgroundColor: '#FF9500',
+    borderRadius: 5,
+  },
+  darkPreviewBar: {
+    backgroundColor: '#FF9500',
+  },
+  themeOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 8,
+  },
+  checkIcon: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
   },
 });
 

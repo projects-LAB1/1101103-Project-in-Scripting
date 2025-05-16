@@ -1,29 +1,58 @@
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { NavigationContainer, DarkTheme } from "@react-navigation/native";
+import { NavigationContainer, DefaultTheme, DarkTheme } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import AuthNavigator from "./AuthNavigator";
 import AppNavigator from "./AppNavigator";
 import { useAuth } from "../contexts/AuthContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { setupNotificationListeners } from "../models/NotificationManager";
+import { CardStyleInterpolators } from '@react-navigation/stack';
 
 const Stack = createStackNavigator();
 
-// Customize dark theme to match iOS dark mode
-const CustomDarkTheme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    primary: "#FF9500",
-    background: "#000000",
-    card: "#000000",
-    text: "#FFFFFF",
-    border: "#1C1C1E",
+// กำหนด config สำหรับ transition ที่สวยงาม
+const createScreenOptions = (isDark) => ({
+  headerShown: false,
+  gestureEnabled: true,
+  cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+  cardStyle: { backgroundColor: isDark ? '#000000' : '#FFFFFF' },
+  // เพิ่ม transition animation
+  transitionSpec: {
+    open: {
+      animation: 'timing',
+      config: {
+        duration: 400,
+      },
+    },
+    close: {
+      animation: 'timing',
+      config: {
+        duration: 350,
+      },
+    },
   },
-};
+});
 
 const RootNavigator = forwardRef((props, ref) => {
   const { user, loading } = useAuth();
+  const { theme, isDark } = useTheme();
   const internalNavigationRef = useRef(null);
+  
+  // สร้าง navigation theme จากธีมปัจจุบัน
+  const navigationTheme = {
+    ...(isDark ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+      primary: theme.colors.primary,
+      background: theme.colors.background,
+      card: theme.colors.card,
+      text: theme.colors.text,
+      border: theme.colors.border,
+    },
+  };
+  
+  // Screen options ตามธีม
+  const screenOptions = createScreenOptions(isDark);
   
   // Forward navigation methods to parent component
   useImperativeHandle(ref, () => ({
@@ -79,8 +108,8 @@ const RootNavigator = forwardRef((props, ref) => {
   // }
 
   return (
-    <NavigationContainer theme={CustomDarkTheme} ref={internalNavigationRef}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <NavigationContainer theme={navigationTheme} ref={internalNavigationRef}>
+      <Stack.Navigator screenOptions={screenOptions}>
         {/* เริ่มต้นด้วยหน้า Main เสมอไม่ว่าจะล็อกอินหรือไม่ */}
         <Stack.Screen name="Main" component={AppNavigator} />
         <Stack.Screen name="Auth" component={AuthNavigator} />

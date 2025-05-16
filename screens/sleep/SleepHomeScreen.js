@@ -9,12 +9,16 @@ import {
   RefreshControl,
   Alert,
   ScrollView,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSleep } from '../../contexts/SleepContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getDailyRecommendation } from '../../utils/sleepAI';
+import { LineChart } from 'react-native-chart-kit';
+
+const { width } = Dimensions.get('window');
 
 const SleepHomeScreen = ({ navigation }) => {
   const { 
@@ -29,6 +33,8 @@ const SleepHomeScreen = ({ navigation }) => {
 
   const [weeklySummary, setWeeklySummary] = useState(null);
   const [dailyRecommendation, setDailyRecommendation] = useState(null);
+  const [chartData, setChartData] = useState(null);
+  const [trendDescription, setTrendDescription] = useState('');
   
   useEffect(() => {
     // Calculate weekly summary when sleepRecords change
@@ -45,6 +51,9 @@ const SleepHomeScreen = ({ navigation }) => {
         const latestRecord = sortedRecords[0];
         const recommendation = getDailyRecommendation(latestRecord, sleepGoals, sleepAnalytics);
         setDailyRecommendation(recommendation);
+        
+        // Prepare chart data
+        prepareChartData(sleepRecords);
       } catch (error) {
         console.error('Error getting daily recommendation:', error);
         // Set default recommendation if fails
@@ -56,6 +65,107 @@ const SleepHomeScreen = ({ navigation }) => {
       }
     }
   }, [sleepRecords, sleepGoals, sleepAnalytics]);
+  
+  // Prepare chart data
+  const prepareChartData = (records) => {
+    if (!records || records.length === 0) {
+      setChartData(null);
+      setTrendDescription('');
+      return;
+    }
+    
+    // Sort records by bed time
+    const sortedRecords = [...records].sort((a, b) => 
+      new Date(a.bedTime) - new Date(b.bedTime)
+    );
+    
+    // Filter for the last 7 days
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    
+    const filteredRecords = sortedRecords.filter(record => 
+      new Date(record.bedTime) >= sevenDaysAgo
+    );
+    
+    // Group data by day
+    const dayNames = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+    const dayData = Array(7).fill(null).map(() => ({ count: 0, duration: 0 }));
+    
+    filteredRecords.forEach(record => {
+      const date = new Date(record.bedTime);
+      const dayIndex = date.getDay(); // 0 = Sunday, 1 = Monday, ...
+      
+      dayData[dayIndex].count++;
+      dayData[dayIndex].duration += record.durationMinutes / 60; // Convert to hours
+    });
+    
+    // Calculate averages and prepare data
+    const labels = [];
+    const durationData = [];
+    
+    dayNames.forEach((day, index) => {
+      labels.push(day);
+      
+      if (dayData[index].count > 0) {
+        durationData.push(parseFloat((dayData[index].duration / dayData[index].count).toFixed(1)));
+      } else {
+        durationData.push(0);
+      }
+    });
+    
+    setChartData({ labels, durationData });
+    
+    // Generate trend description
+    generateTrendDescription(durationData);
+  };
+  
+  // Generate a description of the sleep trend
+  const generateTrendDescription = (durationData) => {
+    // Filter out zeros
+    const validData = durationData.filter(value => value > 0);
+    
+    if (validData.length < 2) {
+      setTrendDescription('ข้อมูลยังไม่เพียงพอสำหรับการวิเคราะห์แนวโน้ม');
+      return;
+    }
+    
+    // Calculate average
+    const average = validData.reduce((sum, value) => sum + value, 0) / validData.length;
+    const avgRounded = average.toFixed(1);
+    
+    // Check if trend is increasing or decreasing
+    const firstHalf = validData.slice(0, Math.ceil(validData.length / 2));
+    const secondHalf = validData.slice(Math.ceil(validData.length / 2));
+    
+    const firstHalfAvg = firstHalf.reduce((sum, value) => sum + value, 0) / firstHalf.length;
+    const secondHalfAvg = secondHalf.reduce((sum, value) => sum + value, 0) / secondHalf.length;
+    
+    let trendText = '';
+    const diff = secondHalfAvg - firstHalfAvg;
+    
+    if (diff > 0.5) {
+      trendText = `ระยะเวลาการนอนช่วงนี้เพิ่มขึ้น (เฉลี่ย ${avgRounded} ชั่วโมง/วัน)`;
+    } else if (diff < -0.5) {
+      trendText = `ระยะเวลาการนอนช่วงนี้ลดลง (เฉลี่ย ${avgRounded} ชั่วโมง/วัน)`;
+    } else {
+      trendText = `ระยะเวลาการนอนค่อนข้างคงที่ (เฉลี่ย ${avgRounded} ชั่วโมง/วัน)`;
+    }
+    
+    // Check sleep health
+    let healthText = '';
+    if (average >= 7) {
+      healthText = 'เวลานอนของคุณอยู่ในเกณฑ์ดีมาก ช่วยให้ร่างกายได้พักผ่อนเพียงพอ';
+    } else if (average >= 6) {
+      healthText = 'เวลานอนของคุณค่อนข้างดี แต่ควรพยายามนอนให้ได้ 7-8 ชั่วโมงเพื่อสุขภาพที่ดี';
+    } else if (average >= 5) {
+      healthText = 'เวลานอนของคุณอยู่ในเกณฑ์พอใช้ ควรพยายามนอนให้ได้มากกว่านี้';
+    } else {
+      healthText = 'เวลานอนของคุณน้อยเกินไป อาจส่งผลเสียต่อสุขภาพในระยะยาว';
+    }
+    
+    setTrendDescription(`${trendText} ${healthText}`);
+  };
   
   // Format time as HH:MM
   const formatTime = (dateString) => {
@@ -156,9 +266,9 @@ const SleepHomeScreen = ({ navigation }) => {
               
               <View style={styles.analyticItem}>
                 <Text style={styles.analyticValue}>
-                  {sleepAnalytics.avgQualityScore || 0}
+                  {formatTime(sleepAnalytics.avgBedTime) || '--:--'}
                 </Text>
-                <Text style={styles.analyticLabel}>คะแนนคุณภาพ</Text>
+                <Text style={styles.analyticLabel}>เวลาเข้านอนเฉลี่ย</Text>
               </View>
               
               <View style={styles.analyticDivider} />
@@ -179,6 +289,94 @@ const SleepHomeScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('SleepAnalytics')}
           >
             <Text style={styles.viewMoreButtonText}>ดูการวิเคราะห์ทั้งหมด</Text>
+            <View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#0A84FF" />
+            </View>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Sleep Chart Card */}
+        <View style={styles.chartCard}>
+          <View style={styles.chartHeaderContainer}>
+            <Text style={styles.chartTitle}>ระยะเวลานอนหลับ 7 วันล่าสุด</Text>
+            <View style={styles.chartLegendContainer}>
+              <View style={styles.chartLegendItem}>
+                <View style={[styles.chartLegendDot, {backgroundColor: '#FF9500'}]}></View>
+                <Text style={styles.chartLegendText}>ชั่วโมงการนอน</Text>
+              </View>
+            </View>
+          </View>
+          
+          {chartData ? (
+            <>
+              <LineChart
+                data={{
+                  labels: chartData.labels,
+                  datasets: [
+                    {
+                      data: chartData.durationData,
+                      color: (opacity = 1) => `rgba(255, 149, 0, ${opacity})`,
+                      strokeWidth: 2,
+                    },
+                  ],
+                }}
+                width={width - 40}
+                height={180}
+                yAxisSuffix=" ชม."
+                chartConfig={{
+                  backgroundColor: '#1C1C1E',
+                  backgroundGradientFrom: '#1C1C1E',
+                  backgroundGradientTo: '#1C1C1E',
+                  decimalPlaces: 1,
+                  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                  propsForDots: {
+                    r: '6',
+                    strokeWidth: '2',
+                    stroke: '#FF9500',
+                  },
+                  propsForLabels: {
+                    fontSize: 12,
+                  }
+                }}
+                bezier
+                style={styles.chart}
+              />
+              
+              <View style={styles.chartInfoContainer}>
+                <View style={styles.chartInfoIconContainer}>
+                  <MaterialCommunityIcons name="information" size={22} color="#FF9500" />
+                </View>
+                <Text style={styles.chartInfoText}>กราฟแสดงจำนวนชั่วโมงการนอนแต่ละวัน</Text>
+              </View>
+              
+              {trendDescription ? (
+                <View style={styles.trendContainer}>
+                  <Text style={styles.trendText}>{trendDescription}</Text>
+                </View>
+              ) : null}
+              
+              <View style={styles.chartHelpContainer}>
+                <Text style={styles.chartHelpText}>• แตะที่จุดบนกราฟเพื่อดูข้อมูลในแต่ละวัน</Text>
+                <Text style={styles.chartHelpText}>• วันที่ไม่มีจุดหมายถึงไม่มีข้อมูลการนอนในวันนั้น</Text>
+                <Text style={styles.chartHelpText}>• เส้นสีส้มแสดงถึงจำนวนชั่วโมงการนอนในแต่ละวัน</Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.noDataContainer}>
+              <Text style={styles.noDataText}>ไม่มีข้อมูลสำหรับการแสดงกราฟ</Text>
+              <Text style={styles.noDataHelpText}>เพิ่มข้อมูลการนอนเพื่อดูกราฟการนอนหลับของคุณ</Text>
+            </View>
+          )}
+          
+          <TouchableOpacity 
+            style={styles.viewMoreButton}
+            onPress={() => navigation.navigate('SleepHistory')}
+          >
+            <Text style={styles.viewMoreButtonText}>ดูประวัติการนอนทั้งหมด</Text>
             <View>
               <MaterialCommunityIcons name="chevron-right" size={20} color="#0A84FF" />
             </View>
@@ -322,6 +520,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 16,
   },
+  noDataHelpText: {
+    fontSize: 13,
+    color: '#777777',
+    textAlign: 'center',
+    marginTop: 8,
+  },
   viewMoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -333,6 +537,86 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#0A84FF',
     marginRight: 4,
+  },
+  chartCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 16,
+    margin: 16,
+    marginBottom: 8,
+  },
+  chartHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  chartTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  chartLegendContainer: {
+    flexDirection: 'row',
+  },
+  chartLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  chartLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 4,
+  },
+  chartLegendText: {
+    fontSize: 12,
+    color: '#CCCCCC',
+  },
+  chart: {
+    marginVertical: 8,
+    borderRadius: 12,
+  },
+  chartInfoContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 10,
+    alignItems: 'center',
+  },
+  chartInfoIconContainer: {
+    marginRight: 10,
+  },
+  chartInfoText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  trendContainer: {
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+  },
+  trendText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    lineHeight: 20,
+  },
+  chartHelpContainer: {
+    marginTop: 8,
+  },
+  chartHelpText: {
+    fontSize: 13,
+    color: '#999999',
+    lineHeight: 20,
+  },
+  noDataContainer: {
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   goalsCard: {
     backgroundColor: '#1C1C1E',

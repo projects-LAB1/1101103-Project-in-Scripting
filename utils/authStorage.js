@@ -111,6 +111,42 @@ export const logout = async () => {
   }
 };
 
+// รีเซ็ตรหัสผ่าน
+export const resetPassword = async (email) => {
+  try {
+    // โหลดข้อมูลผู้ใช้
+    const users = await loadUsers();
+    
+    // ตรวจสอบว่ามีอีเมลนี้ในระบบหรือไม่
+    const userIndex = users.findIndex(u => u.email === email);
+    
+    if (userIndex === -1) {
+      throw new Error('ไม่พบบัญชีผู้ใช้ที่ตรงกับอีเมลนี้');
+    }
+    
+    // ในระบบจริงจะส่งอีเมลพร้อมลิงก์รีเซ็ตรหัสผ่าน
+    // แต่ในโปรเจคนี้เป็นเพียงการจำลอง เราจะกำหนดรหัสผ่านใหม่เป็น "123456"
+    const tempPassword = "123456";
+    
+    // อัพเดทรหัสผ่านใหม่
+    users[userIndex].password = tempPassword;
+    
+    // บันทึกข้อมูลผู้ใช้
+    await saveUsers(users);
+    
+    console.log(`รีเซ็ตรหัสผ่านสำหรับ ${email} สำเร็จ (รหัสใหม่: ${tempPassword})`);
+    
+    // ในระบบจริงจะไม่ต้อง return รหัสผ่านใหม่
+    return { 
+      success: true, 
+      message: `รีเซ็ตรหัสผ่านสำเร็จ ระบบได้กำหนดรหัสผ่านชั่วคราวเป็น "${tempPassword}" กรุณาเปลี่ยนรหัสผ่านหลังจากเข้าสู่ระบบ` 
+    };
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    throw error;
+  }
+};
+
 // ตรวจสอบสถานะการเข้าสู่ระบบ
 export const getCurrentUser = async () => {
   try {

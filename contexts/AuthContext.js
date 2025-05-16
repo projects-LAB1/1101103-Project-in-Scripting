@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { register, login, logout, getCurrentUser } from '../utils/authStorage';
+import { register, login, logout, getCurrentUser, resetPassword as resetPasswordStorage } from '../utils/authStorage';
 
 const AuthContext = createContext(null);
 
@@ -82,12 +82,29 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // เพิ่มฟังก์ชันรีเซ็ตรหัสผ่าน
+  const handleResetPassword = async (email) => {
+    console.log("Attempting to reset password for:", email);
+    try {
+      setLoading(true);
+      const result = await resetPasswordStorage(email);
+      console.log("Reset password result:", result);
+      return { success: true, message: result.message };
+    } catch (error) {
+      console.error("Reset password error:", error);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const value = {
     user,
     loading,
     register: handleRegister,
     login: handleLogin,
     logout: handleLogout,
+    resetPassword: handleResetPassword,
   };
 
   return (

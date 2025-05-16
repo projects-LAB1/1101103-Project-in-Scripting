@@ -5,6 +5,7 @@ import RootNavigator from './navigation/RootNavigator';
 import { AuthProvider } from './contexts/AuthContext';
 import { AlarmSoundProvider } from './contexts/AlarmSoundContext';
 import { SleepProvider } from './contexts/SleepContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -185,13 +186,15 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <AlarmSoundProvider>
-          <SleepProvider>
-            <RootNavigator ref={navigationRef} />
-          </SleepProvider>
-        </AlarmSoundProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AlarmSoundProvider>
+            <SleepProvider>
+              <RootNavigator ref={navigationRef} />
+            </SleepProvider>
+          </AlarmSoundProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

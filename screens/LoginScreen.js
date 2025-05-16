@@ -3,21 +3,22 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
-  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../contexts/AuthContext';
+
+// Import custom components
+import InputField from '../components/inputs/InputField';
+import CustomButton from '../components/buttons/CustomButton';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -93,48 +94,41 @@ const LoginScreen = ({ navigation }) => {
             <View style={styles.formContainer}>
               <Text style={styles.headerTitle}>{isRegistering ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}</Text>
             
-              <View style={styles.inputContainer}>
-                <View style={styles.inputWrapper}>
-                  <MaterialCommunityIcons name="email-outline" size={22} color="#767676" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="อีเมล"
-                    placeholderTextColor="#767676"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                  />
-                </View>
-              </View>
+              <InputField
+                placeholder="อีเมล"
+                icon="email-outline"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
               
-              <View style={styles.inputContainer}>
-                <View style={styles.inputWrapper}>
-                  <MaterialCommunityIcons name="lock-outline" size={22} color="#767676" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="รหัสผ่าน"
-                    placeholderTextColor="#767676"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                  />
-                </View>
-              </View>
+              <InputField
+                placeholder="รหัสผ่าน"
+                icon="lock-outline"
+                secureTextEntry
+                isPassword={true}
+                value={password}
+                onChangeText={setPassword}
+              />
               
-              <TouchableOpacity
-                style={styles.primaryButton}
+              {!isRegistering && (
+                <TouchableOpacity 
+                  style={styles.forgotPasswordContainer}
+                  onPress={() => navigation.navigate('ResetPassword')}
+                >
+                  <Text style={styles.forgotPasswordText}>ลืมรหัสผ่าน?</Text>
+                </TouchableOpacity>
+              )}
+              
+              <CustomButton
+                title={isRegistering ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}
                 onPress={handleAuthentication}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#000" size="small" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>
-                    {isRegistering ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                isLoading={loading}
+                type="primary"
+                size="large"
+                style={styles.authButton}
+              />
               
               <View style={styles.switchContainer}>
                 <Text style={styles.switchText}>
@@ -148,12 +142,13 @@ const LoginScreen = ({ navigation }) => {
               </View>
             </View>
             
-            <TouchableOpacity 
-              style={styles.skipButton}
+            <CustomButton
+              title="ข้ามการเข้าสู่ระบบ"
               onPress={() => navigation.navigate('Main')}
-            >
-              <Text style={styles.skipButtonText}>ข้ามการเข้าสู่ระบบ</Text>
-            </TouchableOpacity>
+              type="secondary"
+              size="medium"
+              style={styles.skipButton}
+            />
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
@@ -208,67 +203,35 @@ const styles = StyleSheet.create({
   formContainer: {
     marginBottom: 24,
   },
-  inputContainer: {
+  forgotPasswordContainer: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
     marginBottom: 16,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1C1C1E',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 50,
+  forgotPasswordText: {
+    color: '#FF9500',
+    fontSize: 14,
   },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#FFF',
-    height: 50,
-  },
-  primaryButton: {
-    backgroundColor: '#FF9500', // iOS orange color
-    borderRadius: 10,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 24,
-    shadowColor: '#FF9500',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  primaryButtonText: {
-    color: '#000', // Black text on orange button like iOS
-    fontSize: 17,
-    fontWeight: '600',
+  authButton: {
+    marginTop: 8,
   },
   switchContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
-    alignItems: 'center',
+    marginTop: 16,
   },
   switchText: {
-    color: '#999',
-    fontSize: 15,
-    marginRight: 5,
+    color: '#767676',
+    fontSize: 14,
+    marginRight: 4,
   },
   switchActionText: {
-    color: '#FF9500', // iOS orange
-    fontSize: 15,
+    color: '#FF9500',
+    fontSize: 14,
     fontWeight: '600',
   },
   skipButton: {
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  skipButtonText: {
-    color: '#767676',
-    fontSize: 15,
+    marginBottom: 16,
   },
 });
 
