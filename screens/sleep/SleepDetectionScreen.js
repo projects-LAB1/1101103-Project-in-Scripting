@@ -149,47 +149,49 @@ const SleepDetectionScreen = ({ navigation }) => {
     const isExpanded = expandedItemId === item.id;
     
     return (
-      <List.Item
-        key={item.id || index}
-        title={`ตรวจพบการนอนหลับ`}
-        description={`${detectedDate.toLocaleString('th-TH')}`}
-        left={props => (
-          <List.Icon 
-            {...props} 
-            icon="sleep" 
-            color={theme.colors.primary}
-          />
-        )}
-        right={props => (
-          <TouchableOpacity
-            onPress={() => setExpandedItemId(isExpanded ? null : item.id)}
-          >
+      <>
+        <List.Item
+          key={item.id || index}
+          title={`ตรวจพบการนอนหลับ`}
+          description={`${detectedDate.toLocaleString('th-TH')}`}
+          left={props => (
             <List.Icon 
               {...props} 
-              icon={isExpanded ? "chevron-up" : "chevron-down"} 
+              icon="sleep" 
+              color={theme.colors.primary}
             />
-          </TouchableOpacity>
+          )}
+          right={props => (
+            <TouchableOpacity
+              onPress={() => setExpandedItemId(isExpanded ? null : item.id)}
+            >
+              <List.Icon 
+                {...props} 
+                icon={isExpanded ? "chevron-up" : "chevron-down"} 
+              />
+            </TouchableOpacity>
+          )}
+          onPress={() => setExpandedItemId(isExpanded ? null : item.id)}
+          style={styles.historyItem}
+        />
+        {isExpanded && (
+          <View style={styles.expandedContent}>
+            <Text style={[styles.expandedText, { color: theme.colors.text }]}>
+              ตรวจพบเมื่อ: {detectedDate.toLocaleString('th-TH')}
+            </Text>
+            <Text style={[styles.expandedText, { color: theme.colors.text }]}>
+              ไม่มีการเคลื่อนไหวเป็นเวลา: {item.noMotionDuration} วินาที
+            </Text>
+            <Button 
+              mode="contained" 
+              onPress={() => addToSleepHistory(item)}
+              style={styles.actionButton}
+            >
+              เพิ่มไปยังประวัติการนอน
+            </Button>
+          </View>
         )}
-        onPress={() => setExpandedItemId(isExpanded ? null : item.id)}
-        style={styles.historyItem}
-      />
-      {isExpanded && (
-        <View style={styles.expandedContent}>
-          <Text style={[styles.expandedText, { color: theme.colors.text }]}>
-            ตรวจพบเมื่อ: {detectedDate.toLocaleString('th-TH')}
-          </Text>
-          <Text style={[styles.expandedText, { color: theme.colors.text }]}>
-            ไม่มีการเคลื่อนไหวเป็นเวลา: {item.noMotionDuration} วินาที
-          </Text>
-          <Button 
-            mode="contained" 
-            onPress={() => addToSleepHistory(item)}
-            style={styles.actionButton}
-          >
-            เพิ่มไปยังประวัติการนอน
-          </Button>
-        </View>
-      )}
+      </>
     );
   };
   

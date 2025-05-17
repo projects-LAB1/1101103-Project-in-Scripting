@@ -439,6 +439,25 @@ const SleepHomeScreen = ({ navigation }) => {
             </View>
           </View>
         </TouchableOpacity>
+
+        {/* Weather Impact Card */}
+        <TouchableOpacity 
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('WeatherSleep')}
+        >
+          <View style={styles.featureCardContent}>
+            <View style={[styles.featureIconContainer, { backgroundColor: 'rgba(10, 132, 255, 0.1)' }]}>
+              <MaterialCommunityIcons name="weather-cloudy" size={28} color="#0A84FF" />
+            </View>
+            <View style={styles.featureTextContainer}>
+              <Text style={styles.featureTitle}>สภาพอากาศและการนอนหลับ</Text>
+              <Text style={styles.featureSubtitle}>ตรวจสอบสภาพอากาศและผลกระทบต่อการนอนหลับของคุณ</Text>
+            </View>
+            <View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
+            </View>
+          </View>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

@@ -10,6 +10,7 @@ import SleepGoalsScreen from '../screens/sleep/SleepGoalsScreen';
 import SleepTestScreen from '../screens/sleep/SleepTestScreen';
 import SleepDetectionScreen from '../screens/sleep/SleepDetectionScreen';
 import LightSensorScreen from '../screens/sleep/LightSensorScreen';
+import WeatherSleepScreen from '../screens/sleep/WeatherSleepScreen';
 
 const Stack = createStackNavigator();
 
@@ -42,6 +43,12 @@ const SleepNavigator = ({ route }) => {
           title: 'การนอนหลับ',
           headerRight: () => (
             <View style={{ flexDirection: 'row' }}>
+              <TouchableOpacity
+                style={{ marginRight: 16 }}
+                onPress={() => navigation.navigate('WeatherSleep')}
+              >
+                <MaterialCommunityIcons name="weather-cloudy" size={24} color="#0A84FF" />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={{ marginRight: 16 }}
                 onPress={() => navigation.navigate('SleepDetection')}
@@ -109,6 +116,14 @@ const SleepNavigator = ({ route }) => {
         component={LightSensorScreen}
         options={{
           title: 'ตรวจวัดแสงในห้อง',
+          headerBackTitle: 'กลับ',
+        }}
+      />
+      <Stack.Screen
+        name="WeatherSleep"
+        component={WeatherSleepScreen}
+        options={{
+          title: 'สภาพอากาศและการนอนหลับ',
           headerBackTitle: 'กลับ',
         }}
       />

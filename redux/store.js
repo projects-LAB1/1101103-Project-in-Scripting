@@ -1,11 +1,13 @@
 import { configureStore } from '@reduxjs/toolkit';
 import sleepReducer from './slices/sleepSlice';
 import sensorReducer from './slices/sensorSlice';
+import weatherReducer from './slices/weatherSlice';
 
 const store = configureStore({
   reducer: {
     sleep: sleepReducer,
     sensor: sensorReducer,
+    weather: weatherReducer,
     // อื่นๆ เช่น alarmReducer, userReducer
   },
   middleware: getDefaultMiddleware => 
