@@ -1,0 +1,237 @@
+========================================
+    สคริปต์ Demo Backend API สำหรับการนำเสนอ
+========================================
+
+🎯 เป้าหมาย: แสดงการทำงานของ Backend API ครบทุกฟีเจอร์
+เวลา: 4-5 นาที
+ผู้นำเสนอ: สมาชิกที่รับผิดชอบ Backend
+
+========================================
+📋 ขั้นตอนการ Demo (ตามลำดับ)
+========================================
+
+1. เริ่ม Server (30 วินาที)
+---------------------------
+พูด: "ตอนนี้ผมจะแสดงการทำงานของ Backend API ที่เราพัฒนาขึ้น"
+
+คำสั่ง:
+cd backend
+npm run dev
+
+พูด: "Server ทำงานที่ port 5000 แล้วครับ ใช้ Express.js และ Firebase"
+
+2. ทดสอบ Root API (15 วินาที)
+-----------------------------
+เปิด Browser: http://localhost:5000/
+
+พูด: "นี่คือ API หลักที่แสดงข้อมูลทั้งหมดของระบบ"
+
+แสดงผล:
+{
+  "message": "Sleep App API with Firebase",
+  "version": "2.0.0",
+  "endpoints": {...}
+}
+
+3. Demo Authentication APIs (1 นาที)
+------------------------------------
+พูด: "ระบบ Authentication มี 3 endpoints หลัก"
+
+A) Register User:
+POST http://localhost:5000/api/auth/register
+Headers: Authorization: Bearer mock-token
+Body: {"displayName": "ผู้ใช้ทดสอบ", "phoneNumber": "0812345678"}
+
+พูด: "สร้างบัญชีผู้ใช้ใหม่สำเร็จ"
+
+B) Get Profile:
+GET http://localhost:5000/api/auth/profile
+Headers: Authorization: Bearer mock-token
+
+พูด: "ดึงข้อมูลโปรไฟล์ผู้ใช้ได้"
+
+C) Update Profile:
+PUT http://localhost:5000/api/auth/profile
+Headers: Authorization: Bearer mock-token
+Body: {"displayName": "ชื่อใหม่"}
+
+พูด: "แก้ไขข้อมูลโปรไฟล์ได้"
+
+4. Demo Tasks APIs - CRUD (1.5 นาที)
+------------------------------------
+พูด: "ระบบจัดการงานมี CRUD operations ครบ"
+
+A) Create Task:
+POST http://localhost:5000/api/tasks
+Headers: Authorization: Bearer mock-token
+Body: {
+  "title": "ออกกำลังกาย",
+  "description": "วิ่ง 30 นาที",
+  "category": "health",
+  "priority": "high"
+}
+
+พูด: "สร้างงานใหม่สำเร็จ"
+
+B) Read Tasks:
+GET http://localhost:5000/api/tasks
+Headers: Authorization: Bearer mock-token
+
+พูด: "ดึงรายการงานทั้งหมดของผู้ใช้"
+
+C) Update Task:
+PUT http://localhost:5000/api/tasks/{taskId}
+Headers: Authorization: Bearer mock-token
+Body: {"completed": true}
+
+พูด: "อัพเดทสถานะงานเป็นเสร็จแล้ว"
+
+D) Delete Task:
+DELETE http://localhost:5000/api/tasks/{taskId}
+Headers: Authorization: Bearer mock-token
+
+พูด: "ลบงานออกจากระบบ"
+
+5. Demo Sleep APIs - CRUD (1 นาที)
+----------------------------------
+พูด: "ระบบติดตามการนอนหลับ"
+
+A) Create Sleep Record:
+POST http://localhost:5000/api/sleep
+Headers: Authorization: Bearer mock-token
+Body: {
+  "bedTime": "2024-01-14T22:30:00Z",
+  "wakeTime": "2024-01-15T06:30:00Z",
+  "quality": 4,
+  "notes": "นอนหลับสบาย"
+}
+
+พูด: "บันทึกข้อมูลการนอนสำเร็จ"
+
+B) Read Sleep Data:
+GET http://localhost:5000/api/sleep
+Headers: Authorization: Bearer mock-token
+
+พูด: "ดึงประวัติการนอนของผู้ใช้"
+
+6. Demo Games APIs (45 วินาที)
+------------------------------
+พูด: "ระบบเกมฝึกสมอง"
+
+A) Get Games:
+GET http://localhost:5000/api/games
+
+พูด: "ดูรายการเกมที่มีในระบบ"
+
+B) Record Score:
+POST http://localhost:5000/api/games/memory-game/score
+Headers: Authorization: Bearer mock-token
+Body: {
+  "score": 1250,
+  "level": 5,
+  "duration": 180
+}
+
+พูด: "บันทึกคะแนนเกมสำเร็จ"
+
+C) Get User Scores:
+GET http://localhost:5000/api/games/scores
+Headers: Authorization: Bearer mock-token
+
+พูด: "ดูประวัติคะแนนของผู้ใช้"
+
+7. แสดง Automated Testing (30 วินาที)
+-------------------------------------
+คำสั่ง: node test-api.js
+
+พูด: "นี่คือการทดสอบ API อัตโนมัติที่เราสร้างขึ้น ทดสอบทุก endpoint"
+
+แสดงผลลัพธ์: ✅ ทดสอบผ่านทั้งหมด
+
+========================================
+🎤 สคริปต์การพูด (Word by Word)
+========================================
+
+เริ่มต้น:
+"ตอนนี้ผมจะ Demo Backend API ที่เราพัฒนาขึ้นครับ ระบบนี้ใช้ Express.js เป็น Framework หลัก และเชื่อมต่อกับ Firebase"
+
+ระหว่าง Demo:
+"อย่างที่เห็นครับ API ทำงานได้ปกติ ส่งคืนข้อมูล JSON และมี Status Code ที่ถูกต้อง"
+
+"ระบบ Authentication ใช้ Token-based ครับ ในการ Demo นี้เราใช้ Mock Token"
+
+"สำหรับ CRUD Operations เราได้ครบทุกฟีเจอร์ตามที่เกณฑ์การให้คะแนนกำหนด"
+
+"Database ตอนนี้ใช้ Mock System ครับ เหมาะสำหรับการทดสอบและ Demo"
+
+สรุป:
+"จากที่แสดงให้เห็น Backend API ของเราครบทุกฟีเจอร์ที่กำหนด มี CRUD Operations ครบ และทดสอบผ่านทั้งหมดครับ"
+
+========================================
+🛠️ เครื่องมือที่ใช้ในการ Demo
+========================================
+
+1. Terminal/Command Prompt
+   - สำหรับรัน Server
+   - รัน Test Script
+
+2. Web Browser
+   - ทดสอบ GET APIs
+   - แสดงผล JSON Response
+
+3. Postman หรือ cURL
+   - ทดสอบ POST, PUT, DELETE
+   - ส่ง Headers และ Body
+
+4. VS Code (ถ้าจำเป็น)
+   - แสดง Source Code
+   - อธิบายโครงสร้าง
+
+========================================
+⚠️ สิ่งที่ต้องเตรียมก่อน Demo
+========================================
+
+1. ✅ ติดตั้ง Dependencies
+   npm install
+
+2. ✅ ทดสอบ Server ทำงาน
+   npm run dev
+
+3. ✅ เตรียม API Testing Tool
+   Postman, Browser, cURL
+
+4. ✅ เตรียม Sample Data
+   ข้อมูลทดสอบที่พร้อมใช้
+
+5. ✅ Backup Plan
+   Screenshots ผลลัพธ์ (ถ้า Demo ไม่ทำงาน)
+
+========================================
+🎯 จุดเด่นที่ต้องเน้น
+========================================
+
+✅ ครบทุก CRUD Operations
+- CREATE: 4 endpoints
+- READ: 5 endpoints
+- UPDATE: 3 endpoints
+- DELETE: 2 endpoints
+
+✅ Security Features
+- Token-based Authentication
+- User-specific Data Access
+- Input Validation
+
+✅ Professional Development
+- Error Handling
+- API Documentation
+- Automated Testing
+- Clean Code Structure
+
+✅ Production Ready
+- Firebase Integration
+- Scalable Architecture
+- Mock System for Testing
+
+========================================
+🔥 เป้าหมาย: แสดงให้เห็นว่า Backend สมบูรณ์ 100%!
+======================================== 

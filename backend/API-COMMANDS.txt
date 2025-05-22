@@ -1,0 +1,248 @@
+========================================
+    Sleep App API - คู่มือการใช้งานทั้งหมด
+========================================
+
+🚀 การเริ่มต้น
+--------------
+1. cd backend
+2. npm install
+3. npm run dev
+
+Server: http://localhost:5000
+Token สำหรับทดสอบ: mock-token
+
+========================================
+📋 API ENDPOINTS ทั้งหมด
+========================================
+
+1. ROOT API
+-----------
+GET http://localhost:5000/
+
+2. AUTHENTICATION APIs
+----------------------
+# สมัครสมาชิก
+POST http://localhost:5000/api/auth/register
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "displayName": "ชื่อผู้ใช้",
+  "phoneNumber": "0812345678",
+  "birthDate": "1990-01-01",
+  "preferences": {
+    "theme": "dark",
+    "notifications": true
+  }
+}
+
+# ดูโปรไฟล์
+GET http://localhost:5000/api/auth/profile
+Headers: Authorization: Bearer mock-token
+
+# แก้ไขโปรไฟล์
+PUT http://localhost:5000/api/auth/profile
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "displayName": "ชื่อใหม่",
+  "phoneNumber": "0887654321"
+}
+
+3. USERS APIs
+-------------
+# ดูผู้ใช้ทั้งหมด
+GET http://localhost:5000/api/users
+
+# ดูผู้ใช้ตาม ID
+GET http://localhost:5000/api/users/mock-user-123
+
+4. TASKS APIs (CRUD)
+--------------------
+# ดูงานทั้งหมด
+GET http://localhost:5000/api/tasks
+Headers: Authorization: Bearer mock-token
+
+# สร้างงานใหม่
+POST http://localhost:5000/api/tasks
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "title": "ออกกำลังกาย",
+  "description": "วิ่งในสวนสาธารณะ 30 นาที",
+  "category": "health",
+  "priority": "high",
+  "dueDate": "2024-01-15T18:00:00Z",
+  "completed": false
+}
+
+# แก้ไขงาน
+PUT http://localhost:5000/api/tasks/{taskId}
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "completed": true,
+  "notes": "เสร็จแล้ว!"
+}
+
+# ลบงาน
+DELETE http://localhost:5000/api/tasks/{taskId}
+Headers: Authorization: Bearer mock-token
+
+5. GAMES APIs
+-------------
+# ดูเกมทั้งหมด
+GET http://localhost:5000/api/games
+
+# ดูคะแนนของผู้ใช้
+GET http://localhost:5000/api/games/scores
+Headers: Authorization: Bearer mock-token
+
+# บันทึกคะแนนเกม
+POST http://localhost:5000/api/games/memory-game/score
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "score": 1250,
+  "level": 5,
+  "duration": 180,
+  "metadata": {
+    "difficulty": "hard",
+    "mistakes": 2
+  }
+}
+
+6. SLEEP APIs (CRUD)
+--------------------
+# ดูข้อมูลการนอน
+GET http://localhost:5000/api/sleep
+Headers: Authorization: Bearer mock-token
+
+# บันทึกข้อมูลการนอน
+POST http://localhost:5000/api/sleep
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "bedTime": "2024-01-14T22:30:00Z",
+  "wakeTime": "2024-01-15T06:30:00Z",
+  "quality": 4,
+  "notes": "นอนหลับสบาย",
+  "durationMinutes": 480
+}
+
+# แก้ไขข้อมูลการนอน
+PUT http://localhost:5000/api/sleep/{sleepId}
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "quality": 5,
+  "notes": "นอนหลับสบายมาก!"
+}
+
+# ลบข้อมูลการนอน
+DELETE http://localhost:5000/api/sleep/{sleepId}
+Headers: Authorization: Bearer mock-token
+
+========================================
+🧪 cURL COMMANDS
+========================================
+
+# สมัครสมาชิก
+curl -X POST http://localhost:5000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d "{\"displayName\":\"ทดสอบ\",\"phoneNumber\":\"0812345678\"}"
+
+# สร้างงาน
+curl -X POST http://localhost:5000/api/tasks \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d "{\"title\":\"ออกกำลังกาย\",\"description\":\"วิ่ง 30 นาที\",\"category\":\"health\",\"priority\":\"high\"}"
+
+# บันทึกการนอน
+curl -X POST http://localhost:5000/api/sleep \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d "{\"bedTime\":\"2024-01-14T22:30:00Z\",\"wakeTime\":\"2024-01-15T06:30:00Z\",\"quality\":4,\"notes\":\"นอนหลับสบาย\"}"
+
+# บันทึกคะแนนเกม
+curl -X POST http://localhost:5000/api/games/memory-game/score \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d "{\"score\":1250,\"level\":5,\"duration\":180}"
+
+========================================
+📊 RESPONSE EXAMPLES
+========================================
+
+# สำเร็จ (201 Created)
+{
+  "id": "mock_123456789_abc",
+  "title": "ออกกำลังกาย",
+  "userId": "mock-user-123",
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z"
+}
+
+# ข้อผิดพลาด (401 Unauthorized)
+{
+  "error": "Unauthorized",
+  "message": "No token provided or invalid format"
+}
+
+# ข้อผิดพลาด (404 Not Found)
+{
+  "error": "Task not found"
+}
+
+========================================
+🔧 การทดสอบ
+========================================
+
+# ทดสอบ API ทั้งหมด
+node test-api.js
+
+# ทดสอบ endpoint เดียว
+curl -X GET http://localhost:5000/
+
+========================================
+🎯 สรุป CRUD Operations
+========================================
+
+CREATE (สร้าง):
+- POST /api/auth/register (Users)
+- POST /api/tasks (Tasks)
+- POST /api/sleep (Sleep)
+- POST /api/games/{gameId}/score (Games)
+
+READ (อ่าน):
+- GET /api/users (Users)
+- GET /api/tasks (Tasks)
+- GET /api/sleep (Sleep)
+- GET /api/games (Games)
+
+UPDATE (แก้ไข):
+- PUT /api/auth/profile (Users)
+- PUT /api/tasks/{id} (Tasks)
+- PUT /api/sleep/{id} (Sleep)
+
+DELETE (ลบ):
+- DELETE /api/tasks/{id} (Tasks)
+- DELETE /api/sleep/{id} (Sleep)
+
+========================================
+🔥 Backend API พร้อมใช้งานครบทุกฟีเจอร์!
+======================================== 
