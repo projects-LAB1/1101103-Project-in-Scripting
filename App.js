@@ -104,6 +104,29 @@ export default function App() {
   useEffect(() => {
     const setupAudio = async () => {
       try {
+        // First disable audio to reset the system
+        try {
+          await Audio.setIsEnabledAsync(false);
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (resetError) {
+          console.log('Non-critical error resetting audio:', resetError);
+        }
+        
+        // Now try to enable audio
+        try {
+          await Audio.setIsEnabledAsync(true);
+        } catch (enableError) {
+          console.log('Error enabling audio, will try again:', enableError);
+          // Try again after a delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          try {
+            await Audio.setIsEnabledAsync(true);
+          } catch (retryError) {
+            console.log('Second attempt to enable audio failed:', retryError);
+            // Continue anyway
+          }
+        }
+        
         // ตั้งค่า audio mode ด้วยฟังก์ชันที่ปลอดภัย
         const success = await setAudioMode(false);
         
@@ -128,10 +151,14 @@ export default function App() {
         // Try to recover audio system
         try {
           await Audio.setIsEnabledAsync(false);
+          await new Promise(resolve => setTimeout(resolve, 300));
           await Audio.setIsEnabledAsync(true);
+          // Set as initialized anyway to prevent blocking app functionality
           setAudioInitialized(true);
         } catch (recoveryError) {
           console.error('Failed to recover audio system:', recoveryError);
+          // Still set as initialized to prevent blocking app functionality
+          setAudioInitialized(true);
         }
       }
     };

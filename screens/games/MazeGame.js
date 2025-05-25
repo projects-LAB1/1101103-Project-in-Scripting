@@ -27,6 +27,10 @@ const MazeGame = ({ route, navigation }) => {
   
   // สร้าง ref เพื่อป้องกันการเรียก onComplete ซ้ำ
   const isCompletedRef = useRef(false);
+  // สร้าง ref เพื่อตรวจสอบว่าได้สร้างเขาวงกตไปแล้วหรือยัง
+  const hasMazeGenerated = useRef(false);
+  // สร้าง ref เพื่อเก็บข้อมูลเขาวงกต
+  const mazeRef = useRef([]);
   
   // สถานะเกม
   const [gameStarted, setGameStarted] = useState(false);
@@ -60,7 +64,10 @@ const MazeGame = ({ route, navigation }) => {
   
   // สร้างเขาวงกต
   useEffect(() => {
-    generateMaze();
+    if (!hasMazeGenerated.current) {
+      generateMaze();
+      hasMazeGenerated.current = true;
+    }
     checkSensorAvailability();
   }, [difficulty]);
   
@@ -179,6 +186,8 @@ const MazeGame = ({ route, navigation }) => {
       initialMaze[rows-1][cols-1] = 0;
     }
     
+    // เก็บเขาวงกตไว้ใน ref และ state
+    mazeRef.current = initialMaze;
     setMaze(initialMaze);
     setPlayerPosition({ row: 0, col: 0 });
     setGoalPosition({ row: rows - 1, col: cols - 1 });
@@ -211,11 +220,11 @@ const MazeGame = ({ route, navigation }) => {
         break;
     }
     
-    // ตรวจสอบว่าเคลื่อนที่ได้หรือไม่
+    // ตรวจสอบว่าเคลื่อนที่ได้หรือไม่ โดยใช้ค่าจาก mazeRef
     if (
       newRow >= 0 && newRow < rows &&
       newCol >= 0 && newCol < cols &&
-      maze[newRow][newCol] === 0 // ไม่มีกำแพง
+      mazeRef.current[newRow][newCol] === 0 // ไม่มีกำแพง
     ) {
       setPlayerPosition({ row: newRow, col: newCol });
       

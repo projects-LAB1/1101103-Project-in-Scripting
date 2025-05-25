@@ -38,10 +38,20 @@ const GameSelector = ({ route, navigation }) => {
   // ตรวจสอบเมื่อกลับมาที่หน้านี้หลังจากเล่นเกมเสร็จ
   useFocusEffect(
     React.useCallback(() => {
+      console.log('GameSelector focused, gameCompleted:', gameCompleted);
+      
       if (gameCompleted) {
         console.log('Game completed flag detected, handling completion');
-        handleGameComplete();
+        // เพิ่มการหน่วงเวลาเล็กน้อยเพื่อให้แน่ใจว่า UI ได้อัพเดตก่อนที่จะนำทางไปหน้าอื่น
+        setTimeout(() => {
+          handleGameComplete();
+        }, 300);
       }
+      
+      return () => {
+        // ทำความสะอาดเมื่อออกจากหน้านี้
+        console.log('GameSelector focus lost');
+      };
     }, [gameCompleted])
   );
   
@@ -54,12 +64,20 @@ const GameSelector = ({ route, navigation }) => {
         setAudioEnabled(true);
       } catch (error) {
         console.error('Error enabling audio:', error);
-        setAudioEnabled(false);
-        // แสดงข้อความแจ้งเตือนถ้าไม่สามารถเปิดใช้งานระบบเสียงได้
-        Alert.alert(
-          'ไม่สามารถเปิดใช้งานระบบเสียง',
-          'แอปอาจไม่สามารถเล่นเสียงปลุกได้ กรุณาตรวจสอบการอนุญาตการใช้งานเสียงของแอป'
-        );
+        // Don't show alert as it might disrupt the game experience
+        // Just set audio as enabled anyway to allow the game to continue
+        setAudioEnabled(true);
+        
+        // Try to recover audio system silently
+        setTimeout(async () => {
+          try {
+            await Audio.setIsEnabledAsync(false);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await Audio.setIsEnabledAsync(true);
+          } catch (e) {
+            // Ignore recovery errors
+          }
+        }, 1000);
       }
     };
     
@@ -122,7 +140,7 @@ const GameSelector = ({ route, navigation }) => {
     }
     
     isCompletedRef.current = true;
-    console.log('Game completed');
+    console.log('Game completed, handling navigation');
     
     // หยุดเสียงปลุกเมื่อเล่นเกมเสร็จ (ถ้ายังไม่ได้หยุด)
     if (isPlaying && !soundAlreadyStopped) {
@@ -163,17 +181,29 @@ const GameSelector = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error('Error in navigation after game completion:', error);
-      // ถ้าเกิดข้อผิดพลาดในการนำทาง ให้พยายามกลับไปที่หน้ารายการนาฬิกาปลุกโดยตรง
+      // ถ้าเกิดข้อผิดพลาดในการนำทาง ให้พยายามกลับไปที่หน้ารายการนาฬิกาปลุกโดยตรงด้วยวิธีอื่น
       try {
-        navigation.navigate('Alarm', { screen: 'AlarmList' });
+        // ลองใช้ navigate แทน reset
+        navigation.navigate('Alarm', { 
+          screen: 'AlarmList',
+          params: { alarmCompleted: true }
+        });
       } catch (navError) {
         console.error('Failed to navigate after error:', navError);
-        // ถ้าไม่สามารถนำทางได้ ให้แสดงข้อความแจ้งเตือนและให้ผู้ใช้กดปุ่มย้อนกลับเอง
-        Alert.alert(
-          'เกิดข้อผิดพลาด',
-          'ไม่สามารถกลับไปยังหน้าหลักได้ กรุณากดปุ่มย้อนกลับ',
-          [{ text: 'ตกลง' }]
-        );
+        
+        // ลองใช้ navigate แบบง่ายที่สุด
+        try {
+          navigation.navigate('Alarm');
+        } catch (finalError) {
+          console.error('All navigation attempts failed:', finalError);
+          
+          // ถ้าไม่สามารถนำทางได้ ให้แสดงข้อความแจ้งเตือนและให้ผู้ใช้กดปุ่มย้อนกลับเอง
+          Alert.alert(
+            'เกิดข้อผิดพลาด',
+            'ไม่สามารถกลับไปยังหน้าหลักได้ กรุณากดปุ่มย้อนกลับ',
+            [{ text: 'ตกลง' }]
+          );
+        }
       }
     }
   };

@@ -40,6 +40,10 @@ const GlowJigsawGame = ({ route, navigation }) => {
   
   // ref เพื่อป้องกันการเรียก onComplete ซ้ำ
   const isCompletedRef = useRef(false);
+  // ref เพื่อเก็บข้อมูลชิ้นส่วน
+  const piecesRef = useRef([]);
+  // ref เพื่อตรวจสอบว่าได้สร้างชิ้นส่วนไปแล้วหรือยัง
+  const hasPiecesInitialized = useRef(false);
   
   // กำหนดขนาดตาราง (จำนวนชิ้นส่วน) ตามระดับความยาก
   const gridSizes = {
@@ -87,99 +91,102 @@ const GlowJigsawGame = ({ route, navigation }) => {
   
   // สร้างชิ้นส่วนจิ๊กซอว์
   useEffect(() => {
-    if (selectedShape) {
-      const initializePieces = () => {
-        try {
-          const newPieces = [];
-          
-          // สร้างชิ้นส่วนตามกริด
-          for (let row = 0; row < gridSize; row++) {
-            for (let col = 0; col < gridSize; col++) {
-              // คำนวณตำแหน่งที่ถูกต้องของชิ้นส่วน
-              const correctX = col * pieceSize;
-              const correctY = row * pieceSize;
-              
-              // สร้างตำแหน่งเริ่มต้นแบบสุ่ม (อยู่นอกพื้นที่จิ๊กซอว์ตามขอบหน้าจอ)
-              let initialX, initialY;
-              
-              // สุ่มตำแหน่งเริ่มต้น
-              const randomEdge = Math.floor(Math.random() * 4); // 0=บน, 1=ขวา, 2=ล่าง, 3=ซ้าย
-              switch (randomEdge) {
-                case 0: // บน
-                  initialX = Math.random() * (width - pieceSize);
-                  initialY = -pieceSize;
-                  break;
-                case 1: // ขวา
-                  initialX = width;
-                  initialY = Math.random() * (height - pieceSize);
-                  break;
-                case 2: // ล่าง
-                  initialX = Math.random() * (width - pieceSize);
-                  initialY = height;
-                  break;
-                case 3: // ซ้าย
-                default: // เพิ่ม default case เพื่อป้องกันความผิดพลาด
-                  initialX = -pieceSize;
-                  initialY = Math.random() * (height - pieceSize);
-                  break;
-              }
-              
-              newPieces.push({
-                id: `${row}-${col}`,
-                row,
-                col,
-                correctX,
-                correctY,
-                currentX: new Animated.Value(initialX),
-                currentY: new Animated.Value(initialY),
-                zIndex: 1,
-                rotation: new Animated.Value(Math.random() * 30 - 15), // หมุนเล็กน้อย
-                isCorrect: false,
-              });
-            }
-          }
-          
-          // เล่นแอนิเมชันให้ชิ้นส่วนเข้ามาในหน้าจอ
-          newPieces.forEach((piece, index) => {
-            // สร้างตำแหน่งเป้าหมายในพื้นที่เล่น
-            const targetX = Math.random() * (width - pieceSize * 2) + pieceSize / 2;
-            const targetY = height / 2 + Math.random() * 200 - 100;
-            
-            // แอนิเมชันเลื่อนชิ้นส่วนเข้าหน้าจอ
-            Animated.sequence([
-              Animated.delay(index * 100), // หน่วงเวลาทีละชิ้น
-              Animated.parallel([
-                Animated.spring(piece.currentX, {
-                  toValue: targetX,
-                  friction: 6,
-                  tension: 40,
-                  useNativeDriver: true,
-                }),
-                Animated.spring(piece.currentY, {
-                  toValue: targetY,
-                  friction: 6,
-                  tension: 40,
-                  useNativeDriver: true,
-                }),
-                Animated.spring(piece.rotation, {
-                  toValue: 0,
-                  friction: 6,
-                  tension: 40,
-                  useNativeDriver: true,
-                }),
-              ]),
-            ]).start();
-          });
-          
-          setPieces(newPieces);
-        } catch (error) {
-          console.error("Error initializing pieces:", error);
-        }
-      };
-      
+    if (selectedShape && !hasPiecesInitialized.current) {
       initializePieces();
+      hasPiecesInitialized.current = true;
     }
   }, [selectedShape]);
+  
+  const initializePieces = () => {
+    try {
+      const newPieces = [];
+      
+      // สร้างชิ้นส่วนตามกริด
+      for (let row = 0; row < gridSize; row++) {
+        for (let col = 0; col < gridSize; col++) {
+          // คำนวณตำแหน่งที่ถูกต้องของชิ้นส่วน
+          const correctX = col * pieceSize;
+          const correctY = row * pieceSize;
+          
+          // สร้างตำแหน่งเริ่มต้นแบบสุ่ม (อยู่นอกพื้นที่จิ๊กซอว์ตามขอบหน้าจอ)
+          let initialX, initialY;
+          
+          // สุ่มตำแหน่งเริ่มต้น
+          const randomEdge = Math.floor(Math.random() * 4); // 0=บน, 1=ขวา, 2=ล่าง, 3=ซ้าย
+          switch (randomEdge) {
+            case 0: // บน
+              initialX = Math.random() * (width - pieceSize);
+              initialY = -pieceSize;
+              break;
+            case 1: // ขวา
+              initialX = width;
+              initialY = Math.random() * (height - pieceSize);
+              break;
+            case 2: // ล่าง
+              initialX = Math.random() * (width - pieceSize);
+              initialY = height;
+              break;
+            case 3: // ซ้าย
+            default: // เพิ่ม default case เพื่อป้องกันความผิดพลาด
+              initialX = -pieceSize;
+              initialY = Math.random() * (height - pieceSize);
+              break;
+          }
+          
+          newPieces.push({
+            id: `${row}-${col}`,
+            row,
+            col,
+            correctX,
+            correctY,
+            currentX: new Animated.Value(initialX),
+            currentY: new Animated.Value(initialY),
+            zIndex: 1,
+            rotation: new Animated.Value(Math.random() * 30 - 15), // หมุนเล็กน้อย
+            isCorrect: false,
+          });
+        }
+      }
+      
+      // เล่นแอนิเมชันให้ชิ้นส่วนเข้ามาในหน้าจอ
+      newPieces.forEach((piece, index) => {
+        // สร้างตำแหน่งเป้าหมายในพื้นที่เล่น
+        const targetX = Math.random() * (width - pieceSize * 2) + pieceSize / 2;
+        const targetY = height / 2 + Math.random() * 200 - 100;
+        
+        // แอนิเมชันเลื่อนชิ้นส่วนเข้าหน้าจอ
+        Animated.sequence([
+          Animated.delay(index * 100), // หน่วงเวลาทีละชิ้น
+          Animated.parallel([
+            Animated.spring(piece.currentX, {
+              toValue: targetX,
+              friction: 6,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+            Animated.spring(piece.currentY, {
+              toValue: targetY,
+              friction: 6,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+            Animated.spring(piece.rotation, {
+              toValue: 0,
+              friction: 6,
+              tension: 40,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]).start();
+      });
+      
+      // เก็บข้อมูลใน ref และ state
+      piecesRef.current = newPieces;
+      setPieces(newPieces);
+    } catch (error) {
+      console.error("Error initializing pieces:", error);
+    }
+  };
   
   // สร้าง PanResponder สำหรับแต่ละชิ้นส่วน
   const createPanResponder = (pieceId) => {
@@ -189,11 +196,14 @@ const GlowJigsawGame = ({ route, navigation }) => {
         // เมื่อเริ่มลาก ยกชิ้นส่วนขึ้นมาอยู่ด้านบน
         setPieces(currentPieces => {
           if (!currentPieces || !Array.isArray(currentPieces)) return [];
-          return currentPieces.map(p => 
+          const updatedPieces = currentPieces.map(p => 
             p.id === pieceId
               ? { ...p, zIndex: 10 }
               : p
           );
+          // อัพเดต ref ด้วย
+          piecesRef.current = updatedPieces;
+          return updatedPieces;
         });
       },
       onPanResponderMove: (event, gesture) => {
@@ -248,29 +258,29 @@ const GlowJigsawGame = ({ route, navigation }) => {
           // อัพเดตสถานะว่าชิ้นส่วนนี้อยู่ในตำแหน่งที่ถูกต้อง
           setPieces(currentPieces => {
             if (!currentPieces || !Array.isArray(currentPieces)) return [];
-            return currentPieces.map(p =>
+            const updatedPieces = currentPieces.map(p => 
               p.id === pieceId
-                ? { ...p, isCorrect: true, zIndex: 5 }
+                ? { ...p, isCorrect: true, zIndex: 1 }
                 : p
             );
+            // อัพเดต ref ด้วย
+            piecesRef.current = updatedPieces;
+            return updatedPieces;
           });
           
-          // เพิ่มชิ้นส่วนที่ถูกต้องลงในอาเรย์
+          // เพิ่มชิ้นส่วนที่ถูกต้องเข้าไปในรายการ
           setCompletedPieces(current => {
-            if (!current || !Array.isArray(current)) return [pieceId];
             const newCompleted = [...current, pieceId];
             
-            // ตรวจสอบว่าเกมจบหรือยัง (ทุกชิ้นอยู่ในตำแหน่งที่ถูกต้อง)
+            // ตรวจสอบว่าเกมจบหรือยัง
             if (newCompleted.length === gridSize * gridSize) {
-              // เกมจบแล้ว - เรียกฟังก์ชันจัดการเมื่อเกมเสร็จสิ้น
-              handleGameComplete();
-            } else {
-              // ยังไม่จบ ให้สั่นนิดหน่อยเป็นการให้ feedback
-              try {
-                Vibration.vibrate(50);
-              } catch (error) {
-                console.error("Vibration error:", error);
-              }
+              // จบเกม
+              setIsGameComplete(true);
+              
+              // แสดงข้อความยินดี
+              setTimeout(() => {
+                handleGameComplete();
+              }, 500);
             }
             
             return newCompleted;

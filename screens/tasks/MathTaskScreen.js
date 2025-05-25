@@ -18,13 +18,20 @@ const MathTaskScreen = ({ route, navigation }) => {
   
   // สร้าง ref เพื่อป้องกันการเรียก onComplete ซ้ำ
   const isCompletedRef = useRef(false);
+  // สร้าง ref เพื่อเก็บข้อมูลโจทย์และคำตอบ
+  const problemRef = useRef({ problem: '', answer: '' });
+  // สร้าง ref เพื่อตรวจสอบว่าได้สร้างโจทย์ไปแล้วหรือยัง
+  const hasGeneratedProblem = useRef(false);
   
   // ใช้ AlarmSoundContext
   const { isPlaying, stopAlarmSound } = useAlarmSound();
   
-  // Generate math problem based on difficulty
+  // Generate math problem based on difficulty only once when component mounts
   useEffect(() => {
-    generateProblem();
+    if (!hasGeneratedProblem.current) {
+      generateProblem();
+      hasGeneratedProblem.current = true;
+    }
     
     // ฟังก์ชัน cleanup
     return () => {
@@ -59,8 +66,10 @@ const MathTaskScreen = ({ route, navigation }) => {
           result = num1 - num2;
         }
         
-        setProblem(`${num1} ${operator1} ${num2}`);
-        setAnswer(result.toString());
+        problemRef.current = {
+          problem: `${num1} ${operator1} ${num2}`,
+          answer: result.toString()
+        };
         break;
         
       case 'medium':
@@ -81,8 +90,10 @@ const MathTaskScreen = ({ route, navigation }) => {
           result = num1 * num2;
         }
         
-        setProblem(`${num1} ${operator1} ${num2}`);
-        setAnswer(result.toString());
+        problemRef.current = {
+          problem: `${num1} ${operator1} ${num2}`,
+          answer: result.toString()
+        };
         break;
         
       case 'hard':
@@ -114,8 +125,10 @@ const MathTaskScreen = ({ route, navigation }) => {
           result = intermediateResult * num3;
         }
         
-        setProblem(`${num1} ${operator1} ${num2} ${operator2} ${num3}`);        
-        setAnswer(result.toString());
+        problemRef.current = {
+          problem: `${num1} ${operator1} ${num2} ${operator2} ${num3}`,
+          answer: result.toString()
+        };
         break;
         
       default:
@@ -125,9 +138,15 @@ const MathTaskScreen = ({ route, navigation }) => {
         operator1 = '+';
         result = num1 + num2;
         
-        setProblem(`${num1} ${operator1} ${num2}`);
-        setAnswer(result.toString());
+        problemRef.current = {
+          problem: `${num1} ${operator1} ${num2}`,
+          answer: result.toString()
+        };
     }
+    
+    // Update state with the generated problem
+    setProblem(problemRef.current.problem);
+    setAnswer(problemRef.current.answer);
   };
   
   const handleSuccess = () => {
@@ -168,7 +187,8 @@ const MathTaskScreen = ({ route, navigation }) => {
   };
   
   const handleSubmit = () => {
-    if (userAnswer === answer) {
+    // ใช้ค่าจาก ref แทนที่จะใช้จาก state เพื่อป้องกันการเปลี่ยนแปลงที่ไม่ได้ตั้งใจ
+    if (userAnswer === problemRef.current.answer) {
       // ถูกต้อง
       Alert.alert(
         'ถูกต้อง!',
@@ -194,6 +214,7 @@ const MathTaskScreen = ({ route, navigation }) => {
               onPress: () => {
                 setAttempts(0);
                 setUserAnswer('');
+                hasGeneratedProblem.current = false; // Reset flag to allow new problem generation
                 generateProblem();
               },
             },
@@ -270,6 +291,7 @@ const MathTaskScreen = ({ route, navigation }) => {
                 { text: "ข้าม", onPress: () => {
                   setAttempts(0);
                   setUserAnswer('');
+                  hasGeneratedProblem.current = false; // Reset flag to allow new problem generation
                   generateProblem();
                 }}
               ]

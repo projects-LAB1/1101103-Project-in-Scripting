@@ -37,10 +37,17 @@ const MemoryGame = ({ route, navigation }) => {
   
   // สร้าง ref เพื่อป้องกันการเรียก onComplete ซ้ำ
   const isCompletedRef = useRef(false);
+  // สร้าง ref เพื่อตรวจสอบว่าได้สร้างเกมไปแล้วหรือยัง
+  const hasSetupGame = useRef(false);
+  // สร้าง ref เพื่อเก็บข้อมูลการ์ด
+  const cardsRef = useRef([]);
 
   // Setup game based on difficulty
   useEffect(() => {
-    setupGame();
+    if (!hasSetupGame.current) {
+      setupGame();
+      hasSetupGame.current = true;
+    }
     
     // ไม่ต้องหยุดเสียงที่นี่ เพราะยังเล่นเกมไม่เสร็จ
     return () => {
@@ -93,8 +100,16 @@ const MemoryGame = ({ route, navigation }) => {
     }
     
     // เรียกใช้ callback onComplete ถ้ามี
-    if (onComplete) {
+    if (typeof onComplete === 'function') {
+      console.log('Using onComplete function');
       onComplete();
+    } else {
+      console.log('No onComplete function, navigating back to GameSelector with completion flag');
+      // กลับไปที่หน้า GameSelector และให้ GameSelector จัดการต่อ
+      navigation.navigate('GameSelector', { 
+        gameCompleted: true,
+        completionAction: 'completeAlarm'
+      });
     }
   };
 
@@ -134,6 +149,8 @@ const MemoryGame = ({ route, navigation }) => {
       }))
       .sort(() => Math.random() - 0.5);
 
+    // Store in ref and state
+    cardsRef.current = cardDeck;
     setCards(cardDeck);
   };
 
@@ -170,13 +187,15 @@ const MemoryGame = ({ route, navigation }) => {
         setMatchedPairs([...matchedPairs, cards[firstIndex].icon]);
         
         // Update cards to mark them as matched
-        setCards(currentCards => 
-          currentCards.map((card, idx) => 
-            idx === firstIndex || idx === secondIndex
-              ? { ...card, matched: true }
-              : card
-          )
+        const updatedCards = cards.map((card, idx) => 
+          idx === firstIndex || idx === secondIndex
+            ? { ...card, matched: true }
+            : card
         );
+        
+        // Update both ref and state
+        cardsRef.current = updatedCards;
+        setCards(updatedCards);
         
         // Reset flipped indices
         setFlippedIndices([]);
@@ -198,7 +217,14 @@ const MemoryGame = ({ route, navigation }) => {
         Alert.alert(
           "เยี่ยมมาก!",
           `คุณชนะแล้ว!\nจำนวนการเล่น: ${moves}\nเวลา: ${formatTime(timerSeconds)}`,
-          [{ text: "ปิดนาฬิกาปลุก", onPress: handleGameComplete }]
+          [{ 
+            text: "ปิดนาฬิกาปลุก", 
+            onPress: () => {
+              console.log("Alert completion button pressed");
+              handleGameComplete();
+            }
+          }],
+          { cancelable: false } // ป้องกันการกดนอกกล่องข้อความเพื่อปิด
         );
       }, 500);
     }
