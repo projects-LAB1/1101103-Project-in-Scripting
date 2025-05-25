@@ -9,7 +9,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAlarmSound } from '../../contexts/AlarmSoundContext';
 
 const MathTaskScreen = ({ route, navigation }) => {
-  const { alarm, difficulty = 'medium', onComplete, soundAlreadyStopped = false } = route.params || {};
+  const { alarm, difficulty = 'medium', onComplete, gameCompletionHandler, soundAlreadyStopped = false } = route.params || {};
   const [problem, setProblem] = useState('');
   const [answer, setAnswer] = useState('');
   const [userAnswer, setUserAnswer] = useState('');
@@ -146,9 +146,24 @@ const MathTaskScreen = ({ route, navigation }) => {
       console.log('Sound was already stopped or not playing in MathTaskScreen');
     }
     
-    // เรียกใช้ callback onComplete ถ้ามี
-    if (onComplete) {
+    // เรียกใช้ callback onComplete ถ้ามี หรือใช้ gameCompletionHandler
+    if (typeof onComplete === 'function') {
+      console.log('Using onComplete function');
       onComplete();
+    } else if (gameCompletionHandler === 'handleGameComplete') {
+      console.log('Using gameCompletionHandler to navigate back');
+      // กลับไปที่หน้า GameSelector และให้ GameSelector จัดการต่อ
+      navigation.navigate('GameSelector', { 
+        gameCompleted: true,
+        completionAction: 'completeAlarm'
+      });
+    } else {
+      // ถ้าไม่มีทั้งสองอย่าง ให้กลับไปที่หน้า AlarmList โดยตรง
+      console.log('No completion handler found, navigating to AlarmList directly');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Alarm', params: { screen: 'AlarmList' } }],
+      });
     }
   };
   

@@ -179,7 +179,8 @@ const AlarmRingingScreen = ({ route, navigation }) => {
         // เพื่อให้ context จัดการเสียงในหน้าเกมแทน
         navigation.navigate("GameSelector", {
           alarm,
-          onComplete: () => completeAlarm("completed"),
+          // ไม่ส่งฟังก์ชันโดยตรง แต่ใช้ ID แทน
+          completionAction: "completeAlarm", // ใช้ string แทนฟังก์ชัน
           soundAlreadyStopped: false, // เปลี่ยนเป็น false เพื่อให้หน้าเกมจัดการเสียงเอง
         });
       } catch (error) {
