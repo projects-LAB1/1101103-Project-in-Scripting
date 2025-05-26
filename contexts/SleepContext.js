@@ -59,9 +59,42 @@ export const SleepProvider = ({ children }) => {
       setSleepGoals(goals);
       
       // วิเคราะห์ข้อมูลถ้ามีข้อมูลเพียงพอ
-      if (records.length > 0) {
-        const analytics = analyzeSleepPatterns(records);
-        setSleepAnalytics(analytics);
+      if (records && records.length > 0) {
+        try {
+          const analytics = analyzeSleepPatterns(records);
+          if (analytics) {
+            setSleepAnalytics(analytics);
+          }
+        } catch (analyticsError) {
+          console.error('Error analyzing sleep patterns:', analyticsError);
+          // ถ้าวิเคราะห์ไม่สำเร็จ ให้สร้างข้อมูลเริ่มต้น
+          setSleepAnalytics({
+            avgDurationHours: '0.0',
+            avgBedTime: '00:00',
+            consistencyScore: 0,
+            daysAnalyzed: 0,
+            message: 'ยังไม่มีข้อมูลเพียงพอสำหรับการวิเคราะห์',
+            stats: {
+              averageDurationHours: '0.0',
+              consistencyScore: 0,
+              daysAnalyzed: 0
+            }
+          });
+        }
+      } else {
+        // ถ้าไม่มีข้อมูล ให้สร้างข้อมูลเริ่มต้น
+        setSleepAnalytics({
+          avgDurationHours: '0.0',
+          avgBedTime: '00:00',
+          consistencyScore: 0,
+          daysAnalyzed: 0,
+          message: 'ยังไม่มีข้อมูลเพียงพอสำหรับการวิเคราะห์',
+          stats: {
+            averageDurationHours: '0.0',
+            consistencyScore: 0,
+            daysAnalyzed: 0
+          }
+        });
       }
     } catch (error) {
       console.error('Error loading sleep data from Firestore:', error);
@@ -79,7 +112,58 @@ export const SleepProvider = ({ children }) => {
     }
     
     setRefreshing(true);
-    await loadSleepDataFromFirestore();
+    try {
+      // โหลดข้อมูลการนอน
+      const records = await fetchSleepData();
+      setSleepRecords(records);
+      
+      // โหลดเป้าหมายการนอน
+      const goals = await fetchSleepGoals();
+      setSleepGoals(goals);
+      
+      // วิเคราะห์ข้อมูลถ้ามีข้อมูลเพียงพอ
+      if (records && records.length > 0) {
+        try {
+          const analytics = analyzeSleepPatterns(records);
+          if (analytics) {
+            setSleepAnalytics(analytics);
+          }
+        } catch (analyticsError) {
+          console.error('Error analyzing sleep patterns:', analyticsError);
+          // ถ้าวิเคราะห์ไม่สำเร็จ ให้สร้างข้อมูลเริ่มต้น
+          setSleepAnalytics({
+            avgDurationHours: '0.0',
+            avgBedTime: '00:00',
+            consistencyScore: 0,
+            daysAnalyzed: 0,
+            message: 'ยังไม่มีข้อมูลเพียงพอสำหรับการวิเคราะห์',
+            stats: {
+              averageDurationHours: '0.0',
+              consistencyScore: 0,
+              daysAnalyzed: 0
+            }
+          });
+        }
+      } else {
+        // ถ้าไม่มีข้อมูล ให้สร้างข้อมูลเริ่มต้น
+        setSleepAnalytics({
+          avgDurationHours: '0.0',
+          avgBedTime: '00:00',
+          consistencyScore: 0,
+          daysAnalyzed: 0,
+          message: 'ยังไม่มีข้อมูลเพียงพอสำหรับการวิเคราะห์',
+          stats: {
+            averageDurationHours: '0.0',
+            consistencyScore: 0,
+            daysAnalyzed: 0
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error refreshing sleep data:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // เพิ่มข้อมูลการนอนใหม่

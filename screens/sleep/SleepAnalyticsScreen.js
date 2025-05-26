@@ -59,8 +59,16 @@ const SleepAnalyticsScreen = ({ navigation }) => {
   const formatTime = (timeString) => {
     if (!timeString) return '--:--';
     
-    const [hours, minutes] = timeString.split(':');
-    return `${hours}:${minutes}`;
+    try {
+      const [hours, minutes] = timeString.split(':');
+      if (isNaN(parseInt(hours)) || isNaN(parseInt(minutes))) {
+        return '--:--';
+      }
+      return `${hours}:${minutes}`;
+    } catch (error) {
+      console.error('Error formatting time:', error, timeString);
+      return '--:--';
+    }
   };
 
   // Get quality level color
@@ -410,82 +418,48 @@ const SleepAnalyticsScreen = ({ navigation }) => {
           <Text style={styles.chartTitle}>ระยะเวลาการนอน (ชั่วโมง)</Text>
           
           {chartData ? (
-            <LineChart
-              data={{
-                labels: chartData.labels,
-                datasets: [
-                  {
-                    data: chartData.durationData.map(value => value === null ? 0 : value),
-                    color: (opacity = 1) => `rgba(255, 149, 0, ${opacity})`,
-                    strokeWidth: 2,
+            <>
+              <LineChart
+                data={{
+                  labels: chartData.labels,
+                  datasets: [
+                    {
+                      data: chartData.durationData.map(value => value === null ? 0 : value),
+                      color: (opacity = 1) => `rgba(255, 149, 0, ${opacity})`,
+                      strokeWidth: 2,
+                    },
+                  ],
+                }}
+                width={width - 40}
+                height={180}
+                yAxisSuffix=" ชม."
+                chartConfig={{
+                  backgroundColor: '#1C1C1E',
+                  backgroundGradientFrom: '#1C1C1E',
+                  backgroundGradientTo: '#1C1C1E',
+                  decimalPlaces: 1,
+                  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                  style: {
+                    borderRadius: 16,
                   },
-                ],
-              }}
-              width={width - 40}
-              height={180}
-              chartConfig={{
-                backgroundColor: '#1C1C1E',
-                backgroundGradientFrom: '#1C1C1E',
-                backgroundGradientTo: '#1C1C1E',
-                decimalPlaces: 1,
-                color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                style: {
-                  borderRadius: 16,
-                },
-                propsForDots: {
-                  r: '6',
-                  strokeWidth: '2',
-                  stroke: '#FF9500',
-                },
-              }}
-              bezier
-              style={styles.chart}
-            />
-          ) : (
-            <View style={styles.noDataContainer}>
-              <Text style={styles.noDataText}>ไม่มีข้อมูลสำหรับช่วงเวลาที่เลือก</Text>
-            </View>
-          )}
-        </View>
-        
-        {/* Sleep Quality Chart */}
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>คะแนนคุณภาพการนอนหลับ</Text>
-          
-          {chartData ? (
-            <LineChart
-              data={{
-                labels: chartData.labels,
-                datasets: [
-                  {
-                    data: chartData.qualityData.map(value => value === null ? 0 : value),
-                    color: (opacity = 1) => `rgba(10, 132, 255, ${opacity})`,
-                    strokeWidth: 2,
+                  propsForDots: {
+                    r: '6',
+                    strokeWidth: '2',
+                    stroke: '#FF9500',
                   },
-                ],
-              }}
-              width={width - 40}
-              height={180}
-              chartConfig={{
-                backgroundColor: '#1C1C1E',
-                backgroundGradientFrom: '#1C1C1E',
-                backgroundGradientTo: '#1C1C1E',
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                style: {
-                  borderRadius: 16,
-                },
-                propsForDots: {
-                  r: '6',
-                  strokeWidth: '2',
-                  stroke: '#0A84FF',
-                },
-              }}
-              bezier
-              style={styles.chart}
-            />
+                }}
+                bezier
+                style={styles.chart}
+              />
+              
+              <View style={styles.chartInfoContainer}>
+                <View style={styles.chartInfoIconContainer}>
+                  <MaterialCommunityIcons name="information" size={22} color="#FF9500" />
+                </View>
+                <Text style={styles.chartInfoText}>กราฟแสดงจำนวนชั่วโมงการนอนแต่ละวัน</Text>
+              </View>
+            </>
           ) : (
             <View style={styles.noDataContainer}>
               <Text style={styles.noDataText}>ไม่มีข้อมูลสำหรับช่วงเวลาที่เลือก</Text>
@@ -518,31 +492,6 @@ const SleepAnalyticsScreen = ({ navigation }) => {
                 <View style={styles.insightTextContainer}>
                   <Text style={styles.insightLabel}>เวลาเข้านอนเฉลี่ย</Text>
                   <Text style={styles.insightValue}>{formatTime(sleepAnalytics.avgBedTime)}</Text>
-                </View>
-              </View>
-              
-              {/* Sleep Quality */}
-              <View style={styles.insightItem}>
-                <View style={styles.insightIconContainer}>
-                  <MaterialCommunityIcons name="star-outline" size={24} color="#FF9500" />
-                </View>
-                <View style={styles.insightTextContainer}>
-                  <Text style={styles.insightLabel}>คุณภาพการนอน</Text>
-                  <View style={styles.qualityContainer}>
-                    <View 
-                      style={[
-                        styles.qualityIndicator, 
-                        { backgroundColor: getQualityColor(sleepAnalytics.qualityLevel) }
-                      ]}
-                    />
-                    <Text style={styles.insightValue}>
-                      {sleepAnalytics.qualityLevel === 'excellent' ? 'ดีเยี่ยม' : 
-                       sleepAnalytics.qualityLevel === 'very good' ? 'ดีมาก' : 
-                       sleepAnalytics.qualityLevel === 'good' ? 'ดี' : 
-                       sleepAnalytics.qualityLevel === 'fair' ? 'พอใช้' : 
-                       sleepAnalytics.qualityLevel === 'poor' ? 'ไม่ดี' : 'แย่'}
-                    </Text>
-                  </View>
                 </View>
               </View>
               
@@ -820,6 +769,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999999',
     textAlign: 'center',
+  },
+  chartInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  chartInfoIconContainer: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  chartInfoText: {
+    fontSize: 14,
+    color: '#999999',
   },
 });
 

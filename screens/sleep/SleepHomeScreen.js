@@ -38,7 +38,7 @@ const SleepHomeScreen = ({ navigation }) => {
   
   useEffect(() => {
     // Calculate weekly summary when sleepRecords change
-    if (sleepRecords.length > 0) {
+    if (sleepRecords && sleepRecords.length > 0) {
       const summary = getWeeklySummary();
       setWeeklySummary(summary);
       
@@ -63,6 +63,13 @@ const SleepHomeScreen = ({ navigation }) => {
           actionItems: []
         });
       }
+    } else {
+      // ถ้าไม่มีข้อมูล ให้แสดงข้อความเริ่มต้น
+      setDailyRecommendation({
+        title: 'ยังไม่มีข้อมูลการนอน',
+        message: 'เพิ่มข้อมูลการนอนของคุณเพื่อรับคำแนะนำที่เหมาะสม',
+        actionItems: ['เพิ่มบันทึกการนอนเพื่อเริ่มต้นติดตามการนอนของคุณ']
+      });
     }
   }, [sleepRecords, sleepGoals, sleepAnalytics]);
   
@@ -248,52 +255,6 @@ const SleepHomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         )}
-        
-        {/* Sleep summary card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>สรุปการนอนหลับ</Text>
-          
-          {sleepAnalytics ? (
-            <View style={styles.analyticsContainer}>
-              <View style={styles.analyticItem}>
-                <Text style={styles.analyticValue}>
-                  {sleepAnalytics.avgDurationHours || sleepAnalytics.stats?.averageDurationHours || '0.0'}
-                </Text>
-                <Text style={styles.analyticLabel}>ชั่วโมง/วัน</Text>
-              </View>
-              
-              <View style={styles.analyticDivider} />
-              
-              <View style={styles.analyticItem}>
-                <Text style={styles.analyticValue}>
-                  {formatTime(sleepAnalytics.avgBedTime) || '--:--'}
-                </Text>
-                <Text style={styles.analyticLabel}>เวลาเข้านอนเฉลี่ย</Text>
-              </View>
-              
-              <View style={styles.analyticDivider} />
-              
-              <View style={styles.analyticItem}>
-                <Text style={styles.analyticValue}>
-                  {sleepAnalytics.consistencyScore || 0}%
-                </Text>
-                <Text style={styles.analyticLabel}>ความสม่ำเสมอ</Text>
-              </View>
-            </View>
-          ) : (
-            <Text style={styles.noDataText}>ยังไม่มีข้อมูลเพียงพอสำหรับการวิเคราะห์</Text>
-          )}
-          
-          <TouchableOpacity 
-            style={styles.viewMoreButton}
-            onPress={() => navigation.navigate('SleepAnalytics')}
-          >
-            <Text style={styles.viewMoreButtonText}>ดูการวิเคราะห์ทั้งหมด</Text>
-            <View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color="#0A84FF" />
-            </View>
-          </TouchableOpacity>
-        </View>
         
         {/* Sleep Chart Card */}
         <View style={styles.chartCard}>
@@ -533,68 +494,6 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
     marginRight: 4,
   },
-  summaryCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    padding: 16,
-    margin: 16,
-    marginBottom: 8,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 16,
-  },
-  analyticsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  analyticItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  analyticValue: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: '#FFFFFF',
-  },
-  analyticLabel: {
-    fontSize: 13,
-    color: '#999999',
-    marginTop: 4,
-  },
-  analyticDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#333333',
-  },
-  noDataText: {
-    fontSize: 15,
-    color: '#999999',
-    textAlign: 'center',
-    marginVertical: 16,
-  },
-  noDataHelpText: {
-    fontSize: 13,
-    color: '#777777',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  viewMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-    paddingVertical: 8,
-  },
-  viewMoreButtonText: {
-    fontSize: 15,
-    color: '#0A84FF',
-    marginRight: 4,
-  },
   chartCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
@@ -741,6 +640,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#999999',
     marginTop: 2,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  viewMoreButtonText: {
+    fontSize: 15,
+    color: '#0A84FF',
+    marginRight: 4,
   },
 });
 

@@ -393,7 +393,11 @@ export const analyzeSleepPatterns = (sleepRecords, days = 30) => {
   // แปลงเวลาเฉลี่ยกลับเป็นรูปแบบ HH:MM
   const avgBedTimeHours = Math.floor(avgBedTime / 60);
   const avgBedTimeMinutes = Math.floor(avgBedTime % 60);
-  const formattedAvgBedTime = `${avgBedTimeHours.toString().padStart(2, '0')}:${avgBedTimeMinutes.toString().padStart(2, '0')}`;
+  
+  // ป้องกันค่า NaN
+  const formattedAvgBedTime = !isNaN(avgBedTimeHours) && !isNaN(avgBedTimeMinutes) 
+    ? `${avgBedTimeHours.toString().padStart(2, '0')}:${avgBedTimeMinutes.toString().padStart(2, '0')}`
+    : '00:00';
   
   // คำนวณคุณภาพการนอนเฉลี่ย
   const qualityScores = recentRecords.map(record => calculateSleepQualityScore(record));

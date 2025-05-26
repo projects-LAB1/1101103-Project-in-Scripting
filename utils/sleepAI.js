@@ -71,7 +71,11 @@ exports.analyzeSleepPatterns = (sleepRecords, sleepGoals) => {
     const avgBedTimeMinutes = bedTimes.reduce((sum, time) => sum + time, 0) / bedTimes.length;
     const avgBedTimeHours = Math.floor(avgBedTimeMinutes / 60);
     const avgBedTimeMins = Math.floor(avgBedTimeMinutes % 60);
-    const formattedAvgBedTime = `${avgBedTimeHours.toString().padStart(2, '0')}:${avgBedTimeMins.toString().padStart(2, '0')}`;
+    
+    // ป้องกันค่า NaN
+    const formattedAvgBedTime = !isNaN(avgBedTimeHours) && !isNaN(avgBedTimeMins) 
+      ? `${avgBedTimeHours.toString().padStart(2, '0')}:${avgBedTimeMins.toString().padStart(2, '0')}`
+      : '00:00';
     
     // ค่าเฉลี่ยเวลาตื่นนอน
     const wakeTimes = recentRecords.map(record => {
