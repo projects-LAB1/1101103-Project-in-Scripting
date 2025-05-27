@@ -15,13 +15,25 @@
     "apk": {
       "android": {
         "buildType": "apk",
-        "image": "ubuntu-20.04-jdk-11-ndk-r21e"
+        "image": "ubuntu-22.04-jdk-11-ndk-r21e"
       },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
       },
       "autoIncrement": true,
       "buildArtifactPaths": ["android/app/build/outputs/apk/release/*.apk"]
+    },
+    "emulator": {
+      "android": {
+        "buildType": "apk",
+        "image": "ubuntu-22.04-jdk-11-ndk-r21e",
+        "gradleCommand": ":app:assembleRelease",
+        "withoutCredentials": true
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "production"
+      },
+      "autoIncrement": true
     }
   },
   "submit": {
