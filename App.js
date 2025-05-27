@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Platform, LogBox, AppState, View, Text, Alert } from 'react-native';
+import { Platform, LogBox, AppState, View, Text, Alert, ActivityIndicator } from 'react-native';
 import { Provider } from 'react-redux';
 import store from './redux/store';
 import RootNavigator from './navigation/RootNavigator';
@@ -56,6 +56,7 @@ export default function App() {
   const navigationRef = useRef(null);
   const appState = useRef(AppState.currentState);
   const [audioInitialized, setAudioInitialized] = useState(false);
+  const [appReady, setAppReady] = useState(false);
 
   // ฟังก์ชันตั้งค่า Audio Mode แยกตาม Platform
   const setAudioMode = async (playMode = true) => {
@@ -215,6 +216,26 @@ export default function App() {
       if (unsubscribeNotificationHandlers) unsubscribeNotificationHandlers();
     };
   }, []);
+
+  // เพิ่ม useEffect เพื่อตั้งค่าสถานะ appReady หลังจากตั้งค่าระบบเสียงเสร็จ
+  useEffect(() => {
+    if (audioInitialized) {
+      // ทำให้แอปพร้อมหลังจากที่ตั้งค่าทุกอย่างเสร็จแล้ว
+      setTimeout(() => {
+        setAppReady(true);
+      }, 1000); // เพิ่มเวลาหน่วงเล็กน้อยเพื่อให้แน่ใจว่าการเตรียมการอื่นๆ เสร็จสิ้น
+    }
+  }, [audioInitialized]);
+
+  // ถ้าแอปยังไม่พร้อม แสดง loading indicator
+  if (!appReady) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
+        <ActivityIndicator size="large" color="#FF9500" />
+        <Text style={{ color: '#FFFFFF', marginTop: 10, fontSize: 16 }}>กำลังโหลด...</Text>
+      </View>
+    );
+  }
 
   return (
     <Provider store={store}>

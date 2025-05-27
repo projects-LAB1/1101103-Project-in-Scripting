@@ -35,6 +35,7 @@ const AlarmListScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const swipeableRef = useRef(null);
 
   // Monitor network connectivity
@@ -63,17 +64,28 @@ const AlarmListScreen = ({ navigation }) => {
   const loadStoredAlarms = async () => {
     try {
       setLoading(true); // เพิ่มการแสดง loading ระหว่างโหลดข้อมูล
+      setLoadError(false); // รีเซ็ตค่าความผิดพลาด
+      
       const storedAlarms = await loadAlarms();
-      setAlarms(
-        storedAlarms.sort((a, b) => {
-          const timeA = a.hour * 60 + a.minute;
-          const timeB = b.hour * 60 + b.minute;
-          return timeA - timeB;
-        })
-      );
+      
+      if (storedAlarms) {
+        setAlarms(
+          storedAlarms.sort((a, b) => {
+            const timeA = a.hour * 60 + a.minute;
+            const timeB = b.hour * 60 + b.minute;
+            return timeA - timeB;
+          })
+        );
+      } else {
+        // กรณีไม่พบข้อมูลหรือข้อมูลเป็น null
+        setAlarms([]);
+      }
     } catch (error) {
       console.error("Error loading alarms:", error);
-      Alert.alert("Error", "Could not load alarm data");
+      setLoadError(true); // ตั้งค่าความผิดพลาดในการโหลด
+      setAlarms([]); // ตั้งค่านาฬิกาปลุกเป็นอาร์เรย์ว่าง
+      // แสดงข้อความแจ้งเตือนให้ผู้ใช้ทราบ
+      Alert.alert("ข้อผิดพลาด", "ไม่สามารถโหลดข้อมูลนาฬิกาปลุกได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -271,54 +283,77 @@ const AlarmListScreen = ({ navigation }) => {
     </Swipeable>
   );
 
+  // รายการว่างเปล่า แสดงข้อความแนะนำให้เพิ่มนาฬิกาปลุก
+  const renderEmptyList = () => (
+    <View style={styles.emptyContainer}>
+      {loadError ? (
+        <>
+          <MaterialCommunityIcons name="alert-circle-outline" size={50} color="#FF9500" />
+          <Text style={styles.emptyTitle}>มีข้อผิดพลาด</Text>
+          <Text style={styles.emptyText}>ไม่สามารถโหลดข้อมูลนาฬิกาปลุกได้</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadStoredAlarms}>
+            <Text style={styles.retryButtonText}>ลองอีกครั้ง</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <MaterialCommunityIcons name="alarm-plus" size={50} color="#FF9500" />
+          <Text style={styles.emptyTitle}>ไม่มีนาฬิกาปลุก</Text>
+          <Text style={styles.emptyText}>กดปุ่ม + เพื่อเพิ่มนาฬิกาปลุก</Text>
+        </>
+      )}
+    </View>
+  );
+
+  // แสดงหน้าจอโหลดถ้าข้อมูลกำลังโหลด
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>นาฬิกาปลุก</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF9500" />
+          <Text style={styles.loadingText}>กำลังโหลดข้อมูล...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
       <View style={styles.header}>
         <Text style={styles.headerTitle}>นาฬิกาปลุก</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.addButton}
-          onPress={() => navigation.navigate('AddAlarm')}
+          onPress={() => navigation.navigate("AddAlarm")}
         >
           <MaterialCommunityIcons name="plus" size={24} color="#FF9500" />
         </TouchableOpacity>
       </View>
-      
-      {loading && alarms.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF9500" />
+
+      {isOffline && (
+        <View style={styles.offlineBar}>
+          <MaterialCommunityIcons name="wifi-off" size={16} color="#FFFFFF" />
+          <Text style={styles.offlineText}>ไม่มีการเชื่อมต่ออินเทอร์เน็ต</Text>
         </View>
-      ) : alarms.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="alarm-off" size={60} color="#666" />
-          <Text style={styles.emptyText}>ไม่มีนาฬิกาปลุก</Text>
-          <Text style={styles.emptySubText}>แตะที่ + เพื่อเพิ่มนาฬิกาปลุก</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={alarms}
-          keyExtractor={(item) => item.id}
-          renderItem={renderAlarmItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#FF9500"
-              colors={["#FF9500"]}
-            />
-          }
-        />
       )}
-      
-      {/* Floating action button */}
-      <TouchableOpacity 
-        style={styles.fab}
-        onPress={() => navigation.navigate("AddAlarm")}
-      >
-        <MaterialCommunityIcons name="plus" size={24} color="#000" />
-      </TouchableOpacity>
+
+      <FlatList
+        data={alarms}
+        keyExtractor={(item) => item.id}
+        renderItem={renderAlarmItem}
+        ListEmptyComponent={renderEmptyList}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#FF9500"]}
+            tintColor="#FF9500"
+          />
+        }
+      />
     </SafeAreaView>
   );
 };
@@ -329,84 +364,72 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333333",
   },
   headerTitle: {
-    fontSize: 34,
-    fontWeight: "bold",
     color: "#FFFFFF",
-  },
-  addButton: {
-    padding: 8,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-  emptyText: {
     fontSize: 20,
     fontWeight: "600",
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 20,
+  },
+  offlineBar: {
+    backgroundColor: "#FF3B30",
+    paddingVertical: 8,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  offlineText: {
     color: "#FFFFFF",
-    marginTop: 16,
-  },
-  emptySubText: {
-    fontSize: 16,
-    color: "#999999",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  listContent: {
-    paddingBottom: 80,
-    paddingHorizontal: 16,
+    marginLeft: 8,
+    fontSize: 14,
   },
   alarmItem: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#333",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333333",
   },
   alarmInfo: {
     flex: 1,
-    paddingRight: 16,
   },
   alarmTime: {
-    fontSize: 48,
-    fontWeight: "300",
     color: "#FFFFFF",
+    fontSize: 32,
+    fontWeight: "300",
   },
   alarmLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
   },
   alarmLabel: {
-    fontSize: 16,
-    color: "#FFFFFF",
+    color: "#CCCCCC",
+    fontSize: 14,
+    marginRight: 8,
   },
   alarmRepeat: {
-    fontSize: 16,
-    color: "#999",
-    marginLeft: 8,
+    color: "#CCCCCC",
+    fontSize: 14,
   },
   alarmSwitch: {
     transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }],
   },
   inactiveText: {
-    color: "#666",
+    color: "#777777",
   },
   deleteButton: {
     backgroundColor: "#FF453A",
@@ -415,22 +438,45 @@ const styles = StyleSheet.create({
     width: 80,
     height: "100%",
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FF9500',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#FF9500',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
-  }
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#CCCCCC",
+    marginTop: 12,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 100,
+  },
+  emptyTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: 16,
+  },
+  emptyText: {
+    color: "#CCCCCC",
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  retryButton: {
+    marginTop: 16,
+    backgroundColor: "#FF9500",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "#000000",
+    fontWeight: "600",
+  },
 });
 
 export default AlarmListScreen;

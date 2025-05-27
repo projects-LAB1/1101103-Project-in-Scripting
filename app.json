@@ -26,7 +26,14 @@
         "backgroundColor": "#000000"
       },
       "package": "com.papon254.myproj",
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.FOREGROUND_SERVICE"
+      ],
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -35,6 +42,11 @@
     "plugins": [
       "expo-notifications",
       "expo-location"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c3b68283-9f4b-4fa7-9389-d76b1e5dc6e2"
+      }
+    }
   }
 }

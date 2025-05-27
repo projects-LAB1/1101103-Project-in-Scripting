@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from "react";
 import { NavigationContainer, DefaultTheme, DarkTheme } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
+import { View, Text, ActivityIndicator } from "react-native";
 import AuthNavigator from "./AuthNavigator";
 import AppNavigator from "./AppNavigator";
 import { useAuth } from "../contexts/AuthContext";
@@ -33,10 +34,20 @@ const createScreenOptions = (isDark) => ({
   },
 });
 
+// Fallback component ในกรณีที่มีปัญหาในการโหลด
+const FallbackScreen = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
+    <ActivityIndicator size="large" color="#FF9500" />
+    <Text style={{ color: '#FFFFFF', marginTop: 10, fontSize: 16 }}>กำลังโหลดข้อมูล...</Text>
+    <Text style={{ color: '#FFFFFF', marginTop: 5, fontSize: 14 }}>หากหน้าจอนี้ปรากฏนานเกินไป โปรดรีสตาร์ทแอป</Text>
+  </View>
+);
+
 const RootNavigator = forwardRef((props, ref) => {
   const { user, loading } = useAuth();
   const { theme, isDark } = useTheme();
   const internalNavigationRef = useRef(null);
+  const [navigationReady, setNavigationReady] = useState(false);
   
   // สร้าง navigation theme จากธีมปัจจุบัน
   const navigationTheme = {
@@ -101,14 +112,26 @@ const RootNavigator = forwardRef((props, ref) => {
     }
   }, []);
 
-  // ไม่ใช้ loading state อีกต่อไปเพื่อป้องกันการค้าง
-  // if (loading) {
-  //   // TODO: Add a proper splash screen here
-  //   return null;
-  // }
+  // ตั้งค่าให้แสดงตัวบ่งชี้การโหลดในระยะเวลาสั้นๆ
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setNavigationReady(true);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // แสดง fallback component ในกรณีที่ navigation ยังไม่พร้อม
+  if (!navigationReady) {
+    return <FallbackScreen />;
+  }
 
   return (
-    <NavigationContainer theme={navigationTheme} ref={internalNavigationRef}>
+    <NavigationContainer 
+      theme={navigationTheme} 
+      ref={internalNavigationRef}
+      fallback={<FallbackScreen />}
+    >
       <Stack.Navigator screenOptions={screenOptions}>
         {/* เริ่มต้นด้วยหน้า Main เสมอไม่ว่าจะล็อกอินหรือไม่ */}
         <Stack.Screen name="Main" component={AppNavigator} />
