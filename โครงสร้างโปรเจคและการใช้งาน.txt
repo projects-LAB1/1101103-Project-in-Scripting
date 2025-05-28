@@ -1,0 +1,438 @@
+========================================
+       โครงสร้างโปรเจคและการใช้งาน
+       Sleep App - React Native
+========================================
+
+📱 1. COMPONENT ต่างๆ ถูกเรียกใช้ที่ SCREEN ไหน
+========================================
+
+🔧 INPUT COMPONENTS:
+├── InputField (components/inputs/InputField)
+│   ├── LoginScreen.js - สำหรับ email, password
+│   └── ResetPasswordScreen.js - สำหรับ email
+
+🔘 BUTTON COMPONENTS:
+├── CustomButton (components/buttons/CustomButton)
+│   ├── LoginScreen.js - ปุ่มเข้าสู่ระบบ
+│   └── ResetPasswordScreen.js - ปุ่มรีเซ็ตรหัสผ่าน
+
+📋 HEADER COMPONENTS:
+├── HeaderBar (components/headers/HeaderBar)
+│   └── ResetPasswordScreen.js - Header bar
+
+🎯 ANIMATION COMPONENTS:
+├── FadeIn (components/animations/FadeIn)
+│   └── SettingsScreen.js - Animation เฟดอิน
+├── SlideIn (components/animations/SlideIn)
+│   └── SettingsScreen.js - Animation สไลด์อิน
+
+📅 DATE/TIME COMPONENTS:
+├── SafeDateTimePicker (components/SafeDateTimePicker)
+│   ├── AddAlarmScreen.js - เลือกเวลาปลุก
+│   └── SleepEntryScreen.js - เลือกเวลาเข้านอนและตื่น
+
+🎮 GAME COMPONENTS:
+├── GameSelector (screens/games/GameSelector)
+│   └── AlarmNavigator.js - เลือกเกมปิดนาฬิกาปลุก
+├── MathTaskScreen (screens/tasks/MathTaskScreen)
+│   └── AlarmNavigator.js - เกมคณิตศาสตร์
+├── PhotoTaskScreen (screens/tasks/PhotoTaskScreen)
+│   └── AlarmNavigator.js - เกมถ่ายภาพ
+├── MemoryGame (screens/games/MemoryGame)
+│   └── AlarmNavigator.js - เกมความจำ
+├── MazeGame (screens/games/MazeGame)
+│   └── AlarmNavigator.js - เกมเขาวงกต
+└── GlowJigsawGame (screens/games/GlowJigsawGame)
+    └── AlarmNavigator.js - เกมจิ๊กซอว์
+
+========================================
+🔬 2. SENSOR ถูกใช้ตรงไหน พร้อมทั้งตัวอย่าง
+========================================
+
+📍 SENSOR MANAGER (utils/SensorManager.js):
+├── Accelerometer Sensor (การตรวจจับการเคลื่อนไหว)
+├── Light Sensor (การตรวจจับแสง)
+└── Motion Detection (การตรวจจับการนอน)
+
+🎯 การใช้งาน ACCELEROMETER:
+├── SleepDetectionScreen.js
+│   ├── ตรวจจับการเคลื่อนไหวเพื่อหาว่านอนหรือไม่
+│   ├── startMotionTracking() - เริ่มตรวจจับ
+│   ├── stopMotionTracking() - หยุดตรวจจับ
+│   └── Threshold: 0.05 (ความแรงการเคลื่อนไหว)
+│
+├── MazeGame.js
+│   ├── ใช้ Accelerometer ควบคุมเกมเขาวงกต
+│   ├── controlMode: 'sensor' หรือ 'touch'
+│   ├── setAccelerometerData({x, y, z}) - รับค่าเซนเซอร์
+│   └── checkSensorAvailability() - ตรวจสอบเซนเซอร์
+
+💡 การใช้งาน LIGHT SENSOR:
+├── LightSensorScreen.js
+│   ├── ตรวจจับระดับแสงในห้อง (0-1000 lux)
+│   ├── startLightTracking() - เริ่มตรวจจับแสง
+│   ├── stopLightTracking() - หยุดตรวจจับแสง
+│   ├── Light Threshold: 5 lux (มืด), 100 lux (สว่าง)
+│   └── แสดงคำแนะนำการนอน
+│
+└── SleepHomeScreen.js
+    └── ลิงก์ไปยัง LightSensorScreen
+
+🔧 ตัวอย่างการใช้งาน SENSOR:
+
+// การตรวจจับการนอนด้วย Accelerometer
+const startSleepDetection = () => {
+  startAccelerometerTracking(1000); // อัปเดตทุก 1 วินาที
+  setOnSleepDetectedCallback((data) => {
+    console.log('ตรวจพบการนอน:', data);
+  });
+};
+
+// การตรวจจับแสงสำหรับการนอน
+const startLightDetection = () => {
+  startLightSensorTracking(500); // อัปเดตทุก 0.5 วินาที
+  setOnLightLevelChangeCallback((data) => {
+    if (data.lightLevel <= 5) {
+      console.log('ความสว่างเหมาะสำหรับการนอน');
+    }
+  });
+};
+
+// การใช้เซนเซอร์ในเกม
+const handleSensorMovement = (data) => {
+  const { x, y } = data;
+  // ย้ายตัวละครในเกมตามการเอียงของมือถือ
+  setPlayerPosition(prev => ({
+    x: prev.x + x * sensitivity,
+    y: prev.y + y * sensitivity
+  }));
+};
+
+========================================
+🌐 3. API มีอะไรบ้าง
+========================================
+
+🔐 AUTHENTICATION APIs (3 endpoints):
+├── POST /api/auth/register - สมัครสมาชิก
+├── GET /api/auth/profile - ดูโปรไฟล์
+└── PUT /api/auth/profile - แก้ไขโปรไฟล์
+
+👥 USERS APIs (2 endpoints):
+├── GET /api/users - ดูผู้ใช้ทั้งหมด
+└── GET /api/users/:id - ดูผู้ใช้ตาม ID
+
+📝 TASKS APIs - CRUD (4 endpoints):
+├── GET /api/tasks - ดูงานทั้งหมด
+├── POST /api/tasks - สร้างงานใหม่
+├── PUT /api/tasks/:id - แก้ไขงาน
+└── DELETE /api/tasks/:id - ลบงาน
+
+🎮 GAMES APIs (3 endpoints):
+├── GET /api/games - ดูเกมทั้งหมด
+├── GET /api/games/scores - ดูคะแนนของผู้ใช้
+└── POST /api/games/:gameId/score - บันทึกคะแนนเกม
+
+😴 SLEEP APIs - CRUD (4 endpoints):
+├── GET /api/sleep - ดูข้อมูลการนอน
+├── POST /api/sleep - บันทึกข้อมูลการนอน
+├── PUT /api/sleep/:id - แก้ไขข้อมูลการนอน
+└── DELETE /api/sleep/:id - ลบข้อมูลการนอน
+
+🌍 ROOT API:
+└── GET / - ข้อมูลภาพรวม API
+
+รวม: 17 API Endpoints
+
+========================================
+🔧 4. การเรียกใช้งาน API ต่างๆ
+========================================
+
+🚀 การตั้งค่าเบื้องต้น:
+Server: http://localhost:5000
+Token สำหรับทดสอบ: mock-token
+Firebase: รองรับ Firebase ID Token
+
+📋 AUTHENTICATION APIs:
+
+1. สมัครสมาชิก:
+POST /api/auth/register
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "displayName": "ชื่อผู้ใช้",
+  "phoneNumber": "0812345678",
+  "birthDate": "1990-01-01",
+  "preferences": {
+    "theme": "dark",
+    "notifications": true
+  }
+}
+
+2. ดูโปรไฟล์:
+GET /api/auth/profile
+Headers: Authorization: Bearer mock-token
+
+3. แก้ไขโปรไฟล์:
+PUT /api/auth/profile
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "displayName": "ชื่อใหม่",
+  "phoneNumber": "0887654321"
+}
+
+👥 USERS APIs:
+
+1. ดูผู้ใช้ทั้งหมด:
+GET /api/users
+
+2. ดูผู้ใช้ตาม ID:
+GET /api/users/mock-user-123
+
+📝 TASKS APIs:
+
+1. ดูงานทั้งหมด:
+GET /api/tasks
+Headers: Authorization: Bearer mock-token
+
+2. สร้างงานใหม่:
+POST /api/tasks
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "title": "ออกกำลังกาย",
+  "description": "วิ่งในสวนสาธารณะ 30 นาที",
+  "category": "health",
+  "priority": "high",
+  "dueDate": "2024-01-15T18:00:00Z",
+  "completed": false
+}
+
+3. แก้ไขงาน:
+PUT /api/tasks/{taskId}
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "completed": true,
+  "notes": "เสร็จแล้ว!"
+}
+
+4. ลบงาน:
+DELETE /api/tasks/{taskId}
+Headers: Authorization: Bearer mock-token
+
+🎮 GAMES APIs:
+
+1. ดูเกมทั้งหมด:
+GET /api/games
+
+2. ดูคะแนนของผู้ใช้:
+GET /api/games/scores
+Headers: Authorization: Bearer mock-token
+
+3. บันทึกคะแนนเกม:
+POST /api/games/memory-game/score
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "score": 1250,
+  "level": 5,
+  "duration": 180,
+  "metadata": {
+    "difficulty": "hard",
+    "mistakes": 2
+  }
+}
+
+😴 SLEEP APIs:
+
+1. ดูข้อมูลการนอน:
+GET /api/sleep
+Headers: Authorization: Bearer mock-token
+
+2. บันทึกข้อมูลการนอน:
+POST /api/sleep
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "bedTime": "2024-01-14T22:30:00Z",
+  "wakeTime": "2024-01-15T06:30:00Z",
+  "quality": 4,
+  "notes": "นอนหลับสบาย",
+  "durationMinutes": 480
+}
+
+3. แก้ไขข้อมูลการนอน:
+PUT /api/sleep/{sleepId}
+Headers: 
+  Content-Type: application/json
+  Authorization: Bearer mock-token
+Body:
+{
+  "quality": 5,
+  "notes": "นอนหลับสบายมาก!"
+}
+
+4. ลบข้อมูลการนอน:
+DELETE /api/sleep/{sleepId}
+Headers: Authorization: Bearer mock-token
+
+========================================
+🧪 cURL COMMANDS ตัวอย่าง
+========================================
+
+# สมัครสมาชิก
+curl -X POST http://localhost:5000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d "{\"displayName\":\"ทดสอบ\",\"phoneNumber\":\"0812345678\"}"
+
+# สร้างงาน
+curl -X POST http://localhost:5000/api/tasks \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d "{\"title\":\"ออกกำลังกาย\",\"description\":\"วิ่ง 30 นาที\",\"category\":\"health\",\"priority\":\"high\"}"
+
+# บันทึกการนอน
+curl -X POST http://localhost:5000/api/sleep \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d "{\"bedTime\":\"2024-01-14T22:30:00Z\",\"wakeTime\":\"2024-01-15T06:30:00Z\",\"quality\":4,\"notes\":\"นอนหลับสบาย\"}"
+
+# บันทึกคะแนนเกม
+curl -X POST http://localhost:5000/api/games/memory-game/score \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mock-token" \
+  -d "{\"score\":1250,\"level\":5,\"duration\":180}"
+
+========================================
+📊 RESPONSE EXAMPLES
+========================================
+
+✅ สำเร็จ (201 Created):
+{
+  "id": "mock_123456789_abc",
+  "title": "ออกกำลังกาย",
+  "userId": "mock-user-123",
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z"
+}
+
+❌ ข้อผิดพลาด (401 Unauthorized):
+{
+  "error": "Unauthorized",
+  "message": "No token provided or invalid format"
+}
+
+❌ ข้อผิดพลาด (404 Not Found):
+{
+  "error": "Task not found"
+}
+
+========================================
+🔧 การทดสอบ API
+========================================
+
+# ทดสอบ API ทั้งหมด
+cd backend
+node test-api.js
+
+# เริ่ม Server
+npm run dev
+
+# ทดสอบ endpoint เดียว
+curl -X GET http://localhost:5000/
+
+========================================
+🎯 สรุป CRUD Operations
+========================================
+
+CREATE (สร้าง) - 4 endpoints:
+├── POST /api/auth/register (Users)
+├── POST /api/tasks (Tasks)
+├── POST /api/sleep (Sleep)
+└── POST /api/games/{gameId}/score (Games)
+
+READ (อ่าน) - 6 endpoints:
+├── GET /api/users (Users)
+├── GET /api/users/:id (Users)
+├── GET /api/tasks (Tasks)
+├── GET /api/sleep (Sleep)
+├── GET /api/games (Games)
+└── GET /api/games/scores (Games)
+
+UPDATE (แก้ไข) - 3 endpoints:
+├── PUT /api/auth/profile (Users)
+├── PUT /api/tasks/{id} (Tasks)
+└── PUT /api/sleep/{id} (Sleep)
+
+DELETE (ลบ) - 2 endpoints:
+├── DELETE /api/tasks/{id} (Tasks)
+└── DELETE /api/sleep/{id} (Sleep)
+
+========================================
+🔥 เทคโนโลยีที่ใช้
+========================================
+
+📱 Frontend (React Native):
+├── React Navigation (เนวิเกชัน)
+├── Redux Toolkit (State Management)
+├── Expo Sensors (Accelerometer, Light Sensor)
+├── Firebase SDK (Authentication, Firestore)
+├── React Native Paper (UI Components)
+└── Expo Camera (ถ่ายภาพในเกม)
+
+🔧 Backend (Express.js):
+├── Express.js (Web Framework)
+├── Firebase Admin SDK (Database, Auth)
+├── CORS (Cross-Origin Resource Sharing)
+├── JSON Web Token (Authentication)
+└── UUID (Unique ID Generation)
+
+🔥 Database (Firebase Firestore):
+├── users collection (ข้อมูลผู้ใช้)
+├── tasks collection (งาน/หน้าที่)
+├── sleepData collection (ข้อมูลการนอน)
+└── gameScores collection (คะแนนเกม)
+
+========================================
+📋 โครงสร้างโปรเจคสำคัญ
+========================================
+
+📂 Root Level:
+├── App.js (Main app component)
+├── package.json (Dependencies)
+├── firebase/config.js (Firebase setup)
+└── backend/ (Backend API server)
+
+📂 Navigation:
+├── RootNavigator.js (Navigation หลัก)
+├── AuthNavigator.js (Authentication screens)
+├── AlarmNavigator.js (นาฬิกาปลุกและเกม)
+├── SleepNavigator.js (การนอนหลับ)
+└── WorldClockNavigator.js (นาฬิกาโลก)
+
+📂 Screens:
+├── auth/ (Login, Register, Reset)
+├── games/ (เกมต่างๆ)
+├── sleep/ (การนอนหลับ)
+├── tasks/ (งานและภารกิจ)
+└── Main screens (Alarm, Settings, etc.)
+
+📂 Utils:
+├── SensorManager.js (จัดการเซนเซอร์)
+├── alarmStorage.js (เก็บข้อมูลนาฬิกาปลุก)
+├── sleepAI.js (AI วิเคราะห์การนอน)
+└── WeatherService.js (ข้อมูลสภาพอากาศ)
