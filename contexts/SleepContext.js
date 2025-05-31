@@ -173,13 +173,23 @@ export const SleepProvider = ({ children }) => {
         throw new Error('กรุณาเข้าสู่ระบบก่อนบันทึกข้อมูล');
       }
       
+      console.log('กำลังบันทึกข้อมูลการนอน:', sleepRecord);
       const newRecord = await addSleepRecordToFirestore(sleepRecord);
-      setSleepRecords(prev => [...prev, newRecord]);
+      console.log('บันทึกสำเร็จ, ข้อมูลใหม่:', newRecord);
       
-      // อัพเดทการวิเคราะห์
-      const analytics = analyzeSleepPatterns([...sleepRecords, newRecord]);
-      setSleepAnalytics(analytics);
+      // อัพเดทข้อมูลใน state ทันที
+      const updatedRecords = [...sleepRecords, newRecord];
+      setSleepRecords(updatedRecords);
       
+      // อัพเดทการวิเคราะห์ด้วยข้อมูลใหม่
+      try {
+        const analytics = analyzeSleepPatterns(updatedRecords);
+        setSleepAnalytics(analytics);
+      } catch (analyticsError) {
+        console.error('Error analyzing sleep patterns:', analyticsError);
+      }
+      
+      console.log('อัพเดท state สำเร็จ, จำนวนข้อมูลทั้งหมด:', updatedRecords.length);
       return newRecord;
     } catch (error) {
       console.error('Error adding sleep record in context:', error);

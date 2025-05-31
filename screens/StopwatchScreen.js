@@ -85,7 +85,7 @@ const StopwatchScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'left']}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'left', 'bottom']}>
       <StatusBar barStyle="light-content" />
 
       <View style={styles.timerContainer}>

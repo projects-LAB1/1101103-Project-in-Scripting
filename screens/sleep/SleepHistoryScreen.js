@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSleep } from '../../contexts/SleepContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 
 const SleepHistoryScreen = ({ navigation }) => {
   const { sleepRecords, loading, refreshing, refresh, deleteSleep } = useSleep();
@@ -21,6 +22,9 @@ const SleepHistoryScreen = ({ navigation }) => {
   
   // Group records by month
   useEffect(() => {
+    console.log('SleepHistoryScreen: sleepRecords updated, length:', sleepRecords.length);
+    console.log('SleepHistoryScreen: sleepRecords data:', sleepRecords);
+    
     if (sleepRecords.length === 0) return;
     
     const sorted = [...sleepRecords].sort((a, b) => new Date(b.bedTime) - new Date(a.bedTime));
@@ -39,6 +43,8 @@ const SleepHistoryScreen = ({ navigation }) => {
     
     setGroupedRecords(grouped);
     setSections(Object.keys(grouped));
+    
+    console.log('SleepHistoryScreen: กลุ่มข้อมูล:', Object.keys(grouped));
   }, [sleepRecords]);
   
   // Format time as HH:MM
@@ -108,14 +114,28 @@ const SleepHistoryScreen = ({ navigation }) => {
     // Calculate quality score if not available
     const qualityScore = Math.round((item.durationMinutes / 480) * 100);
     
+    // ตรวจสอบว่าข้อมูลมาจากการปิดปลุกหรือไม่
+    const isFromAlarm = item.source === 'alarm';
+    
     return (
       <TouchableOpacity 
-        style={styles.sleepItem}
+        style={[
+          styles.sleepItem,
+          isFromAlarm && styles.sleepItemFromAlarm
+        ]}
         onPress={() => navigation.navigate('SleepEntry', { record: item, editing: true })}
       >
         <View style={styles.sleepItemHeader}>
           <View style={styles.sleepDateContainer}>
-            <Text style={styles.sleepDate}>{formatDate(item.bedTime)}</Text>
+            <View style={styles.dateWithSource}>
+              <Text style={styles.sleepDate}>{formatDate(item.bedTime)}</Text>
+              {isFromAlarm && (
+                <View style={styles.alarmSourceBadge}>
+                  <MaterialCommunityIcons name="alarm" size={12} color="#FF9500" />
+                  <Text style={styles.alarmSourceText}>จากปลุก</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.sleepDayOfWeek}>{formatDayOfWeek(item.bedTime)}</Text>
           </View>
           
@@ -139,7 +159,17 @@ const SleepHistoryScreen = ({ navigation }) => {
           </View>
         </View>
         
-        {(item.quality || item.hasDream) && (
+        {/* แสดงข้อมูลเพิ่มเติมสำหรับข้อมูลจากปลุก */}
+        {isFromAlarm && item.alarmLabel && (
+          <View style={styles.alarmInfo}>
+            <MaterialCommunityIcons name="alarm-check" size={16} color="#FF9500" />
+            <Text style={styles.alarmInfoText}>
+              ปลุกสำเร็จ: {item.alarmLabel}
+            </Text>
+          </View>
+        )}
+        
+        {(item.quality || item.hasDream || item.notes) && (
           <View style={styles.sleepDetails}>
             {item.quality && (
               <View style={styles.qualityTag}>
@@ -156,6 +186,13 @@ const SleepHistoryScreen = ({ navigation }) => {
               <View style={styles.dreamTag}>
                 <MaterialCommunityIcons name="thought-bubble" size={12} color="#FFFFFF" />
                 <Text style={styles.dreamTagText}>มีความฝัน</Text>
+              </View>
+            )}
+            
+            {!isFromAlarm && (
+              <View style={styles.manualTag}>
+                <MaterialCommunityIcons name="pencil" size={12} color="#34C759" />
+                <Text style={styles.manualTagText}>บันทึกเอง</Text>
               </View>
             )}
           </View>
@@ -182,6 +219,14 @@ const SleepHistoryScreen = ({ navigation }) => {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </View>
+  );
+
+  // รีเฟรชข้อมูลทุกครั้งที่เข้าหน้านี้
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('SleepHistoryScreen: หน้าได้รับ focus, กำลังรีเฟรชข้อมูล');
+      refresh();
+    }, [refresh])
   );
 
   if (loading) {
@@ -382,6 +427,53 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: '#FFFFFF',
     textAlign: 'center',
+  },
+  sleepItemFromAlarm: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#FF9500',
+  },
+  alarmSourceBadge: {
+    backgroundColor: 'rgba(255, 149, 0, 0.2)',
+    borderRadius: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    marginLeft: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  alarmSourceText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  alarmInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  alarmInfoText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  manualTag: {
+    backgroundColor: '#34C759',
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    marginRight: 8,
+  },
+  manualTagText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  dateWithSource: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 

@@ -11,6 +11,7 @@ import {
   Dimensions,
   Animated,
 } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
@@ -18,6 +19,7 @@ import { getStatusBarHeight } from "react-native-status-bar-height";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useAlarmSound } from "../contexts/AlarmSoundContext";
+import { useSleep } from "../contexts/SleepContext";
 
 const AlarmRinging = ({ route, navigation }) => {
   const { alarm, isFullscreen, actionId, isAppExitAlert } = route.params || {};
@@ -33,6 +35,9 @@ const AlarmRinging = ({ route, navigation }) => {
     playAlarmSound, 
     stopAlarmSound 
   } = useAlarmSound();
+
+  // ใช้ context สำหรับจัดการประวัติการนอน
+  const { addSleep } = useSleep();
 
   // Animation values
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -143,6 +148,50 @@ const AlarmRinging = ({ route, navigation }) => {
     };
   }, [alarm, actionId]);
 
+  // ฟังก์ชันสำหรับส่งข้อมูลการนอนจากการปิดปลุก
+  const addSleepRecordFromAlarm = async () => {
+    try {
+      console.log('เริ่มกระบวนการบันทึกข้อมูลการนอนจากปลุก...');
+      
+      if (!alarm || alarm.isTest) {
+        console.log('ไม่บันทึกข้อมูลเพราะ:', !alarm ? 'ไม่มีข้อมูลปลุก' : 'เป็นการทดสอบ');
+        return;
+      }
+
+      if (!addSleep) {
+        console.error('ไม่พบฟังก์ชัน addSleep จาก context');
+        return;
+      }
+
+      const now = new Date();
+      const wakeTime = now;
+      
+      // คำนวณเวลาเข้านอนจากเวลาปลุก (สมมติว่านอน 8 ชั่วโมง)
+      const estimatedSleepDuration = 8 * 60; // 8 ชั่วโมงในนาที
+      const bedTime = new Date(wakeTime.getTime() - (estimatedSleepDuration * 60 * 1000));
+
+      const sleepRecord = {
+        bedTime: bedTime.toISOString(),
+        wakeTime: wakeTime.toISOString(),
+        durationMinutes: estimatedSleepDuration,
+        quality: 'good', // คุณภาพการนอนเริ่มต้น
+        notes: `ตื่นจากการปลุก: ${alarm.label || 'ไม่มีชื่อ'}`,
+        source: 'alarm', // แยกประเภทว่ามาจากการปิดปลุก
+        alarmId: alarm.id,
+        alarmLabel: alarm.label || 'ไม่มีชื่อ',
+        createdAt: now.toISOString(),
+      };
+
+      console.log('กำลังบันทึกข้อมูลการนอน:', sleepRecord);
+      const result = await addSleep(sleepRecord);
+      console.log('บันทึกข้อมูลการนอนจากการปิดปลุกสำเร็จ:', result);
+    } catch (error) {
+      console.error('Error adding sleep record from alarm:', error);
+      // แสดง error ให้ผู้ใช้เห็นสำหรับการ debug
+      console.error('รายละเอียด error:', error.message);
+    }
+  };
+
   // Handle stopping the alarm
   const handleStopAlarm = async () => {
     try {
@@ -154,19 +203,32 @@ const AlarmRinging = ({ route, navigation }) => {
       // 3. หยุดการสั่น
       Vibration.cancel();
 
+      // บันทึกข้อมูลการนอนจากการปิดปลุก
+      await addSleepRecordFromAlarm();
+
       // ถ้าเป็นการทดสอบ รีเซ็ตตัวแปรป้องกันการกดซ้ำ
       if (alarm?.isTest && window.isTestingAlarm !== undefined) {
         window.isTestingAlarm = false;
       }
       
-      console.log("สำเร็จ: หยุดเสียงปลุกแล้ว กำลังย้อนกลับไปหน้าหลัก");
+      console.log("สำเร็จ: หยุดเสียงปลุกแล้ว กำลังไปยังหน้าประวัติการนอน");
 
-      // Navigate back after a brief delay - เพิ่มเวลารอให้มากขึ้นเพื่อให้แน่ใจว่าเสียงหยุดแล้ว
+      // Navigate to sleep history ถ้าไม่ใช่การทดสอบ
       setTimeout(() => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "AlarmList" }],
-        });
+        if (!alarm?.isTest) {
+          navigation.reset({
+            index: 0,
+            routes: [
+              { name: "Main" },
+              { name: "Sleep", params: { screen: "SleepHistory" } },
+            ],
+          });
+        } else {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "AlarmList" }],
+          });
+        }
       }, 1000);
     } catch (error) {
       console.error("Error stopping alarm:", error);

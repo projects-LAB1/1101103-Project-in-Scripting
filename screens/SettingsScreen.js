@@ -126,7 +126,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'right', 'left', 'bottom']}>
       <StatusBar style={theme.statusBar} />
       <Text style={[styles.screenTitle, { color: theme.colors.text }]}>ตั้งค่า</Text>
       

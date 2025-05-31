@@ -842,6 +842,14 @@ const AddAlarmScreen = ({ route, navigation }) => {
                   snapToInterval={40}
                   decelerationRate="fast"
                   bounces={false}
+                  onScroll={(event) => {
+                    const hour = Math.max(0, Math.min(23, Math.round(event.nativeEvent.contentOffset.y / 40)));
+                    if (hour !== tempTime.getHours()) {
+                      const newTime = new Date(tempTime);
+                      newTime.setHours(hour);
+                      setTempTime(newTime);
+                    }
+                  }}
                   onMomentumScrollEnd={(event) => {
                     const hour = Math.max(0, Math.min(23, Math.round(event.nativeEvent.contentOffset.y / 40)));
                     if (hour !== tempTime.getHours()) {
@@ -851,14 +859,15 @@ const AddAlarmScreen = ({ route, navigation }) => {
                       Vibration.vibrate(50);
                     }
                   }}
+                  scrollEventThrottle={16}
                   ref={(hourScrollRef) => {
                     if (hourScrollRef && showTimePicker) {
                       setTimeout(() => {
                         hourScrollRef.scrollTo({
                           y: tempTime.getHours() * 40,
-                          animated: true,
+                          animated: false,
                         });
-                      }, 200);
+                      }, 100);
                     }
                   }}
                 >
@@ -892,6 +901,14 @@ const AddAlarmScreen = ({ route, navigation }) => {
                   snapToInterval={40}
                   decelerationRate="fast"
                   bounces={false}
+                  onScroll={(event) => {
+                    const minute = Math.max(0, Math.min(59, Math.round(event.nativeEvent.contentOffset.y / 40)));
+                    if (minute !== tempTime.getMinutes()) {
+                      const newTime = new Date(tempTime);
+                      newTime.setMinutes(minute);
+                      setTempTime(newTime);
+                    }
+                  }}
                   onMomentumScrollEnd={(event) => {
                     const minute = Math.max(0, Math.min(59, Math.round(event.nativeEvent.contentOffset.y / 40)));
                     if (minute !== tempTime.getMinutes()) {
@@ -901,6 +918,7 @@ const AddAlarmScreen = ({ route, navigation }) => {
                       Vibration.vibrate(50);
                     }
                   }}
+                  scrollEventThrottle={16}
                   ref={(minuteScrollRef) => {
                     if (minuteScrollRef && showTimePicker) {
                       setTimeout(() => {
@@ -1371,10 +1389,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timePickerModal: {
-    width: "92%",
-    backgroundColor: "#1C1C1E",
-    borderRadius: 24,
-    padding: 24,
+    width: "85%",
+    backgroundColor: "#2C2C2E",
+    borderRadius: 20,
+    padding: 20,
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: {
@@ -1386,7 +1404,7 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   modalHeader: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   modalTitle: {
     color: "#FFFFFF",
@@ -1394,78 +1412,73 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  timeDisplayContainer: {
-    marginBottom: 32,
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: "rgba(10, 132, 255, 0.1)",
-    borderRadius: 16,
-  },
-  timeDisplayText: {
-    fontSize: 56,
-    color: "#FFFFFF",
-    fontWeight: "200",
-    letterSpacing: 2,
-    textAlign: "center",
-  },
   wheelPickersContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 24,
     height: 180,
+    backgroundColor: "#2C2C2E",
   },
   wheelSection: {
-    width: 80,
-    height: 180,
-    backgroundColor: "#000000",
+    width: 90,
+    height: 200,
+    backgroundColor: "#2C2C2E",
+    borderRadius: 12,
   },
   wheelScrollView: {
     flex: 1,
+    backgroundColor: "#2C2C2E",
   },
   wheelContent: {
-    paddingVertical: 70, // เพื่อให้มีพื้นที่เลือกตรงกลาง
+    paddingVertical: 80, // เพื่อให้มีพื้นที่เลือกตรงกลาง
+    backgroundColor: "#2C2C2E",
   },
   wheelItem: {
     height: 40,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#2C2C2E",
   },
   wheelText: {
     color: "#666666",
-    fontSize: 48,
-    fontWeight: "200",
+    fontSize: 32,
+    fontWeight: "300",
     textAlign: "center",
   },
   wheelTextSelected: {
     color: "#FFFFFF",
-    fontSize: 54,
-    fontWeight: "100",
+    fontSize: 36,
+    fontWeight: "200",
   },
   wheelSeparator: {
-    width: 30,
-    height: 180,
+    width: 40,
+    height: 200,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#2C2C2E",
   },
   separatorText: {
     color: "#FFFFFF",
-    fontSize: 50,
-    fontWeight: "100",
+    fontSize: 40,
+    fontWeight: "200",
   },
   timePickerActions: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 30,
     width: "100%",
-    marginTop: 20,
+    marginTop: 16,
   },
   timePickerCancelButton: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: "#2C2C2E",
     borderWidth: 1,
     borderColor: "#444444",
+    minWidth: 80,
   },
   timePickerConfirmButton: {
     paddingHorizontal: 28,
@@ -1480,6 +1493,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 8,
+    minWidth: 80,
   },
   timePickerButtonText: {
     fontSize: 16,

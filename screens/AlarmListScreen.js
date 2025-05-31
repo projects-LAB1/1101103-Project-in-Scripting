@@ -327,7 +327,7 @@ const AlarmListScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'left', 'bottom']}>
       <StatusBar barStyle="light-content" />
       
       <View style={styles.header}>

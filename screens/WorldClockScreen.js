@@ -57,7 +57,7 @@ const WorldClockScreen = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'left']}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'left', 'bottom']}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>นาฬิกาโลก</Text>

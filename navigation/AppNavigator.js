@@ -78,6 +78,7 @@ const AppNavigator = () => {
         component={SettingsScreen}
         options={{
           title: "ตั้งค่า",
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="cog" size={size} color={color} />
           ),
