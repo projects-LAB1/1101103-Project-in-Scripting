@@ -73,11 +73,22 @@ export const addAlarmToFirestore = async (newAlarm) => {
     
     const user = getCurrentUser();
     
+    // ตรวจสอบและเตรียมข้อมูลการตั้งค่าเกม
+    const gameSettings = {
+      requireGame: newAlarm.requireGame || false,
+      gameType: newAlarm.gameType || 'math',
+      gameDifficulty: newAlarm.gameDifficulty || 'medium'
+    };
+    
     // เตรียมข้อมูลสำหรับบันทึก
     const alarmData = {
       ...newAlarm,
       userId: user.uid,
       active: newAlarm.active !== undefined ? newAlarm.active : true,
+      // เพิ่มข้อมูลการตั้งค่าเกม
+      requireGame: gameSettings.requireGame,
+      gameType: gameSettings.gameType,
+      gameDifficulty: gameSettings.gameDifficulty,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -97,6 +108,10 @@ export const addAlarmToFirestore = async (newAlarm) => {
     };
     
     console.log(`เพิ่มการตั้งปลุกใหม่สำเร็จ ID: ${docRef.id}`);
+    console.log(`ข้อมูลการตั้งค่าเกม - ต้องเล่นเกม: ${gameSettings.requireGame ? 'ใช่' : 'ไม่'}`);
+    console.log(`ข้อมูลการตั้งค่าเกม - ประเภทเกม: ${gameSettings.gameType}`);
+    console.log(`ข้อมูลการตั้งค่าเกม - ระดับความยาก: ${gameSettings.gameDifficulty}`);
+    
     return addedAlarm;
   } catch (error) {
     console.error('Error adding alarm to Firestore:', error);
@@ -113,6 +128,22 @@ export const updateAlarmInFirestore = async (alarmId, updatedData) => {
     }
     
     const user = getCurrentUser();
+    
+    // ตรวจสอบการอัพเดทข้อมูลการตั้งค่าเกม
+    if (updatedData.requireGame !== undefined || 
+        updatedData.gameType !== undefined || 
+        updatedData.gameDifficulty !== undefined) {
+      console.log('พบการอัพเดทข้อมูลการตั้งค่าเกม:');
+      if (updatedData.requireGame !== undefined) {
+        console.log(`- ต้องเล่นเกม: ${updatedData.requireGame ? 'ใช่' : 'ไม่'}`);
+      }
+      if (updatedData.gameType !== undefined) {
+        console.log(`- ประเภทเกม: ${updatedData.gameType}`);
+      }
+      if (updatedData.gameDifficulty !== undefined) {
+        console.log(`- ระดับความยาก: ${updatedData.gameDifficulty}`);
+      }
+    }
     
     // เตรียมข้อมูลที่จะอัพเดท
     const dataToUpdate = {

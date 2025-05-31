@@ -254,4 +254,124 @@ export const saveSleepGoalsToFirestore = async (goals) => {
     Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกเป้าหมายการนอนได้');
     return false;
   }
+};
+
+// เพิ่มฟังก์ชันสำหรับดึงข้อมูลการตั้งปลุกจาก Firestore
+export const fetchAlarmsFromFirestore = async () => {
+  try {
+    const user = getCurrentUser();
+    
+    // สร้าง query เพื่อดึงข้อมูลการตั้งปลุกของผู้ใช้ปัจจุบัน
+    const alarmsRef = collection(db, 'users', user.uid, 'alarms');
+    const q = query(alarmsRef, orderBy('createdAt', 'desc'));
+    
+    const querySnapshot = await getDocs(q);
+    const alarms = [];
+    
+    querySnapshot.forEach((doc) => {
+      alarms.push({
+        id: doc.id,
+        ...doc.data(),
+        // แปลงค่า Timestamp กลับเป็น ISO string ถ้ามี
+        createdAt: doc.data().createdAt ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString(),
+        updatedAt: doc.data().updatedAt ? doc.data().updatedAt.toDate().toISOString() : new Date().toISOString()
+      });
+    });
+    
+    console.log(`โหลดข้อมูลการตั้งปลุกจาก Firestore สำเร็จ: ${alarms.length} รายการ`);
+    return alarms;
+  } catch (error) {
+    console.error('Error fetching alarms from Firestore:', error);
+    return [];
+  }
+};
+
+// เพิ่มการตั้งปลุกใหม่ไปยัง Firestore
+export const addAlarmToFirestore = async (newAlarm) => {
+  try {
+    if (!newAlarm) {
+      throw new Error('Invalid alarm data');
+    }
+    
+    const user = getCurrentUser();
+    
+    // เตรียมข้อมูลสำหรับบันทึก
+    const alarmData = {
+      ...newAlarm,
+      userId: user.uid,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+    
+    // เพิ่มข้อมูลใน Firestore
+    const alarmsRef = collection(db, 'users', user.uid, 'alarms');
+    const docRef = await addDoc(alarmsRef, alarmData);
+    
+    // ดึงข้อมูลที่เพิ่มเพื่อส่งกลับ
+    const addedDoc = await getDoc(docRef);
+    const addedAlarm = {
+      id: docRef.id,
+      ...addedDoc.data(),
+      // แปลงค่า Timestamp กลับเป็น ISO string
+      createdAt: addedDoc.data().createdAt ? addedDoc.data().createdAt.toDate().toISOString() : new Date().toISOString(),
+      updatedAt: addedDoc.data().updatedAt ? addedDoc.data().updatedAt.toDate().toISOString() : new Date().toISOString()
+    };
+    
+    console.log(`เพิ่มการตั้งปลุกใหม่ใน Firestore สำเร็จ ID: ${docRef.id}`);
+    return addedAlarm;
+  } catch (error) {
+    console.error('Error adding alarm to Firestore:', error);
+    Alert.alert('ข้อผิดพลาด', 'ไม่สามารถเพิ่มการตั้งปลุกใน Firestore ได้');
+    throw error;
+  }
+};
+
+// อัพเดทข้อมูลการตั้งปลุกใน Firestore
+export const updateAlarmInFirestore = async (alarmId, updatedData) => {
+  try {
+    if (!alarmId || !updatedData) {
+      throw new Error('Invalid update parameters');
+    }
+    
+    const user = getCurrentUser();
+    
+    // เตรียมข้อมูลที่จะอัพเดท
+    const dataToUpdate = {
+      ...updatedData,
+      updatedAt: serverTimestamp()
+    };
+    
+    // อัพเดทข้อมูลใน Firestore
+    const alarmRef = doc(db, 'users', user.uid, 'alarms', alarmId);
+    await updateDoc(alarmRef, dataToUpdate);
+    
+    console.log(`อัพเดทการตั้งปลุกใน Firestore สำเร็จ ID: ${alarmId}`);
+    return true;
+  } catch (error) {
+    console.error('Error updating alarm in Firestore:', error);
+    Alert.alert('ข้อผิดพลาด', 'ไม่สามารถอัพเดทการตั้งปลุกใน Firestore ได้');
+    throw error;
+  }
+};
+
+// ลบข้อมูลการตั้งปลุกจาก Firestore
+export const deleteAlarmFromFirestore = async (alarmId) => {
+  try {
+    if (!alarmId) {
+      throw new Error('Alarm ID is required');
+    }
+    
+    const user = getCurrentUser();
+    
+    // ลบข้อมูลจาก Firestore
+    const alarmRef = doc(db, 'users', user.uid, 'alarms', alarmId);
+    await deleteDoc(alarmRef);
+    
+    console.log(`ลบการตั้งปลุกจาก Firestore สำเร็จ ID: ${alarmId}`);
+    return true;
+  } catch (error) {
+    console.error('Error deleting alarm from Firestore:', error);
+    Alert.alert('ข้อผิดพลาด', 'ไม่สามารถลบการตั้งปลุกจาก Firestore ได้');
+    throw error;
+  }
 }; 

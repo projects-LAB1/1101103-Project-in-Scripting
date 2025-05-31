@@ -7,6 +7,7 @@ import {
   fetchAlarmSounds,
   saveAlarmSoundsToFirestore
 } from '../utils/alarmFirestore';
+import { syncAlarmsWithFirestore } from '../utils/alarmStorage';
 import { auth } from '../firebase/config';
 
 // Create the context
@@ -32,6 +33,8 @@ export const AlarmProvider = ({ children }) => {
       setIsLoggedIn(!!user);
       if (user) {
         loadAlarmsFromFirestore();
+        // เพิ่มการซิงค์ข้อมูลระหว่าง AsyncStorage และ Firestore
+        syncAlarmsWithFirebase();
       } else {
         // รีเซ็ตข้อมูลเมื่อออกจากระบบ
         setAlarms([]);
@@ -45,6 +48,16 @@ export const AlarmProvider = ({ children }) => {
     
     return () => unsubscribe();
   }, []);
+
+  // ซิงค์ข้อมูลระหว่าง AsyncStorage และ Firestore
+  const syncAlarmsWithFirebase = async () => {
+    try {
+      const syncedAlarms = await syncAlarmsWithFirestore();
+      console.log(`ซิงค์ข้อมูลการตั้งปลุกระหว่าง AsyncStorage และ Firestore สำเร็จ: ${syncedAlarms.length} รายการ`);
+    } catch (error) {
+      console.error('Error syncing alarms:', error);
+    }
+  };
 
   // โหลดข้อมูลการตั้งปลุกจาก Firestore
   const loadAlarmsFromFirestore = async () => {

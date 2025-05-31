@@ -1,5 +1,5 @@
 // AddAlarmScreen.js - หน้าเพิ่มและแก้ไขนาฬิกาปลุก
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -56,15 +56,43 @@ const AddAlarmScreen = ({ route, navigation }) => {
   const [tempTime, setTempTime] = useState(new Date());
 
   // Add mini-game options
-  const [requireGame, setRequireGame] = useState(editingAlarm?.requireGame ?? false);
+  const [requireGame, setRequireGame] = useState(editingAlarm?.requireGame === true);
   const [gameType, setGameType] = useState(editingAlarm?.gameType || "math");
   const [gameDifficulty, setGameDifficulty] = useState(editingAlarm?.gameDifficulty || "medium");
+
+  // ตรวจสอบค่า requireGame จาก editingAlarm
+  useEffect(() => {
+    if (editingAlarm) {
+      console.log("ค่า requireGame จาก editingAlarm:", editingAlarm.requireGame);
+      console.log("ค่า gameType จาก editingAlarm:", editingAlarm.gameType);
+      console.log("ค่า gameDifficulty จาก editingAlarm:", editingAlarm.gameDifficulty);
+    }
+  }, [editingAlarm]);
 
   const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
   const dayFullNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   const handleSave = async () => {
     try {
+      // ตรวจสอบว่าผู้ใช้ล็อกอินแล้วหรือไม่
+      if (!user) {
+        Alert.alert(
+          "กรุณาเข้าสู่ระบบ",
+          "คุณจำเป็นต้องเข้าสู่ระบบก่อนจึงจะสามารถตั้งนาฬิกาปลุกได้",
+          [
+            {
+              text: "เข้าสู่ระบบ",
+              onPress: () => navigation.navigate("Auth", { screen: "Login" })
+            },
+            {
+              text: "ยกเลิก",
+              style: "cancel"
+            }
+          ]
+        );
+        return;
+      }
+
       // Validate input before saving
       if (!time) {
         Alert.alert("ข้อผิดพลาด", "กรุณาตั้งเวลาปลุก");

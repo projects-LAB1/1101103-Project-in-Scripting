@@ -29,8 +29,10 @@ import {
   cancelAlarmNotification,
 } from "../models/NotificationManager";
 import { useFocusEffect } from '@react-navigation/native';
+import { useAuth } from "../contexts/AuthContext";
 
 const AlarmListScreen = ({ navigation }) => {
+  const { user } = useAuth();
   const [alarms, setAlarms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -271,6 +273,29 @@ const AlarmListScreen = ({ navigation }) => {
     </Swipeable>
   );
 
+  // ฟังก์ชันสำหรับการนำทางไปยังหน้าเพิ่มนาฬิกาปลุกใหม่ โดยตรวจสอบการล็อกอินก่อน
+  const navigateToAddAlarm = () => {
+    if (!user) {
+      Alert.alert(
+        "กรุณาเข้าสู่ระบบ",
+        "คุณจำเป็นต้องเข้าสู่ระบบก่อนจึงจะสามารถตั้งนาฬิกาปลุกได้",
+        [
+          {
+            text: "เข้าสู่ระบบ",
+            onPress: () => navigation.navigate("Auth", { screen: "Login" })
+          },
+          {
+            text: "ยกเลิก",
+            style: "cancel"
+          }
+        ]
+      );
+      return;
+    }
+    
+    navigation.navigate("AddAlarm");
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -279,7 +304,7 @@ const AlarmListScreen = ({ navigation }) => {
         <Text style={styles.headerTitle}>นาฬิกาปลุก</Text>
         <TouchableOpacity 
           style={styles.addButton}
-          onPress={() => navigation.navigate('AddAlarm')}
+          onPress={navigateToAddAlarm}
         >
           <MaterialCommunityIcons name="plus" size={24} color="#FF9500" />
         </TouchableOpacity>
@@ -315,7 +340,7 @@ const AlarmListScreen = ({ navigation }) => {
       {/* Floating action button */}
       <TouchableOpacity 
         style={styles.fab}
-        onPress={() => navigation.navigate("AddAlarm")}
+        onPress={navigateToAddAlarm}
       >
         <MaterialCommunityIcons name="plus" size={24} color="#000" />
       </TouchableOpacity>

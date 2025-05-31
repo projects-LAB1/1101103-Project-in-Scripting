@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { Alert } from 'react-native';
+import { 
+  addAlarmToFirestore, 
+  updateAlarmInFirestore, 
+  deleteAlarmFromFirestore, 
+  fetchAlarmsFromFirestore 
+} from './firebaseStorage';
 
 const ALARMS_KEY = '@alarms';
 const JSON_FILE_PATH = `${FileSystem.documentDirectory}alarms.json`;
@@ -115,9 +121,25 @@ export const addAlarm = async (newAlarm) => {
     };
     const updatedAlarms = [...alarms, alarmWithId];
     const success = await saveAlarms(updatedAlarms);
+    
     if (!success) {
-      throw new Error('Failed to save alarm');
+      throw new Error('Failed to save alarm locally');
     }
+    
+    // บันทึกลง Firestore ถ้าผู้ใช้ล็อกอินแล้ว
+    try {
+      // ตรวจสอบว่ามี userId หรือไม่ก่อนบันทึกลง Firestore
+      if (newAlarm.userId) {
+        await addAlarmToFirestore(alarmWithId);
+        console.log(`เพิ่มการตั้งปลุกลง Firestore สำเร็จ ID: ${alarmWithId.id}`);
+      } else {
+        console.log('ไม่สามารถบันทึกลง Firestore เนื่องจากไม่ได้ล็อกอิน');
+      }
+    } catch (firestoreError) {
+      console.error('Error adding alarm to Firestore:', firestoreError);
+      // ไม่ให้ล้มเหลวทั้งหมดถ้า Firestore มีปัญหา
+    }
+    
     console.log(`เพิ่มการตั้งปลุกใหม่สำเร็จ ID: ${alarmWithId.id}`);
     return alarmWithId;
   } catch (error) {
@@ -136,15 +158,17 @@ export const updateAlarm = async (alarmId, updatedData) => {
     
     const alarms = await loadAlarms();
     let found = false;
+    let updatedAlarm = null;
     
     const updatedAlarms = alarms.map(alarm => {
       if (alarm.id === alarmId) {
         found = true;
-        return { 
+        updatedAlarm = { 
           ...alarm, 
           ...updatedData,
           updatedAt: new Date().toISOString() 
         };
+        return updatedAlarm;
       }
       return alarm;
     });
@@ -156,8 +180,23 @@ export const updateAlarm = async (alarmId, updatedData) => {
     
     const success = await saveAlarms(updatedAlarms);
     if (!success) {
-      throw new Error('Failed to update alarm');
+      throw new Error('Failed to update alarm locally');
     }
+    
+    // อัพเดทลง Firestore ถ้าผู้ใช้ล็อกอินแล้ว
+    try {
+      // ตรวจสอบว่ามี userId หรือไม่ก่อนอัพเดทลง Firestore
+      if (updatedAlarm && updatedAlarm.userId) {
+        await updateAlarmInFirestore(alarmId, updatedData);
+        console.log(`อัพเดทการตั้งปลุกใน Firestore สำเร็จ ID: ${alarmId}`);
+      } else {
+        console.log('ไม่สามารถอัพเดทลง Firestore เนื่องจากไม่ได้ล็อกอิน');
+      }
+    } catch (firestoreError) {
+      console.error('Error updating alarm in Firestore:', firestoreError);
+      // ไม่ให้ล้มเหลวทั้งหมดถ้า Firestore มีปัญหา
+    }
+    
     console.log(`อัพเดทการตั้งปลุกสำเร็จ ID: ${alarmId}`);
     return true;
   } catch (error) {
@@ -176,6 +215,7 @@ export const deleteAlarm = async (alarmId) => {
     
     const alarms = await loadAlarms();
     const initialLength = alarms.length;
+    const alarmToDelete = alarms.find(alarm => alarm.id === alarmId);
     const updatedAlarms = alarms.filter(alarm => alarm.id !== alarmId);
     
     if (updatedAlarms.length === initialLength) {
@@ -185,8 +225,23 @@ export const deleteAlarm = async (alarmId) => {
     
     const success = await saveAlarms(updatedAlarms);
     if (!success) {
-      throw new Error('Failed to delete alarm');
+      throw new Error('Failed to delete alarm locally');
     }
+    
+    // ลบจาก Firestore ถ้าผู้ใช้ล็อกอินแล้ว
+    try {
+      // ตรวจสอบว่าการตั้งปลุกที่จะลบมี userId หรือไม่ก่อนลบจาก Firestore
+      if (alarmToDelete && alarmToDelete.userId) {
+        await deleteAlarmFromFirestore(alarmId);
+        console.log(`ลบการตั้งปลุกจาก Firestore สำเร็จ ID: ${alarmId}`);
+      } else {
+        console.log('ไม่สามารถลบจาก Firestore เนื่องจากไม่ได้ล็อกอิน');
+      }
+    } catch (firestoreError) {
+      console.error('Error deleting alarm from Firestore:', firestoreError);
+      // ไม่ให้ล้มเหลวทั้งหมดถ้า Firestore มีปัญหา
+    }
+    
     console.log(`ลบการตั้งปลุกสำเร็จ ID: ${alarmId}`);
     return true;
   } catch (error) {
@@ -206,16 +261,18 @@ export const toggleAlarmStatus = async (alarmId) => {
     const alarms = await loadAlarms();
     let found = false;
     let newStatus = false;
+    let updatedAlarm = null;
     
     const updatedAlarms = alarms.map(alarm => {
       if (alarm.id === alarmId) {
         found = true;
         newStatus = !alarm.isActive;
-        return { 
+        updatedAlarm = { 
           ...alarm, 
           isActive: newStatus,
           updatedAt: new Date().toISOString() 
         };
+        return updatedAlarm;
       }
       return alarm;
     });
@@ -227,13 +284,87 @@ export const toggleAlarmStatus = async (alarmId) => {
     
     const success = await saveAlarms(updatedAlarms);
     if (!success) {
-      throw new Error('Failed to toggle alarm status');
+      throw new Error('Failed to toggle alarm status locally');
     }
+    
+    // อัพเดทสถานะใน Firestore ถ้าผู้ใช้ล็อกอินแล้ว
+    try {
+      // ตรวจสอบว่ามี userId หรือไม่ก่อนอัพเดทลง Firestore
+      if (updatedAlarm && updatedAlarm.userId) {
+        await updateAlarmInFirestore(alarmId, { isActive: newStatus });
+        console.log(`อัพเดทสถานะการตั้งปลุกใน Firestore สำเร็จ ID: ${alarmId}`);
+      } else {
+        console.log('ไม่สามารถอัพเดทสถานะลง Firestore เนื่องจากไม่ได้ล็อกอิน');
+      }
+    } catch (firestoreError) {
+      console.error('Error updating alarm status in Firestore:', firestoreError);
+      // ไม่ให้ล้มเหลวทั้งหมดถ้า Firestore มีปัญหา
+    }
+    
     console.log(`เปลี่ยนสถานะการตั้งปลุกสำเร็จ ID: ${alarmId}, สถานะใหม่: ${newStatus ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}`);
     return true;
   } catch (error) {
     console.error('Error toggling alarm status:', error);
     Alert.alert('ข้อผิดพลาด', 'ไม่สามารถเปลี่ยนสถานะการตั้งปลุกได้');
     throw error;
+  }
+};
+
+// ดึงข้อมูลการตั้งปลุกทั้งจาก Local Storage และ Firestore และรวมเข้าด้วยกัน
+export const syncAlarmsWithFirestore = async () => {
+  try {
+    // ดึงข้อมูลจาก Local Storage
+    const localAlarms = await loadAlarms();
+    
+    // ตรวจสอบว่ามีการล็อกอินหรือไม่โดยดูจากข้อมูลในอาลาม
+    // ถ้าไม่มีการล็อกอิน จะมี alarm ที่ไม่มี userId
+    const hasLoggedInUser = localAlarms.some(alarm => alarm.userId);
+    
+    if (!hasLoggedInUser) {
+      console.log('ไม่สามารถซิงค์ข้อมูลกับ Firestore เนื่องจากไม่ได้ล็อกอิน');
+      return localAlarms;
+    }
+    
+    // ดึงข้อมูลจาก Firestore
+    let firestoreAlarms = [];
+    try {
+      firestoreAlarms = await fetchAlarmsFromFirestore();
+    } catch (error) {
+      console.error('Error fetching alarms from Firestore:', error);
+      // ถ้าเกิดข้อผิดพลาดในการดึงข้อมูลจาก Firestore ให้ใช้ข้อมูลในเครื่อง
+      return localAlarms;
+    }
+    
+    // รวมข้อมูลจากทั้งสองแหล่ง โดยให้ข้อมูลจาก Firestore มีความสำคัญกว่า
+    const mergedAlarms = [...localAlarms];
+    
+    // วนลูปผ่านข้อมูลจาก Firestore
+    for (const firestoreAlarm of firestoreAlarms) {
+      // ตรวจสอบว่ามีข้อมูลในเครื่องหรือไม่
+      const localIndex = mergedAlarms.findIndex(alarm => alarm.id === firestoreAlarm.id);
+      
+      if (localIndex >= 0) {
+        // ถ้ามีอยู่แล้ว ให้อัพเดทข้อมูลตาม Firestore ถ้า Firestore มีข้อมูลที่ใหม่กว่า
+        const localUpdatedAt = new Date(mergedAlarms[localIndex].updatedAt || 0);
+        const firestoreUpdatedAt = new Date(firestoreAlarm.updatedAt || 0);
+        
+        if (firestoreUpdatedAt > localUpdatedAt) {
+          mergedAlarms[localIndex] = firestoreAlarm;
+        }
+      } else {
+        // ถ้าไม่มี ให้เพิ่มเข้าไป
+        mergedAlarms.push(firestoreAlarm);
+      }
+    }
+    
+    // บันทึกข้อมูลที่รวมแล้วลงในเครื่อง
+    await saveAlarms(mergedAlarms);
+    
+    console.log(`ซิงค์ข้อมูลการตั้งปลุกระหว่าง Local และ Firestore สำเร็จ, รวม: ${mergedAlarms.length} รายการ`);
+    return mergedAlarms;
+  } catch (error) {
+    console.error('Error syncing alarms with Firestore:', error);
+    // ถ้าเกิดข้อผิดพลาดให้ใช้ข้อมูลในเครื่อง
+    return loadAlarms(); 
   }
 }; 
