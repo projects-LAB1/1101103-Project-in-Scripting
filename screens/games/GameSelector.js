@@ -233,22 +233,6 @@ const GameSelector = ({ route, navigation }) => {
       difficulty: ['medium'],
       screen: 'PhotoTaskScreen',
     },
-    {
-      id: 'maze',
-      name: 'เกมเขาวงกต',
-      description: 'เคลื่อนที่ไปตามเส้นทางโดยไม่ชนกำแพง',
-      icon: 'map-marker-path',
-      difficulty: ['easy', 'medium', 'hard'],
-      screen: 'MazeGame',
-    },
-    {
-      id: 'jigsaw',
-      name: 'จิ๊กซอว์แสง',
-      description: 'จัดเรียงชิ้นส่วนภาพที่เรืองแสงในความมืด',
-      icon: 'puzzle',
-      difficulty: ['easy', 'medium', 'hard'],
-      screen: 'GlowJigsawGame',
-    },
   ];
   
   const handleSelectGame = (game, difficulty) => {

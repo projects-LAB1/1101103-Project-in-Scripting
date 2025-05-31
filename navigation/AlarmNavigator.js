@@ -10,8 +10,6 @@ import MathTaskScreen from '../screens/tasks/MathTaskScreen';
 import PhotoTaskScreen from '../screens/tasks/PhotoTaskScreen';
 import GameSelector from '../screens/games/GameSelector';
 import MemoryGame from '../screens/games/MemoryGame';
-import MazeGame from '../screens/games/MazeGame';
-import GlowJigsawGame from '../screens/games/GlowJigsawGame';
 
 const Stack = createStackNavigator();
 
@@ -116,24 +114,6 @@ const AlarmNavigator = () => {
         component={MemoryGame}
         options={{
           title: 'เกมความจำ',
-          headerShown: false,
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen 
-        name="MazeGame" 
-        component={MazeGame}
-        options={{
-          title: 'เกมเขาวงกต',
-          headerShown: false,
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen 
-        name="GlowJigsawGame" 
-        component={GlowJigsawGame}
-        options={{
-          title: 'เกมจิ๊กซอว์',
           headerShown: false,
           gestureEnabled: false,
         }}
