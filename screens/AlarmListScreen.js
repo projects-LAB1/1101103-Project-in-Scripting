@@ -66,6 +66,25 @@ const AlarmListScreen = ({ navigation }) => {
     try {
       setLoading(true); // เพิ่มการแสดง loading ระหว่างโหลดข้อมูล
       const storedAlarms = await loadAlarms();
+      
+      // ตรวจสอบข้อมูล requireGame ในแต่ละนาฬิกา
+      storedAlarms.forEach(alarm => {
+        // แปลงค่า requireGame เป็น boolean ที่ชัดเจน เพื่อความมั่นใจ
+        if (alarm.requireGame !== undefined) {
+          alarm.requireGame = alarm.requireGame === true;
+        } else {
+          alarm.requireGame = false;
+        }
+        
+        // เพิ่มการแสดงผลค่า boolean ที่ชัดเจนในการแสดง log
+        const requireGameStatus = alarm.requireGame === true ? "true (ต้องเล่นเกม)" : "false (ไม่ต้องเล่นเกม)";
+        console.log(`นาฬิกา ID: ${alarm.id}, requireGame: ${requireGameStatus}`);
+        
+        if (alarm.gameType) {
+          console.log(`- gameType: ${alarm.gameType}, gameDifficulty: ${alarm.gameDifficulty}`);
+        }
+      });
+      
       setAlarms(
         storedAlarms.sort((a, b) => {
           const timeA = a.hour * 60 + a.minute;
@@ -260,6 +279,27 @@ const AlarmListScreen = ({ navigation }) => {
               <Text style={styles.alarmRepeat}>{getDaysText(item.repeatDays)}</Text>
             )}
           </View>
+          
+          {/* แสดงข้อมูลเพิ่มเติมเกี่ยวกับการตั้งค่าเกม */}
+          {item.requireGame === true && (
+            <View style={styles.gameIndicatorContainer}>
+              <MaterialCommunityIcons 
+                name="gamepad-variant" 
+                size={16} 
+                color="#FF9500" 
+                style={styles.gameIcon} 
+              />
+              <Text style={styles.gameIndicatorText}>
+                {item.gameType === "math" ? "เกมคณิตศาสตร์" : 
+                 item.gameType === "memory" ? "เกมจับคู่ภาพ" : 
+                 item.gameType === "photo" ? "เกมถ่ายรูป" : "เกม"}
+                {" - "}
+                {item.gameDifficulty === "easy" ? "ง่าย" : 
+                 item.gameDifficulty === "medium" ? "ปานกลาง" : 
+                 item.gameDifficulty === "hard" ? "ยาก" : ""}
+              </Text>
+            </View>
+          )}
         </View>
         <Switch
           value={item.isActive}
@@ -455,7 +495,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 5,
-  }
+  },
+  gameIndicatorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: 'rgba(255, 149, 0, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  gameIcon: {
+    marginRight: 5,
+  },
+  gameIndicatorText: {
+    fontSize: 14,
+    color: "#FF9500",
+    fontWeight: '500',
+  },
 });
 
 export default AlarmListScreen;

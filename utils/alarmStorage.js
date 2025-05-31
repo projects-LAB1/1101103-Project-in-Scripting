@@ -19,8 +19,30 @@ export const loadAlarms = async () => {
     if (storedAlarms) {
       try {
         const parsedAlarms = JSON.parse(storedAlarms);
-        console.log(`โหลดการตั้งปลุกจาก AsyncStorage สำเร็จ: ${parsedAlarms.length} รายการ`);
-        return parsedAlarms;
+        
+        // ตรวจสอบและแปลงค่า requireGame ให้เป็น boolean ที่ชัดเจน
+        const normalizedAlarms = parsedAlarms.map(alarm => {
+          // สร้าง object ใหม่เพื่อไม่ให้กระทบกับข้อมูลเดิม
+          const normalizedAlarm = { ...alarm };
+          
+          // แปลง requireGame เป็น boolean ที่ชัดเจน
+          normalizedAlarm.requireGame = normalizedAlarm.requireGame === true;
+          
+          // ตรวจสอบค่า gameType และ gameDifficulty
+          if (!normalizedAlarm.gameType) normalizedAlarm.gameType = "math";
+          if (!normalizedAlarm.gameDifficulty) normalizedAlarm.gameDifficulty = "medium";
+          
+          return normalizedAlarm;
+        });
+        
+        console.log(`โหลดการตั้งปลุกจาก AsyncStorage สำเร็จ: ${normalizedAlarms.length} รายการ`);
+        
+        // แสดง log ค่า requireGame ของแต่ละรายการ
+        normalizedAlarms.forEach(alarm => {
+          console.log(`นาฬิกา ID: ${alarm.id}, requireGame: ${alarm.requireGame}, gameType: ${alarm.gameType}`);
+        });
+        
+        return normalizedAlarms;
       } catch (parseError) {
         console.error('Error parsing alarms from AsyncStorage:', parseError);
         // ถ้า parse ไม่ได้ ให้ล้างข้อมูลใน AsyncStorage
@@ -35,10 +57,31 @@ export const loadAlarms = async () => {
       try {
         const data = JSON.parse(jsonContent);
         if (data && Array.isArray(data.alarms)) {
+          // ตรวจสอบและแปลงค่า requireGame ให้เป็น boolean ที่ชัดเจน
+          const normalizedAlarms = data.alarms.map(alarm => {
+            // สร้าง object ใหม่เพื่อไม่ให้กระทบกับข้อมูลเดิม
+            const normalizedAlarm = { ...alarm };
+            
+            // แปลง requireGame เป็น boolean ที่ชัดเจน
+            normalizedAlarm.requireGame = normalizedAlarm.requireGame === true;
+            
+            // ตรวจสอบค่า gameType และ gameDifficulty
+            if (!normalizedAlarm.gameType) normalizedAlarm.gameType = "math";
+            if (!normalizedAlarm.gameDifficulty) normalizedAlarm.gameDifficulty = "medium";
+            
+            return normalizedAlarm;
+          });
+          
           // เก็บลงใน AsyncStorage ด้วย
-          await AsyncStorage.setItem(ALARMS_KEY, JSON.stringify(data.alarms));
-          console.log(`โหลดการตั้งปลุกจากไฟล์ JSON สำเร็จ: ${data.alarms.length} รายการ`);
-          return data.alarms;
+          await AsyncStorage.setItem(ALARMS_KEY, JSON.stringify(normalizedAlarms));
+          console.log(`โหลดการตั้งปลุกจากไฟล์ JSON สำเร็จ: ${normalizedAlarms.length} รายการ`);
+          
+          // แสดง log ค่า requireGame ของแต่ละรายการ
+          normalizedAlarms.forEach(alarm => {
+            console.log(`นาฬิกา ID: ${alarm.id}, requireGame: ${alarm.requireGame}, gameType: ${alarm.gameType}`);
+          });
+          
+          return normalizedAlarms;
         } else {
           console.warn('Invalid alarms data structure in file');
           await resetAlarmStorage();
@@ -88,15 +131,30 @@ export const saveAlarms = async (alarms) => {
       return false;
     }
     
+    // ตรวจสอบและแปลงค่า requireGame ให้เป็น boolean ที่ชัดเจนก่อนบันทึก
+    const normalizedAlarms = alarms.map(alarm => {
+      // สร้าง object ใหม่เพื่อไม่ให้กระทบกับข้อมูลเดิม
+      const normalizedAlarm = { ...alarm };
+      
+      // แปลง requireGame เป็น boolean ที่ชัดเจน
+      if (normalizedAlarm.requireGame !== undefined) {
+        normalizedAlarm.requireGame = normalizedAlarm.requireGame === true;
+      } else {
+        normalizedAlarm.requireGame = false;
+      }
+      
+      return normalizedAlarm;
+    });
+    
     // บันทึกลง AsyncStorage
-    const alarmsJSON = JSON.stringify(alarms);
+    const alarmsJSON = JSON.stringify(normalizedAlarms);
     await AsyncStorage.setItem(ALARMS_KEY, alarmsJSON);
-    console.log(`บันทึกการตั้งปลุกลง AsyncStorage สำเร็จ: ${alarms.length} รายการ`);
+    console.log(`บันทึกการตั้งปลุกลง AsyncStorage สำเร็จ: ${normalizedAlarms.length} รายการ`);
 
     // บันทึกลงไฟล์ JSON
-    const data = { alarms, lastUpdated: new Date().toISOString() };
+    const data = { alarms: normalizedAlarms, lastUpdated: new Date().toISOString() };
     await FileSystem.writeAsStringAsync(JSON_FILE_PATH, JSON.stringify(data, null, 2));
-    console.log(`บันทึกการตั้งปลุกลงไฟล์ JSON สำเร็จ: ${alarms.length} รายการ`);
+    console.log(`บันทึกการตั้งปลุกลงไฟล์ JSON สำเร็จ: ${normalizedAlarms.length} รายการ`);
     
     return true;
   } catch (error) {
@@ -113,12 +171,26 @@ export const addAlarm = async (newAlarm) => {
       throw new Error('Invalid alarm data');
     }
     
+    // แปลงค่า requireGame ให้เป็น boolean ที่ชัดเจน
+    if (newAlarm.requireGame !== undefined) {
+      newAlarm.requireGame = newAlarm.requireGame === true;
+      console.log(`กำลังบันทึกค่า requireGame เป็น ${newAlarm.requireGame ? 'true' : 'false'}`);
+    } else {
+      // ถ้าไม่มีค่า requireGame กำหนดให้เป็น false
+      newAlarm.requireGame = false;
+      console.log('ไม่พบค่า requireGame กำหนดให้เป็น false');
+    }
+    
     const alarms = await loadAlarms();
     const alarmWithId = { 
       ...newAlarm, 
       id: Date.now().toString(),
       createdAt: new Date().toISOString()
     };
+    
+    // ตรวจสอบและแสดงค่า requireGame ก่อนบันทึก
+    console.log(`ก่อนบันทึก: นาฬิกาใหม่ ID: ${alarmWithId.id}, requireGame: ${alarmWithId.requireGame}`);
+    
     const updatedAlarms = [...alarms, alarmWithId];
     const success = await saveAlarms(updatedAlarms);
     
@@ -156,6 +228,12 @@ export const updateAlarm = async (alarmId, updatedData) => {
       throw new Error('Invalid update parameters');
     }
     
+    // แปลงค่า requireGame ให้เป็น boolean ที่ชัดเจน
+    if (updatedData.requireGame !== undefined) {
+      updatedData.requireGame = updatedData.requireGame === true;
+      console.log(`กำลังอัพเดทค่า requireGame เป็น ${updatedData.requireGame ? 'true' : 'false'}`);
+    }
+    
     const alarms = await loadAlarms();
     let found = false;
     let updatedAlarm = null;
@@ -168,6 +246,10 @@ export const updateAlarm = async (alarmId, updatedData) => {
           ...updatedData,
           updatedAt: new Date().toISOString() 
         };
+        
+        // ตรวจสอบและแสดงค่า requireGame หลังการอัพเดท
+        console.log(`หลังอัพเดท: นาฬิกา ID: ${updatedAlarm.id}, requireGame: ${updatedAlarm.requireGame}`);
+        
         return updatedAlarm;
       }
       return alarm;
@@ -329,6 +411,26 @@ export const syncAlarmsWithFirestore = async () => {
     let firestoreAlarms = [];
     try {
       firestoreAlarms = await fetchAlarmsFromFirestore();
+      
+      // ตรวจสอบและแปลงค่า requireGame ในข้อมูลจาก Firestore
+      firestoreAlarms = firestoreAlarms.map(alarm => {
+        // สร้าง object ใหม่เพื่อไม่ให้กระทบกับข้อมูลเดิม
+        const normalizedAlarm = { ...alarm };
+        
+        // แปลง requireGame เป็น boolean ที่ชัดเจน
+        normalizedAlarm.requireGame = normalizedAlarm.requireGame === true;
+        
+        // ตรวจสอบค่า gameType และ gameDifficulty
+        if (!normalizedAlarm.gameType) normalizedAlarm.gameType = "math";
+        if (!normalizedAlarm.gameDifficulty) normalizedAlarm.gameDifficulty = "medium";
+        
+        return normalizedAlarm;
+      });
+      
+      console.log('ข้อมูลจาก Firestore หลังการแปลงค่า:');
+      firestoreAlarms.forEach(alarm => {
+        console.log(`นาฬิกา ID: ${alarm.id}, requireGame: ${alarm.requireGame}, gameType: ${alarm.gameType}`);
+      });
     } catch (error) {
       console.error('Error fetching alarms from Firestore:', error);
       // ถ้าเกิดข้อผิดพลาดในการดึงข้อมูลจาก Firestore ให้ใช้ข้อมูลในเครื่อง
@@ -350,18 +452,33 @@ export const syncAlarmsWithFirestore = async () => {
         
         if (firestoreUpdatedAt > localUpdatedAt) {
           mergedAlarms[localIndex] = firestoreAlarm;
+          console.log(`อัพเดทนาฬิกา ID: ${firestoreAlarm.id} จาก Firestore เนื่องจากข้อมูลใหม่กว่า`);
+          console.log(`- requireGame: ${firestoreAlarm.requireGame}`);
         }
       } else {
         // ถ้าไม่มี ให้เพิ่มเข้าไป
         mergedAlarms.push(firestoreAlarm);
+        console.log(`เพิ่มนาฬิกาใหม่ ID: ${firestoreAlarm.id} จาก Firestore`);
+        console.log(`- requireGame: ${firestoreAlarm.requireGame}`);
       }
     }
     
-    // บันทึกข้อมูลที่รวมแล้วลงในเครื่อง
-    await saveAlarms(mergedAlarms);
+    // ตรวจสอบอีกครั้งก่อนบันทึก
+    const finalAlarms = mergedAlarms.map(alarm => {
+      // สร้าง object ใหม่เพื่อไม่ให้กระทบกับข้อมูลเดิม
+      const finalAlarm = { ...alarm };
+      
+      // แปลง requireGame เป็น boolean ที่ชัดเจน
+      finalAlarm.requireGame = finalAlarm.requireGame === true;
+      
+      return finalAlarm;
+    });
     
-    console.log(`ซิงค์ข้อมูลการตั้งปลุกระหว่าง Local และ Firestore สำเร็จ, รวม: ${mergedAlarms.length} รายการ`);
-    return mergedAlarms;
+    // บันทึกข้อมูลที่รวมแล้วลงในเครื่อง
+    await saveAlarms(finalAlarms);
+    
+    console.log(`ซิงค์ข้อมูลการตั้งปลุกระหว่าง Local และ Firestore สำเร็จ, รวม: ${finalAlarms.length} รายการ`);
+    return finalAlarms;
   } catch (error) {
     console.error('Error syncing alarms with Firestore:', error);
     // ถ้าเกิดข้อผิดพลาดให้ใช้ข้อมูลในเครื่อง

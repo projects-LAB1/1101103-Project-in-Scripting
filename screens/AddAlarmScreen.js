@@ -55,8 +55,20 @@ const AddAlarmScreen = ({ route, navigation }) => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempTime, setTempTime] = useState(new Date());
 
-  // Add mini-game options
-  const [requireGame, setRequireGame] = useState(editingAlarm?.requireGame === true);
+  // Add mini-game options - แก้ไขการตั้งค่าเริ่มต้นของ requireGame เพื่อให้เก็บค่าถูกต้อง
+  const [requireGame, setRequireGame] = useState(() => {
+    // ตรวจสอบค่า requireGame จาก editingAlarm อย่างชัดเจน
+    if (editingAlarm && editingAlarm.requireGame === true) {
+      console.log("โหลดค่า requireGame = true จาก editingAlarm");
+      return true;
+    } else if (editingAlarm && editingAlarm.requireGame === false) {
+      console.log("โหลดค่า requireGame = false จาก editingAlarm");
+      return false;
+    } else {
+      console.log("ไม่พบค่า requireGame ในข้อมูลที่มีอยู่ ตั้งค่าเริ่มต้นเป็น false");
+      return false;
+    }
+  });
   const [gameType, setGameType] = useState(editingAlarm?.gameType || "math");
   const [gameDifficulty, setGameDifficulty] = useState(editingAlarm?.gameDifficulty || "medium");
 
@@ -66,8 +78,19 @@ const AddAlarmScreen = ({ route, navigation }) => {
       console.log("ค่า requireGame จาก editingAlarm:", editingAlarm.requireGame);
       console.log("ค่า gameType จาก editingAlarm:", editingAlarm.gameType);
       console.log("ค่า gameDifficulty จาก editingAlarm:", editingAlarm.gameDifficulty);
+      
+      // ตรวจสอบอีกครั้งและอัพเดท state ถ้า requireGame มีค่าเป็น true
+      if (editingAlarm.requireGame === true && !requireGame) {
+        console.log("พบว่า requireGame = true แต่ state = false อัพเดท state เป็น true");
+        setRequireGame(true);
+      }
     }
-  }, [editingAlarm]);
+  }, [editingAlarm, requireGame]);
+  
+  // ตรวจสอบการเปลี่ยนแปลงค่า requireGame เพื่อบันทึก log
+  useEffect(() => {
+    console.log("ค่า requireGame state ปัจจุบัน:", requireGame);
+  }, [requireGame]);
 
   const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
   const dayFullNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -98,6 +121,11 @@ const AddAlarmScreen = ({ route, navigation }) => {
         Alert.alert("ข้อผิดพลาด", "กรุณาตั้งเวลาปลุก");
         return;
       }
+      
+      // ตรวจสอบค่า requireGame ล่าสุดก่อนบันทึก
+      console.log("ก่อนบันทึก - ค่า requireGame:", requireGame);
+      console.log("ก่อนบันทึก - ค่า gameType:", gameType);
+      console.log("ก่อนบันทึก - ค่า gameDifficulty:", gameDifficulty);
 
       // แสดงการโหลดหรือตัวบ่งชี้ว่ากำลังบันทึก
       // This would be implemented with a state variable and UI component in a real app
@@ -117,8 +145,8 @@ const AddAlarmScreen = ({ route, navigation }) => {
         vibrate,
         vibrateType,
         skipHolidays,
-        // Add mini-game options
-        requireGame,
+        // Add mini-game options - บันทึกค่าโดยตรงเพื่อป้องกันการแปลงเป็น undefined หรือ null
+        requireGame: requireGame === true, // แปลงเป็น boolean ชัดเจน
         gameType,
         gameDifficulty,
         createdAt: new Date().toISOString(),
@@ -544,7 +572,10 @@ const AddAlarmScreen = ({ route, navigation }) => {
               <Text style={styles.optionText}>ต้องเล่นเกมเพื่อปิดปลุก</Text>
               <Switch
                 value={requireGame}
-                onValueChange={setRequireGame}
+                onValueChange={(value) => {
+                  console.log("เปลี่ยนค่า requireGame เป็น:", value);
+                  setRequireGame(value);
+                }}
                 trackColor={{ false: "#767577", true: "#0A84FF50" }}
                 thumbColor={requireGame ? "#0A84FF" : "#f4f3f4"}
                 ios_backgroundColor="#3e3e3e"
@@ -557,6 +588,7 @@ const AddAlarmScreen = ({ route, navigation }) => {
 
           {requireGame && (
             <View style={styles.gameOptionsContainer}>
+              <Text style={styles.gameSettingTitle}>การตั้งค่าเกม</Text>
               <View style={styles.gameTypeContainer}>
                 <Text style={styles.gameOptionTitle}>ประเภทเกม</Text>
                 <View style={styles.gameTypeButtons}>
@@ -1250,6 +1282,12 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 17,
     marginRight: 8,
+  },
+  gameSettingTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "600",
+    marginBottom: 10,
   },
 });
 

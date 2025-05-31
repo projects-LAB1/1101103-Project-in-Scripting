@@ -295,13 +295,23 @@ export const addAlarmToFirestore = async (newAlarm) => {
     
     const user = getCurrentUser();
     
+    // ตรวจสอบและแปลงค่า requireGame ให้เป็น boolean ที่ชัดเจน
+    let requireGameValue = false;
+    if (newAlarm.requireGame !== undefined) {
+      requireGameValue = newAlarm.requireGame === true;
+    }
+    
     // เตรียมข้อมูลสำหรับบันทึก
     const alarmData = {
       ...newAlarm,
+      // เขียนทับค่า requireGame ด้วยค่าที่แปลงแล้ว
+      requireGame: requireGameValue,
       userId: user.uid,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
+    
+    console.log(`กำลังบันทึกค่า requireGame ไปยัง Firestore: ${requireGameValue ? 'true' : 'false'}`);
     
     // เพิ่มข้อมูลใน Firestore
     const alarmsRef = collection(db, 'users', user.uid, 'alarms');
@@ -334,6 +344,12 @@ export const updateAlarmInFirestore = async (alarmId, updatedData) => {
     }
     
     const user = getCurrentUser();
+    
+    // ตรวจสอบและแปลงค่า requireGame ให้เป็น boolean ที่ชัดเจน
+    if (updatedData.requireGame !== undefined) {
+      updatedData.requireGame = updatedData.requireGame === true;
+      console.log(`กำลังอัพเดทค่า requireGame ใน Firestore เป็น ${updatedData.requireGame ? 'true' : 'false'}`);
+    }
     
     // เตรียมข้อมูลที่จะอัพเดท
     const dataToUpdate = {

@@ -167,8 +167,17 @@ const AlarmRingingScreen = ({ route, navigation }) => {
       return;
     }
     
+    // ตรวจสอบค่า requireGame อย่างชัดเจน
+    const gameRequired = alarm?.requireGame === true;
+    
+    console.log("ตรวจสอบการตั้งค่าเกม:", 
+      gameRequired ? "ต้องเล่นเกมเพื่อปิดปลุก" : "ไม่ต้องเล่นเกม");
+    console.log("ค่า requireGame ดิบ:", alarm?.requireGame);
+    console.log("ประเภทเกม:", alarm?.gameType || "ไม่ระบุ");
+    console.log("ระดับความยาก:", alarm?.gameDifficulty || "ไม่ระบุ");
+    
     // Handle regular alarm dismissal
-    if (alarm && alarm.requireGame) {
+    if (gameRequired) {
       console.log("Navigating directly to game screen");
       
       // หยุดการสั่นก่อนนำทางไปยังหน้าเกม
@@ -184,6 +193,8 @@ const AlarmRingingScreen = ({ route, navigation }) => {
         } else if (alarm.gameType === "photo") {
           gameScreen = "PhotoTaskScreen";
         }
+        
+        console.log(`กำลังนำทางไปยังเกม: ${gameScreen}, ระดับความยาก: ${alarm.gameDifficulty || "medium"}`);
         
         // นำทางไปที่หน้าเกมโดยตรง
         navigation.navigate(gameScreen, {
