@@ -169,19 +169,28 @@ const AlarmRingingScreen = ({ route, navigation }) => {
     
     // Handle regular alarm dismissal
     if (alarm && alarm.requireGame) {
-      console.log("Navigating to GameSelector screen");
+      console.log("Navigating directly to game screen");
       
       // หยุดการสั่นก่อนนำทางไปยังหน้าเกม
       Vibration.cancel();
       
       try {
-        // นำทางไปที่หน้าเลือกเกมโดยไม่หยุดเสียงก่อน
-        // เพื่อให้ context จัดการเสียงในหน้าเกมแทน
-        navigation.navigate("GameSelector", {
+        // กำหนดหน้าเกมที่จะนำทางไปโดยตรงจากประเภทเกมที่เลือกไว้
+        let gameScreen = "MathTaskScreen"; // ค่าเริ่มต้น
+        
+        // เลือกหน้าเกมตามประเภทเกมที่ตั้งไว้
+        if (alarm.gameType === "memory") {
+          gameScreen = "MemoryGame";
+        } else if (alarm.gameType === "photo") {
+          gameScreen = "PhotoTaskScreen";
+        }
+        
+        // นำทางไปที่หน้าเกมโดยตรง
+        navigation.navigate(gameScreen, {
           alarm,
-          // ไม่ส่งฟังก์ชันโดยตรง แต่ใช้ ID แทน
-          completionAction: "completeAlarm", // ใช้ string แทนฟังก์ชัน
-          soundAlreadyStopped: false, // เปลี่ยนเป็น false เพื่อให้หน้าเกมจัดการเสียงเอง
+          difficulty: alarm.gameDifficulty || "medium",
+          gameCompletionHandler: "handleGameComplete",
+          soundAlreadyStopped: false,
         });
       } catch (error) {
         console.error("Navigation error:", error);

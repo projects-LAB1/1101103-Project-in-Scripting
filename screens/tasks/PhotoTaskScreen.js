@@ -223,9 +223,7 @@ const PhotoTaskScreen = ({ route, navigation }) => {
   // ฟังก์ชันเรียกใช้เมื่อเกมเสร็จสิ้น
   const handleComplete = () => {
     // ป้องกันการเรียกซ้ำ
-    if (isCompletedRef.current) {
-      return;
-    }
+    if (isCompletedRef.current) return;
     
     isCompletedRef.current = true;
     
@@ -237,12 +235,18 @@ const PhotoTaskScreen = ({ route, navigation }) => {
       console.log("Sound was already stopped or not playing in PhotoTaskScreen");
     }
     
-    // เรียกใช้ callback onComplete
-    if (onComplete) {
-      onComplete("completed");
+    // เรียกใช้ callback onComplete ถ้ามี
+    if (typeof onComplete === 'function') {
+      console.log('Using onComplete function');
+      onComplete('completed');
+    } else {
+      // ไปที่หน้า AlarmList โดยตรง
+      console.log('Navigating to AlarmList directly');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Alarm', params: { screen: 'AlarmList' } }],
+      });
     }
-    // กลับไปหน้าก่อนหน้า
-    navigation.goBack();
   };
 
   if (errorMessage) {

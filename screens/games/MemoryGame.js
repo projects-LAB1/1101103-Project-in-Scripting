@@ -76,16 +76,14 @@ const MemoryGame = ({ route, navigation }) => {
 
   const handleGameComplete = () => {
     // ป้องกันการเรียกซ้ำ
-    if (isCompletedRef.current) {
-      return;
-    }
+    if (isCompletedRef.current) return;
     
+    // ตั้งค่า flag เป็น true เพื่อป้องกันการเรียกซ้ำ
     isCompletedRef.current = true;
     
-    // หยุดเสียงเมื่อเล่นเกมเสร็จ (ถ้ายังไม่ได้หยุด)
+    // หยุดเสียงปลุกเมื่อเล่นเกมเสร็จ (ถ้ายังไม่ได้หยุด)
     if (isPlaying && !soundAlreadyStopped) {
       console.log("Stopping alarm sound in MemoryGame");
-      // เรียกใช้ stopAlarmSound ซ้ำหลายครั้งเพื่อให้แน่ใจว่าเสียงถูกหยุดจริงๆ
       stopAlarmSound();
       
       // เรียกใช้ stopAlarmSound อีกครั้งหลังจากรอเล็กน้อย
@@ -104,11 +102,11 @@ const MemoryGame = ({ route, navigation }) => {
       console.log('Using onComplete function');
       onComplete();
     } else {
-      console.log('No onComplete function, navigating back to GameSelector with completion flag');
-      // กลับไปที่หน้า GameSelector และให้ GameSelector จัดการต่อ
-      navigation.navigate('GameSelector', { 
-        gameCompleted: true,
-        completionAction: 'completeAlarm'
+      // ไปที่หน้า AlarmList โดยตรง
+      console.log('Navigating to AlarmList directly');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Alarm', params: { screen: 'AlarmList' } }],
       });
     }
   };

@@ -151,10 +151,9 @@ const MathTaskScreen = ({ route, navigation }) => {
   
   const handleSuccess = () => {
     // ป้องกันการเรียกซ้ำ
-    if (isCompletedRef.current) {
-      return;
-    }
+    if (isCompletedRef.current) return;
     
+    // ตั้งค่า flag เป็น true เพื่อป้องกันการเรียกซ้ำ
     isCompletedRef.current = true;
     
     // หยุดเสียงเมื่อตอบถูก (ถ้ายังไม่ได้หยุด)
@@ -169,16 +168,9 @@ const MathTaskScreen = ({ route, navigation }) => {
     if (typeof onComplete === 'function') {
       console.log('Using onComplete function');
       onComplete();
-    } else if (gameCompletionHandler === 'handleGameComplete') {
-      console.log('Using gameCompletionHandler to navigate back');
-      // กลับไปที่หน้า GameSelector และให้ GameSelector จัดการต่อ
-      navigation.navigate('GameSelector', { 
-        gameCompleted: true,
-        completionAction: 'completeAlarm'
-      });
     } else {
-      // ถ้าไม่มีทั้งสองอย่าง ให้กลับไปที่หน้า AlarmList โดยตรง
-      console.log('No completion handler found, navigating to AlarmList directly');
+      // ไปที่หน้า AlarmList โดยตรง
+      console.log('Navigating to AlarmList directly');
       navigation.reset({
         index: 0,
         routes: [{ name: 'Alarm', params: { screen: 'AlarmList' } }],

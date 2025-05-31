@@ -8,7 +8,6 @@ import SoundLibraryScreen from '../screens/SoundLibraryScreen';
 import SoundPickerScreen from '../screens/SoundPickerScreen';
 import MathTaskScreen from '../screens/tasks/MathTaskScreen';
 import PhotoTaskScreen from '../screens/tasks/PhotoTaskScreen';
-import GameSelector from '../screens/games/GameSelector';
 import MemoryGame from '../screens/games/MemoryGame';
 
 const Stack = createStackNavigator();
@@ -82,15 +81,6 @@ const AlarmNavigator = () => {
         }}
       />
       {/* Mini-game Screens */}
-      <Stack.Screen 
-        name="GameSelector" 
-        component={GameSelector}
-        options={{
-          title: 'เลือกเกม',
-          headerShown: false,
-          gestureEnabled: false,
-        }}
-      />
       <Stack.Screen 
         name="MathTaskScreen" 
         component={MathTaskScreen}
