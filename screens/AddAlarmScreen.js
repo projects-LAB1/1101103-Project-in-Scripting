@@ -509,24 +509,33 @@ const AddAlarmScreen = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         {/* Samsung-style large time display */}
-        <TouchableOpacity
-          style={styles.largeTimeDisplay}
-          onPress={openTimePicker}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.largeTimeText}>
-            {time.getHours().toString().padStart(2, "0")}:
-            {time.getMinutes().toString().padStart(2, "0")}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.timeSection}>
+          <TouchableOpacity
+            style={styles.largeTimeDisplay}
+            onPress={openTimePicker}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.largeTimeText}>
+              {time.getHours().toString().padStart(2, "0")}:
+              {time.getMinutes().toString().padStart(2, "0")}
+            </Text>
+            <View style={styles.editTimeIndicator}>
+              <MaterialCommunityIcons name="pencil" size={16} color="#0A84FF" />
+              <Text style={styles.editTimeText}>แตะเพื่อแก้ไขเวลา</Text>
+            </View>
+          </TouchableOpacity>
 
-        <Text style={styles.timeRingIn}>{getTimeUntilAlarm()}</Text>
+          <Text style={styles.timeRingIn}>{getTimeUntilAlarm()}</Text>
+        </View>
 
+        {/* Repeat Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionHeaderText}>Repeat</Text>
-            <Text style={styles.sectionValueText}>{getRepeatText()}</Text>
+          <View style={styles.sectionHeaderImproved}>
+            <MaterialCommunityIcons name="repeat" size={20} color="#0A84FF" />
+            <Text style={styles.sectionTitle}>การทำซ้ำ</Text>
           </View>
+          
+          <Text style={styles.currentRepeatText}>{getRepeatText()}</Text>
 
           <View style={styles.weekdayContainer}>
             {dayNames.map((day, index) => (
@@ -550,9 +559,33 @@ const AddAlarmScreen = ({ route, navigation }) => {
             ))}
           </View>
 
+          <View style={styles.quickRepeatOptions}>
+            <TouchableOpacity 
+              style={styles.quickOption}
+              onPress={() => setRepeatDays([])}
+            >
+              <Text style={styles.quickOptionText}>ไม่ทำซ้ำ</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.quickOption}
+              onPress={() => setRepeatDays([1,2,3,4,5])}
+            >
+              <Text style={styles.quickOptionText}>วันธรรมดา</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.quickOption}
+              onPress={() => setRepeatDays([0,1,2,3,4,5,6])}
+            >
+              <Text style={styles.quickOptionText}>ทุกวัน</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.optionContainer}>
             <View style={styles.optionRow}>
-              <Text style={styles.optionText}>ข้ามวันหยุด</Text>
+              <View style={styles.optionWithIcon}>
+                <MaterialCommunityIcons name="calendar-remove" size={20} color="#FF9500" />
+                <Text style={styles.optionText}>ข้ามวันหยุด</Text>
+              </View>
               <Switch
                 value={skipHolidays}
                 onValueChange={setSkipHolidays}
@@ -565,19 +598,29 @@ const AddAlarmScreen = ({ route, navigation }) => {
               ไม่ปลุกในวันหยุดนักขัตฤกษ์
             </Text>
           </View>
+        </View>
 
-          {/* Mini Game Option */}
+        {/* Game Challenge Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderImproved}>
+            <MaterialCommunityIcons name="gamepad-variant" size={20} color="#FF9500" />
+            <Text style={styles.sectionTitle}>ความท้าทาย</Text>
+          </View>
+
           <View style={styles.optionContainer}>
             <View style={styles.optionRow}>
-              <Text style={styles.optionText}>ต้องเล่นเกมเพื่อปิดปลุก</Text>
+              <View style={styles.optionWithIcon}>
+                <MaterialCommunityIcons name="puzzle" size={20} color="#FF3B30" />
+                <Text style={styles.optionText}>ต้องเล่นเกมเพื่อปิดปลุก</Text>
+              </View>
               <Switch
                 value={requireGame}
                 onValueChange={(value) => {
                   console.log("เปลี่ยนค่า requireGame เป็น:", value);
                   setRequireGame(value);
                 }}
-                trackColor={{ false: "#767577", true: "#0A84FF50" }}
-                thumbColor={requireGame ? "#0A84FF" : "#f4f3f4"}
+                trackColor={{ false: "#767577", true: "#FF950050" }}
+                thumbColor={requireGame ? "#FF9500" : "#f4f3f4"}
                 ios_backgroundColor="#3e3e3e"
               />
             </View>
@@ -588,7 +631,6 @@ const AddAlarmScreen = ({ route, navigation }) => {
 
           {requireGame && (
             <View style={styles.gameOptionsContainer}>
-              <Text style={styles.gameSettingTitle}>การตั้งค่าเกม</Text>
               <View style={styles.gameTypeContainer}>
                 <Text style={styles.gameOptionTitle}>ประเภทเกม</Text>
                 <View style={styles.gameTypeButtons}>
@@ -601,8 +643,8 @@ const AddAlarmScreen = ({ route, navigation }) => {
                   >
                     <MaterialCommunityIcons
                       name="calculator"
-                      size={24}
-                      color={gameType === "math" ? "#0A84FF" : "#777"}
+                      size={28}
+                      color={gameType === "math" ? "#FFFFFF" : "#0A84FF"}
                     />
                     <Text
                       style={[
@@ -623,8 +665,8 @@ const AddAlarmScreen = ({ route, navigation }) => {
                   >
                     <MaterialCommunityIcons
                       name="cards"
-                      size={24}
-                      color={gameType === "memory" ? "#0A84FF" : "#777"}
+                      size={28}
+                      color={gameType === "memory" ? "#FFFFFF" : "#0A84FF"}
                     />
                     <Text
                       style={[
@@ -645,8 +687,8 @@ const AddAlarmScreen = ({ route, navigation }) => {
                   >
                     <MaterialCommunityIcons
                       name="camera"
-                      size={24}
-                      color={gameType === "photo" ? "#0A84FF" : "#777"}
+                      size={28}
+                      color={gameType === "photo" ? "#FFFFFF" : "#0A84FF"}
                     />
                     <Text
                       style={[
@@ -666,10 +708,15 @@ const AddAlarmScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     style={[
                       styles.difficultyButton,
-                      gameDifficulty === "easy" && styles.easyButton,
+                      gameDifficulty === "easy" && styles.easyButtonActive,
                     ]}
                     onPress={() => setGameDifficulty("easy")}
                   >
+                    <MaterialCommunityIcons
+                      name="emoticon-happy"
+                      size={24}
+                      color={gameDifficulty === "easy" ? "#FFFFFF" : "#34C759"}
+                    />
                     <Text
                       style={[
                         styles.difficultyText,
@@ -683,10 +730,15 @@ const AddAlarmScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     style={[
                       styles.difficultyButton,
-                      gameDifficulty === "medium" && styles.mediumButton,
+                      gameDifficulty === "medium" && styles.mediumButtonActive,
                     ]}
                     onPress={() => setGameDifficulty("medium")}
                   >
+                    <MaterialCommunityIcons
+                      name="emoticon-neutral"
+                      size={24}
+                      color={gameDifficulty === "medium" ? "#FFFFFF" : "#FF9500"}
+                    />
                     <Text
                       style={[
                         styles.difficultyText,
@@ -700,10 +752,15 @@ const AddAlarmScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     style={[
                       styles.difficultyButton,
-                      gameDifficulty === "hard" && styles.hardButton,
+                      gameDifficulty === "hard" && styles.hardButtonActive,
                     ]}
                     onPress={() => setGameDifficulty("hard")}
                   >
+                    <MaterialCommunityIcons
+                      name="emoticon-angry"
+                      size={24}
+                      color={gameDifficulty === "hard" ? "#FFFFFF" : "#FF3B30"}
+                    />
                     <Text
                       style={[
                         styles.difficultyText,
@@ -719,55 +776,69 @@ const AddAlarmScreen = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* Sound Selection Section */}
+        {/* Sound and Settings Section */}
         <View style={styles.section}>
+          <View style={styles.sectionHeaderImproved}>
+            <MaterialCommunityIcons name="volume-high" size={20} color="#34C759" />
+            <Text style={styles.sectionTitle}>เสียงและการตั้งค่า</Text>
+          </View>
+
           <TouchableOpacity 
             style={styles.settingItem}
             onPress={goToSoundPicker}
           >
             <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>เสียงปลุก</Text>
+              <View style={styles.settingLeft}>
+                <MaterialCommunityIcons name="music-note" size={20} color="#0A84FF" />
+                <Text style={styles.settingLabel}>เสียงปลุก</Text>
+              </View>
               <View style={styles.settingValue}>
                 <Text style={styles.settingValueText}>{soundName}</Text>
-                <MaterialCommunityIcons name="chevron-right" size={24} color="#666666" />
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#666666" />
               </View>
             </View>
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.section}>
-          <TextInput
-            style={styles.labelInput}
-            value={label}
-            onChangeText={setLabel}
-            placeholder="Alarm name"
-            placeholderTextColor="#777"
-          />
-
-          <TouchableOpacity style={styles.optionRow}>
-            <View style={styles.optionTextContainer}>
-              <Text style={styles.optionText}>Vibrate</Text>
-              <Text style={styles.optionSubText}>{vibrateType}</Text>
+          <View style={styles.labelContainer}>
+            <View style={styles.labelHeader}>
+              <MaterialCommunityIcons name="label" size={20} color="#0A84FF" />
+              <Text style={styles.labelTitle}>ชื่อการปลุก</Text>
             </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={24}
-              color="#666"
+            <TextInput
+              style={styles.labelInput}
+              value={label}
+              onChangeText={setLabel}
+              placeholder="ใส่ชื่อการปลุก (ไม่บังคับ)"
+              placeholderTextColor="#777"
             />
+          </View>
+
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingContent}>
+              <View style={styles.settingLeft}>
+                <MaterialCommunityIcons name="vibrate" size={20} color="#FF9500" />
+                <Text style={styles.settingLabel}>การสั่น</Text>
+              </View>
+              <View style={styles.settingValue}>
+                <Text style={styles.settingValueText}>{vibrateType}</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#666666" />
+              </View>
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionRow}>
-            <View style={styles.optionTextContainer}>
-              <Text style={styles.optionText}>Snooze</Text>
-              <Text style={styles.optionSubText}>
-                {snoozeTime} minutes, {snoozeCount} times
-              </Text>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingContent}>
+              <View style={styles.settingLeft}>
+                <MaterialCommunityIcons name="sleep" size={20} color="#8E8E93" />
+                <Text style={styles.settingLabel}>งีบ</Text>
+              </View>
+              <View style={styles.settingValue}>
+                <Text style={styles.settingValueText}>
+                  {snoozeTime} นาที, {snoozeCount} ครั้ง
+                </Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#666666" />
+              </View>
             </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={24}
-              color="#666"
-            />
           </TouchableOpacity>
         </View>
 
@@ -988,109 +1059,371 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  timeSection: {
+    alignItems: "center",
+    marginVertical: 20,
+    backgroundColor: "#1C1C1E",
+    marginHorizontal: 16,
+    borderRadius: 20,
+    paddingVertical: 30,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
   largeTimeDisplay: {
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 35,
     paddingVertical: 15,
   },
   largeTimeText: {
-    fontSize: 60,
-    fontWeight: "300",
+    fontSize: 72,
+    fontWeight: "200",
     color: "#FFFFFF",
-    letterSpacing: 2,
+    letterSpacing: 4,
+    textShadowColor: "rgba(10, 132, 255, 0.5)",
+    textShadowOffset: {width: 0, height: 0},
+    textShadowRadius: 10,
+  },
+  editTimeIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "rgba(10, 132, 255, 0.2)",
+    borderRadius: 15,
+  },
+  editTimeText: {
+    color: "#0A84FF",
+    fontSize: 12,
+    marginLeft: 4,
+    fontWeight: "500",
   },
   timeRingIn: {
-    color: "#8E8E93",
-    fontSize: 15,
-    fontWeight: "400",
+    color: "#34C759",
+    fontSize: 16,
+    fontWeight: "500",
     textAlign: "center",
-    marginVertical: 25,
+    marginTop: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: "rgba(52, 199, 89, 0.1)",
+    borderRadius: 15,
+    overflow: "hidden",
   },
   section: {
     backgroundColor: "#1C1C1E",
     borderRadius: 16,
     marginHorizontal: 16,
-    marginBottom: 24,
+    marginBottom: 16,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
   },
-  sectionHeader: {
+  sectionHeaderImproved: {
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#333333",
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
-  sectionHeaderText: {
+  sectionTitle: {
     color: "#FFFFFF",
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
+    marginLeft: 10,
   },
-  sectionValueText: {
+  currentRepeatText: {
     color: "#0A84FF",
-    fontSize: 17,
-    marginTop: 4,
+    fontSize: 16,
+    fontWeight: "500",
+    textAlign: "center",
+    paddingVertical: 12,
+    backgroundColor: "rgba(10, 132, 255, 0.1)",
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 8,
   },
   weekdayContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 16,
   },
   dayButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#333333",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#2C2C2E",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#444444",
   },
   dayButtonActive: {
     backgroundColor: "#0A84FF",
+    borderColor: "#0A84FF",
+    shadowColor: "#0A84FF",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 8,
   },
   dayText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "500",
+    color: "#8E8E93",
+    fontSize: 16,
+    fontWeight: "600",
   },
   dayTextActive: {
     color: "#FFFFFF",
+  },
+  quickRepeatOptions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  quickOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#2C2C2E",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#444444",
+  },
+  quickOptionText: {
+    color: "#0A84FF",
+    fontSize: 12,
+    fontWeight: "500",
   },
   optionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#333333",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  optionTextContainer: {
+  optionWithIcon: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   optionText: {
     color: "#FFFFFF",
-    fontSize: 17,
+    fontSize: 16,
+    marginLeft: 10,
+    fontWeight: "500",
   },
   optionSubText: {
     color: "#8E8E93",
     fontSize: 13,
-    marginTop: 2,
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    fontStyle: "italic",
+  },
+  optionContainer: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  gameOptionsContainer: {
+    padding: 16,
+    backgroundColor: "rgba(255, 149, 0, 0.05)",
+  },
+  gameTypeContainer: {
+    marginBottom: 24,
+  },
+  gameTypeButtons: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 12,
+  },
+  gameTypeButton: {
+    width: 90,
+    height: 90,
+    borderRadius: 12,
+    backgroundColor: "#2C2C2E",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#444444",
+  },
+  gameTypeButtonActive: {
+    backgroundColor: "#0A84FF",
+    borderColor: "#0A84FF",
+    shadowColor: "#0A84FF",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  gameTypeText: {
+    color: "#8E8E93",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 6,
+    textAlign: "center",
+  },
+  gameTypeTextActive: {
+    color: "#FFFFFF",
+  },
+  difficultyContainer: {
+    marginBottom: 12,
+  },
+  difficultyButtons: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 12,
+  },
+  difficultyButton: {
+    width: 90,
+    height: 70,
+    borderRadius: 12,
+    backgroundColor: "#2C2C2E",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#444444",
+  },
+  easyButtonActive: {
+    backgroundColor: "#34C759",
+    borderColor: "#34C759",
+    shadowColor: "#34C759",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  mediumButtonActive: {
+    backgroundColor: "#FF9500",
+    borderColor: "#FF9500",
+    shadowColor: "#FF9500",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  hardButtonActive: {
+    backgroundColor: "#FF3B30",
+    borderColor: "#FF3B30",
+    shadowColor: "#FF3B30",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  difficultyText: {
+    color: "#8E8E93",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  difficultyTextActive: {
+    color: "#FFFFFF",
+  },
+  gameOptionTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  settingItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  settingContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  settingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  settingLabel: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    marginLeft: 10,
+    fontWeight: "500",
+  },
+  settingValue: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  settingValueText: {
+    color: "#8E8E93",
+    fontSize: 15,
+    marginRight: 8,
+  },
+  labelContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  labelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  labelTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    marginLeft: 10,
+    fontWeight: "500",
   },
   labelInput: {
     color: "#FFFFFF",
-    fontSize: 17,
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#333333",
+    fontSize: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#2C2C2E",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#444444",
   },
   deleteButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    backgroundColor: "rgba(255, 59, 48, 0.15)",
     marginHorizontal: 16,
     padding: 16,
     borderRadius: 16,
     marginTop: 8,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255, 59, 48, 0.3)",
   },
   deleteButtonText: {
     color: "#FF3B30",
@@ -1101,39 +1434,52 @@ const styles = StyleSheet.create({
   // Horizontal Time Picker Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
     justifyContent: "center",
     alignItems: "center",
   },
   timePickerModal: {
-    width: "90%",
+    width: "92%",
     backgroundColor: "#1C1C1E",
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 20,
   },
   timeDisplayContainer: {
-    marginBottom: 30,
+    marginBottom: 32,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: "rgba(10, 132, 255, 0.1)",
+    borderRadius: 16,
   },
   timeDisplayText: {
-    fontSize: 50,
+    fontSize: 56,
     color: "#FFFFFF",
     fontWeight: "200",
+    letterSpacing: 2,
   },
   horizontalPickerContainer: {
     width: "100%",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   pickerLabel: {
     fontSize: 16,
-    color: "#BBBBBB",
-    marginBottom: 10,
-    fontWeight: "500",
-    marginLeft: 10,
+    color: "#0A84FF",
+    marginBottom: 12,
+    fontWeight: "600",
+    marginLeft: 12,
   },
   horizontalPickerContent: {
-    paddingHorizontal: 100, // Space for items outside view
-    height: 60,
+    paddingHorizontal: 120,
+    height: 70,
     alignItems: "center",
   },
   timePickerCenterMarker: {
@@ -1142,28 +1488,29 @@ const styles = StyleSheet.create({
     left: "50%",
     marginLeft: -35,
     width: 70,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    height: 70,
+    borderRadius: 12,
+    backgroundColor: "rgba(10, 132, 255, 0.2)",
+    borderWidth: 2,
+    borderColor: "#0A84FF",
     zIndex: -1,
   },
   horizontalTimeItem: {
     width: 70,
-    height: 60,
+    height: 70,
     justifyContent: "center",
     alignItems: "center",
-  },
-  horizontalTimeItemSelected: {
-    // no background change needed due to center marker
+    marginHorizontal: 2,
   },
   horizontalTimeText: {
-    fontSize: 24,
-    color: "#999999",
+    fontSize: 20,
+    color: "#666666",
+    fontWeight: "400",
   },
   horizontalTimeTextSelected: {
     color: "#FFFFFF",
-    fontSize: 30,
-    fontWeight: "500",
+    fontSize: 32,
+    fontWeight: "600",
   },
   timePickerActions: {
     flexDirection: "row",
@@ -1172,122 +1519,31 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   timePickerCancelButton: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: "#2C2C2E",
+    borderWidth: 1,
+    borderColor: "#444444",
   },
   timePickerConfirmButton: {
-    paddingHorizontal: 25,
+    paddingHorizontal: 28,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: "#0A84FF",
+    shadowColor: "#0A84FF",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
   },
   timePickerButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
-  },
-  optionContainer: {
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#333333",
-  },
-  gameOptionsContainer: {
-    padding: 16,
-  },
-  gameTypeContainer: {
-    marginBottom: 20,
-  },
-  gameTypeButtons: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  gameTypeButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 10,
-    backgroundColor: "#333333",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  gameTypeButtonActive: {
-    backgroundColor: "#0A84FF",
-  },
-  gameTypeText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  gameTypeTextActive: {
-    color: "#FFFFFF",
-  },
-  difficultyContainer: {
-    marginBottom: 20,
-  },
-  difficultyButtons: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  difficultyButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 10,
-    backgroundColor: "#333333",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  difficultyText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  difficultyTextActive: {
-    color: "#FFFFFF",
-  },
-  easyButton: {
-    backgroundColor: "#007AFF",
-  },
-  mediumButton: {
-    backgroundColor: "#FF9500",
-  },
-  hardButton: {
-    backgroundColor: "#FF3B30",
-  },
-  gameOptionTitle: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 10,
-  },
-  settingItem: {
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#333333",
-  },
-  settingContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  settingLabel: {
-    color: "#FFFFFF",
-    fontSize: 17,
-  },
-  settingValue: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  settingValueText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    marginRight: 8,
-  },
-  gameSettingTitle: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 10,
   },
 });
 
