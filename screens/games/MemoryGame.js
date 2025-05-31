@@ -41,25 +41,30 @@ const MemoryGame = ({ route, navigation }) => {
   const hasSetupGame = useRef(false);
   // สร้าง ref เพื่อเก็บข้อมูลการ์ด
   const cardsRef = useRef([]);
+  // เก็บ difficulty ปัจจุบันใน ref เพื่อป้องกันการ setup ซ้ำ
+  const currentDifficultyRef = useRef(difficulty);
 
-  // Setup game based on difficulty
+  // Setup game เมื่อ component mount หรือเมื่อ difficulty เปลี่ยน
   useEffect(() => {
-    if (!hasSetupGame.current) {
+    // Setup เกมเฉพาะเมื่อยังไม่เคย setup หรือ difficulty เปลี่ยน
+    if (!hasSetupGame.current || currentDifficultyRef.current !== difficulty) {
+      console.log('Setting up memory game with difficulty:', difficulty);
       setupGame();
       hasSetupGame.current = true;
+      currentDifficultyRef.current = difficulty;
     }
-    
-    // ไม่ต้องหยุดเสียงที่นี่ เพราะยังเล่นเกมไม่เสร็จ
+  }, [difficulty]); // ลด dependency เหลือแค่ difficulty
+
+  // Cleanup เมื่อ component unmount
+  useEffect(() => {
     return () => {
       // ถ้าผู้ใช้ออกจากหน้าโดยไม่เล่นเกมให้จบ ตรวจสอบว่าควรหยุดเสียงหรือไม่
-      if (isPlaying && !soundAlreadyStopped) {
+      if (isPlaying && !soundAlreadyStopped && !isCompletedRef.current) {
         console.log("Stopping alarm sound on MemoryGame unmount");
         stopAlarmSound();
-      } else {
-        console.log("Sound was already stopped or not playing in MemoryGame unmount");
       }
     };
-  }, [difficulty, isPlaying, stopAlarmSound, soundAlreadyStopped]);
+  }, []); // empty dependency เพื่อให้ทำงานเฉพาะเมื่อ unmount
 
   // Timer
   useEffect(() => {
@@ -112,6 +117,7 @@ const MemoryGame = ({ route, navigation }) => {
   };
 
   const setupGame = () => {
+    console.log('Setting up new memory game...');
     setGameStarted(false);
     setMoves(0);
     setFlippedIndices([]);
@@ -136,16 +142,27 @@ const MemoryGame = ({ route, navigation }) => {
         numPairs = 6;
     }
 
-    // Create card deck
+    // Create card deck with unique IDs
     const selectedIcons = icons.slice(0, numPairs);
-    const cardDeck = [...selectedIcons, ...selectedIcons]
-      .map((icon, index) => ({
-        id: index,
+    const pairs = selectedIcons.map((icon, pairIndex) => [
+      {
+        id: `${icon}_1_${pairIndex}`, // สร้าง unique ID
         icon,
         flipped: false,
         matched: false
-      }))
-      .sort(() => Math.random() - 0.5);
+      },
+      {
+        id: `${icon}_2_${pairIndex}`, // สร้าง unique ID
+        icon,
+        flipped: false,
+        matched: false
+      }
+    ]);
+
+    // Flatten และ shuffle การ์ด
+    const cardDeck = pairs.flat().sort(() => Math.random() - 0.5);
+
+    console.log('Created card deck with', cardDeck.length, 'cards for', numPairs, 'pairs');
 
     // Store in ref and state
     cardsRef.current = cardDeck;
@@ -165,7 +182,7 @@ const MemoryGame = ({ route, navigation }) => {
     // 3. Two cards are already flipped and being checked
     if (
       flippedIndices.includes(index) ||
-      cards[index].matched ||
+      cards[index]?.matched ||
       flippedIndices.length >= 2
     ) {
       return;
@@ -180,20 +197,19 @@ const MemoryGame = ({ route, navigation }) => {
       setMoves(moves + 1);
       const [firstIndex, secondIndex] = newFlippedIndices;
       
-      if (cards[firstIndex].icon === cards[secondIndex].icon) {
+      if (cards[firstIndex]?.icon === cards[secondIndex]?.icon) {
         // Match found
-        setMatchedPairs([...matchedPairs, cards[firstIndex].icon]);
+        const matchedIcon = cards[firstIndex].icon;
+        setMatchedPairs(prev => [...prev, matchedIcon]);
         
         // Update cards to mark them as matched
-        const updatedCards = cards.map((card, idx) => 
-          idx === firstIndex || idx === secondIndex
-            ? { ...card, matched: true }
-            : card
+        setCards(prevCards => 
+          prevCards.map((card, idx) => 
+            idx === firstIndex || idx === secondIndex
+              ? { ...card, matched: true }
+              : card
+          )
         );
-        
-        // Update both ref and state
-        cardsRef.current = updatedCards;
-        setCards(updatedCards);
         
         // Reset flipped indices
         setFlippedIndices([]);
@@ -209,8 +225,10 @@ const MemoryGame = ({ route, navigation }) => {
 
   // Check for game completion
   useEffect(() => {
-    if (matchedPairs.length > 0 && matchedPairs.length === cards.length / 2) {
+    if (cards.length > 0 && matchedPairs.length > 0 && matchedPairs.length === cards.length / 2) {
       setTimerActive(false);
+      console.log('Game completed! Matched pairs:', matchedPairs.length, 'Total cards:', cards.length);
+      
       setTimeout(() => {
         Alert.alert(
           "เยี่ยมมาก!",
@@ -226,7 +244,7 @@ const MemoryGame = ({ route, navigation }) => {
         );
       }, 500);
     }
-  }, [matchedPairs, cards.length, moves, timerSeconds]);
+  }, [matchedPairs.length, cards.length, moves, timerSeconds]);
 
   // Format timer display
   const formatTime = (totalSeconds) => {
@@ -253,14 +271,14 @@ const MemoryGame = ({ route, navigation }) => {
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>คู่ที่เจอ</Text>
-          <Text style={styles.statValue}>{matchedPairs.length}/{cards.length/2}</Text>
+          <Text style={styles.statValue}>{matchedPairs.length}/{cards.length > 0 ? cards.length/2 : 0}</Text>
         </View>
       </View>
 
       <View style={styles.gameBoard}>
         {cards.map((card, index) => (
           <TouchableOpacity
-            key={index}
+            key={card.id} // ใช้ unique ID แทน index
             style={[
               styles.card,
               (flippedIndices.includes(index) || card.matched) && styles.cardFlipped

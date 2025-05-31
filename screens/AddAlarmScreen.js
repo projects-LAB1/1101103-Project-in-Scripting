@@ -14,6 +14,7 @@ import {
   StatusBar,
   Modal,
   FlatList,
+  Vibration,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
@@ -57,17 +58,7 @@ const AddAlarmScreen = ({ route, navigation }) => {
 
   // Add mini-game options - แก้ไขการตั้งค่าเริ่มต้นของ requireGame เพื่อให้เก็บค่าถูกต้อง
   const [requireGame, setRequireGame] = useState(() => {
-    // ตรวจสอบค่า requireGame จาก editingAlarm อย่างชัดเจน
-    if (editingAlarm && editingAlarm.requireGame === true) {
-      console.log("โหลดค่า requireGame = true จาก editingAlarm");
-      return true;
-    } else if (editingAlarm && editingAlarm.requireGame === false) {
-      console.log("โหลดค่า requireGame = false จาก editingAlarm");
-      return false;
-    } else {
-      console.log("ไม่พบค่า requireGame ในข้อมูลที่มีอยู่ ตั้งค่าเริ่มต้นเป็น false");
-      return false;
-    }
+    return editingAlarm?.requireGame === true;
   });
   const [gameType, setGameType] = useState(editingAlarm?.gameType || "math");
   const [gameDifficulty, setGameDifficulty] = useState(editingAlarm?.gameDifficulty || "medium");
@@ -75,22 +66,11 @@ const AddAlarmScreen = ({ route, navigation }) => {
   // ตรวจสอบค่า requireGame จาก editingAlarm
   useEffect(() => {
     if (editingAlarm) {
-      console.log("ค่า requireGame จาก editingAlarm:", editingAlarm.requireGame);
-      console.log("ค่า gameType จาก editingAlarm:", editingAlarm.gameType);
-      console.log("ค่า gameDifficulty จาก editingAlarm:", editingAlarm.gameDifficulty);
-      
-      // ตรวจสอบอีกครั้งและอัพเดท state ถ้า requireGame มีค่าเป็น true
       if (editingAlarm.requireGame === true && !requireGame) {
-        console.log("พบว่า requireGame = true แต่ state = false อัพเดท state เป็น true");
         setRequireGame(true);
       }
     }
   }, [editingAlarm, requireGame]);
-  
-  // ตรวจสอบการเปลี่ยนแปลงค่า requireGame เพื่อบันทึก log
-  useEffect(() => {
-    console.log("ค่า requireGame state ปัจจุบัน:", requireGame);
-  }, [requireGame]);
 
   const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
   const dayFullNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -121,14 +101,6 @@ const AddAlarmScreen = ({ route, navigation }) => {
         Alert.alert("ข้อผิดพลาด", "กรุณาตั้งเวลาปลุก");
         return;
       }
-      
-      // ตรวจสอบค่า requireGame ล่าสุดก่อนบันทึก
-      console.log("ก่อนบันทึก - ค่า requireGame:", requireGame);
-      console.log("ก่อนบันทึก - ค่า gameType:", gameType);
-      console.log("ก่อนบันทึก - ค่า gameDifficulty:", gameDifficulty);
-
-      // แสดงการโหลดหรือตัวบ่งชี้ว่ากำลังบันทึก
-      // This would be implemented with a state variable and UI component in a real app
 
       const alarmData = {
         hour: time.getHours(),
@@ -145,31 +117,18 @@ const AddAlarmScreen = ({ route, navigation }) => {
         vibrate,
         vibrateType,
         skipHolidays,
-        // Add mini-game options - บันทึกค่าโดยตรงเพื่อป้องกันการแปลงเป็น undefined หรือ null
-        requireGame: requireGame === true, // แปลงเป็น boolean ชัดเจน
+        requireGame: requireGame === true,
         gameType,
         gameDifficulty,
         createdAt: new Date().toISOString(),
       };
 
-      console.log("บันทึกการตั้งปลุก:", alarmData);
-      console.log("บันทึกการตั้งค่าเกม - ต้องเล่นเกม:", requireGame ? "ใช่" : "ไม่");
-      console.log("บันทึกการตั้งค่าเกม - ประเภทเกม:", gameType);
-      console.log("บันทึกการตั้งค่าเกม - ระดับความยาก:", gameDifficulty);
-
       let savedAlarm = null;
 
       // กรณีแก้ไขการตั้งปลุก
       if (editingAlarm) {
-        console.log(
-          `กำลังอัพเดทการตั้งปลุกที่มีอยู่แล้ว ID: ${editingAlarm.id}`
-        );
-
         // ยกเลิกการตั้งปลุกเดิมก่อน (ถ้ามี)
         if (editingAlarm.notificationId) {
-          console.log(
-            `ยกเลิกการแจ้งเตือนเดิม ID: ${editingAlarm.notificationId}`
-          );
           await cancelAlarm(editingAlarm.notificationId);
         }
 
@@ -183,18 +142,13 @@ const AddAlarmScreen = ({ route, navigation }) => {
           ...alarmData,
           id: editingAlarm.id,
         };
-
-        console.log(`อัพเดทการตั้งปลุกสำเร็จ ID: ${editingAlarm.id}`);
       }
       // กรณีเพิ่มการตั้งปลุกใหม่
       else {
-        console.log("กำลังเพิ่มการตั้งปลุกใหม่");
         savedAlarm = await addAlarm(alarmData);
         if (!savedAlarm) {
           throw new Error("ไม่สามารถเพิ่มการตั้งปลุกได้");
         }
-
-        console.log(`เพิ่มการตั้งปลุกใหม่สำเร็จ ID: ${savedAlarm.id}`);
       }
 
       // ถ้าการตั้งปลุกเปิดใช้งาน ให้ตั้งเวลาการแจ้งเตือน
@@ -208,26 +162,18 @@ const AddAlarmScreen = ({ route, navigation }) => {
             [{ text: "ตกลง" }]
           );
 
-          console.log("กำลังตั้งเวลาการแจ้งเตือนด้วยระบบ Notification...");
-
-          // เปลี่ยนจาก isTestOnly เป็น false เพื่อให้ไม่ปลุกทันที
-          const isTestOnly = false; // กำหนดให้เป็น false เพื่อให้ปลุกตามเวลาที่ตั้งไว้
+          const isTestOnly = false;
 
           // ตรวจสอบว่าควรตั้งการแจ้งเตือนหรือไม่
-          // จะตั้งเมื่อเวลาปลุกยังไม่ผ่านไป หรือมีการตั้งซ้ำ
           const now = new Date();
           const alarmDate = new Date();
           alarmDate.setHours(savedAlarm.hour);
           alarmDate.setMinutes(savedAlarm.minute);
           alarmDate.setSeconds(0);
 
-          // ตรวจสอบว่าเวลาปลุกผ่านไปแล้วหรือไม่
           const isPastAlarm =
             alarmDate < now && savedAlarm.repeatDays.length === 0;
 
-          // ตั้งการแจ้งเตือนเฉพาะเมื่อ:
-          // 1. ไม่ใช่การทดสอบ AND
-          // 2. (เวลาปลุกยังมาไม่ถึง OR มีการตั้งปลุกซ้ำ)
           if (
             !isTestOnly &&
             (!isPastAlarm || savedAlarm.repeatDays.length > 0)
@@ -235,19 +181,11 @@ const AddAlarmScreen = ({ route, navigation }) => {
             const notificationId = await scheduleAlarm(savedAlarm);
 
             if (notificationId) {
-              console.log(`ตั้งเวลาการแจ้งเตือนสำเร็จ ID: ${notificationId}`);
-
-              // อัพเดทการตั้งปลุกด้วย ID การแจ้งเตือน
               await updateAlarm(savedAlarm.id, {
                 notificationId,
                 updatedAt: new Date().toISOString(),
               });
-
-              console.log(`บันทึกการตั้งปลุกพร้อม notificationId สำเร็จ`);
             } else {
-              console.warn(
-                "ไม่ได้รับ notificationId จากการตั้งเวลาการแจ้งเตือน"
-              );
               Alert.alert(
                 "คำเตือน",
                 "การตั้งปลุกถูกบันทึกแล้ว แต่การแจ้งเตือนอาจไม่ทำงาน กรุณาตรวจสอบการตั้งค่าการแจ้งเตือนของอุปกรณ์",
@@ -255,9 +193,6 @@ const AddAlarmScreen = ({ route, navigation }) => {
               );
             }
           } else if (isPastAlarm) {
-            console.log(
-              "ไม่มีการตั้งการแจ้งเตือน เนื่องจากเวลาปลุกผ่านไปแล้ว และไม่มีการตั้งซ้ำ"
-            );
             Alert.alert(
               "ข้อความ",
               "เวลาปลุกผ่านไปแล้ว การตั้งปลุกจะมีผลในวันพรุ่งนี้",
@@ -495,6 +430,8 @@ const AddAlarmScreen = ({ route, navigation }) => {
   const handleTimeChange = (event, selectedTime) => {
     if (selectedTime) {
       setTempTime(selectedTime);
+      // เพิ่ม vibration feedback เบา ๆ
+      Vibration.vibrate(50);
     }
   };
 
@@ -881,120 +818,115 @@ const AddAlarmScreen = ({ route, navigation }) => {
         )}
       </ScrollView>
 
-      {/* Horizontal time picker modal */}
+      {/* Wheel time picker modal */}
       <Modal
-        animationType="fade"
+        animationType="slide"
         transparent={true}
         visible={showTimePicker}
         onRequestClose={cancelTimePicker}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.timePickerModal}>
-            <View style={styles.timeDisplayContainer}>
-              <Text style={styles.timeDisplayText}>
-                {tempTime.getHours().toString().padStart(2, "0")}:
-                {tempTime.getMinutes().toString().padStart(2, "0")}
-              </Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>เลือกเวลา</Text>
             </View>
 
-            <View style={styles.horizontalPickerContainer}>
-              <Text style={styles.pickerLabel}>Hours</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalPickerContent}
-                ref={(hoursScrollRef) => {
-                  // Scroll to current hour position when modal opens
-                  if (hoursScrollRef && showTimePicker) {
-                    setTimeout(() => {
-                      hoursScrollRef.scrollTo({
-                        x: tempTime.getHours() * 70,
-                        animated: false,
-                      });
-                    }, 100);
-                  }
-                }}
-              >
-                <View
-                  style={styles.timePickerCenterMarker}
-                  pointerEvents="none"
-                />
-                {[...Array(24)].map((_, i) => (
-                  <TouchableOpacity
-                    key={`hour-${i}`}
-                    style={[
-                      styles.horizontalTimeItem,
-                      tempTime.getHours() === i &&
-                        styles.horizontalTimeItemSelected,
-                    ]}
-                    onPress={() => {
+            {/* Wheel Pickers */}
+            <View style={styles.wheelPickersContainer}>
+              {/* Hour Wheel */}
+              <View style={styles.wheelSection}>
+                <ScrollView
+                  style={styles.wheelScrollView}
+                  contentContainerStyle={styles.wheelContent}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={40}
+                  decelerationRate="fast"
+                  bounces={false}
+                  onMomentumScrollEnd={(event) => {
+                    const hour = Math.max(0, Math.min(23, Math.round(event.nativeEvent.contentOffset.y / 40)));
+                    if (hour !== tempTime.getHours()) {
                       const newTime = new Date(tempTime);
-                      newTime.setHours(i);
+                      newTime.setHours(hour);
                       setTempTime(newTime);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.horizontalTimeText,
-                        tempTime.getHours() === i &&
-                          styles.horizontalTimeTextSelected,
-                      ]}
-                    >
-                      {i.toString().padStart(2, "0")}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+                      Vibration.vibrate(50);
+                    }
+                  }}
+                  ref={(hourScrollRef) => {
+                    if (hourScrollRef && showTimePicker) {
+                      setTimeout(() => {
+                        hourScrollRef.scrollTo({
+                          y: tempTime.getHours() * 40,
+                          animated: true,
+                        });
+                      }, 200);
+                    }
+                  }}
+                >
+                  {[...Array(24)].map((_, i) => {
+                    const isSelected = tempTime.getHours() === i;
+                    return (
+                      <View key={`hour-${i}`} style={styles.wheelItem}>
+                        <Text style={[
+                          styles.wheelText,
+                          isSelected && styles.wheelTextSelected,
+                        ]}>
+                          {i.toString().padStart(2, "0")}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
 
-            <View style={styles.horizontalPickerContainer}>
-              <Text style={styles.pickerLabel}>Minutes</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalPickerContent}
-                ref={(minutesScrollRef) => {
-                  // Scroll to current minute position when modal opens
-                  if (minutesScrollRef && showTimePicker) {
-                    setTimeout(() => {
-                      minutesScrollRef.scrollTo({
-                        x: tempTime.getMinutes() * 70,
-                        animated: false,
-                      });
-                    }, 100);
-                  }
-                }}
-              >
-                <View
-                  style={styles.timePickerCenterMarker}
-                  pointerEvents="none"
-                />
-                {[...Array(60)].map((_, i) => (
-                  <TouchableOpacity
-                    key={`minute-${i}`}
-                    style={[
-                      styles.horizontalTimeItem,
-                      tempTime.getMinutes() === i &&
-                        styles.horizontalTimeItemSelected,
-                    ]}
-                    onPress={() => {
+              {/* Separator */}
+              <View style={styles.wheelSeparator}>
+                <Text style={styles.separatorText}>:</Text>
+              </View>
+
+              {/* Minute Wheel */}
+              <View style={styles.wheelSection}>
+                <ScrollView
+                  style={styles.wheelScrollView}
+                  contentContainerStyle={styles.wheelContent}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={40}
+                  decelerationRate="fast"
+                  bounces={false}
+                  onMomentumScrollEnd={(event) => {
+                    const minute = Math.max(0, Math.min(59, Math.round(event.nativeEvent.contentOffset.y / 40)));
+                    if (minute !== tempTime.getMinutes()) {
                       const newTime = new Date(tempTime);
-                      newTime.setMinutes(i);
+                      newTime.setMinutes(minute);
                       setTempTime(newTime);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.horizontalTimeText,
-                        tempTime.getMinutes() === i &&
-                          styles.horizontalTimeTextSelected,
-                      ]}
-                    >
-                      {i.toString().padStart(2, "0")}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                      Vibration.vibrate(50);
+                    }
+                  }}
+                  ref={(minuteScrollRef) => {
+                    if (minuteScrollRef && showTimePicker) {
+                      setTimeout(() => {
+                        minuteScrollRef.scrollTo({
+                          y: tempTime.getMinutes() * 40,
+                          animated: false,
+                        });
+                      }, 100);
+                    }
+                  }}
+                >
+                  {[...Array(60)].map((_, i) => {
+                    const isSelected = tempTime.getMinutes() === i;
+                    return (
+                      <View key={`minute-${i}`} style={styles.wheelItem}>
+                        <Text style={[
+                          styles.wheelText,
+                          isSelected && styles.wheelTextSelected,
+                        ]}>
+                          {i.toString().padStart(2, "0")}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
             </View>
 
             <View style={styles.timePickerActions}>
@@ -1002,14 +934,14 @@ const AddAlarmScreen = ({ route, navigation }) => {
                 style={styles.timePickerCancelButton}
                 onPress={cancelTimePicker}
               >
-                <Text style={styles.timePickerButtonText}>CANCEL</Text>
+                <Text style={styles.timePickerButtonText}>ยกเลิก</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.timePickerConfirmButton}
                 onPress={confirmTimePicker}
               >
-                <Text style={styles.timePickerButtonText}>OK</Text>
+                <Text style={styles.timePickerButtonText}>ตกลง</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1453,6 +1385,15 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 20,
   },
+  modalHeader: {
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+  },
   timeDisplayContainer: {
     marginBottom: 32,
     paddingHorizontal: 20,
@@ -1465,52 +1406,52 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "200",
     letterSpacing: 2,
+    textAlign: "center",
   },
-  horizontalPickerContainer: {
-    width: "100%",
-    marginBottom: 24,
-  },
-  pickerLabel: {
-    fontSize: 16,
-    color: "#0A84FF",
-    marginBottom: 12,
-    fontWeight: "600",
-    marginLeft: 12,
-  },
-  horizontalPickerContent: {
-    paddingHorizontal: 120,
-    height: 70,
-    alignItems: "center",
-  },
-  timePickerCenterMarker: {
-    position: "absolute",
-    top: 0,
-    left: "50%",
-    marginLeft: -35,
-    width: 70,
-    height: 70,
-    borderRadius: 12,
-    backgroundColor: "rgba(10, 132, 255, 0.2)",
-    borderWidth: 2,
-    borderColor: "#0A84FF",
-    zIndex: -1,
-  },
-  horizontalTimeItem: {
-    width: 70,
-    height: 70,
+  wheelPickersContainer: {
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginHorizontal: 2,
+    marginBottom: 32,
+    height: 180,
   },
-  horizontalTimeText: {
-    fontSize: 20,
+  wheelSection: {
+    width: 80,
+    height: 180,
+    backgroundColor: "#000000",
+  },
+  wheelScrollView: {
+    flex: 1,
+  },
+  wheelContent: {
+    paddingVertical: 70, // เพื่อให้มีพื้นที่เลือกตรงกลาง
+  },
+  wheelItem: {
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  wheelText: {
     color: "#666666",
-    fontWeight: "400",
+    fontSize: 48,
+    fontWeight: "200",
+    textAlign: "center",
   },
-  horizontalTimeTextSelected: {
+  wheelTextSelected: {
     color: "#FFFFFF",
-    fontSize: 32,
-    fontWeight: "600",
+    fontSize: 54,
+    fontWeight: "100",
+  },
+  wheelSeparator: {
+    width: 30,
+    height: 180,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  separatorText: {
+    color: "#FFFFFF",
+    fontSize: 50,
+    fontWeight: "100",
   },
   timePickerActions: {
     flexDirection: "row",

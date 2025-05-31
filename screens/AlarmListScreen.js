@@ -1,5 +1,5 @@
 // AlarmListScreen.js - หน้าแสดงรายการนาฬิกาปลุก
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -38,6 +38,7 @@ const AlarmListScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const swipeableRef = useRef(null);
+  const loadingRef = useRef(false); // ป้องกันการโหลดซ้ำ
 
   // Monitor network connectivity
   useEffect(() => {
@@ -52,59 +53,53 @@ const AlarmListScreen = ({ navigation }) => {
 
   // เพิ่ม useFocusEffect เพื่อโหลดข้อมูลนาฬิกาปลุกใหม่ทุกครั้งที่กลับมาที่หน้าจอนี้
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       console.log('Screen is focused, reloading alarms...');
-      loadStoredAlarms();
+      if (!loadingRef.current) {
+        loadStoredAlarms();
+      }
       return () => {
-        // เมื่อออกจากหน้าจอ (ถ้าต้องการทำอะไรตอนนี้)
+        // เมื่อออกจากหน้าจอ
+        loadingRef.current = false;
       };
     }, [])
   );
 
-  // Load alarms from storage
-  const loadStoredAlarms = async () => {
+  // Load alarms from storage with optimization
+  const loadStoredAlarms = useCallback(async () => {
+    if (loadingRef.current) return; // ป้องกันการโหลดซ้ำ
+    
     try {
-      setLoading(true); // เพิ่มการแสดง loading ระหว่างโหลดข้อมูล
+      loadingRef.current = true;
+      setLoading(true);
       const storedAlarms = await loadAlarms();
       
-      // ตรวจสอบข้อมูล requireGame ในแต่ละนาฬิกา
-      storedAlarms.forEach(alarm => {
-        // แปลงค่า requireGame เป็น boolean ที่ชัดเจน เพื่อความมั่นใจ
-        if (alarm.requireGame !== undefined) {
-          alarm.requireGame = alarm.requireGame === true;
-        } else {
-          alarm.requireGame = false;
-        }
-        
-        // เพิ่มการแสดงผลค่า boolean ที่ชัดเจนในการแสดง log
-        const requireGameStatus = alarm.requireGame === true ? "true (ต้องเล่นเกม)" : "false (ไม่ต้องเล่นเกม)";
-        console.log(`นาฬิกา ID: ${alarm.id}, requireGame: ${requireGameStatus}`);
-        
-        if (alarm.gameType) {
-          console.log(`- gameType: ${alarm.gameType}, gameDifficulty: ${alarm.gameDifficulty}`);
-        }
+      // ปรับปรุงข้อมูล requireGame อย่างมีประสิทธิภาพ
+      const processedAlarms = storedAlarms.map(alarm => ({
+        ...alarm,
+        requireGame: alarm.requireGame === true
+      }));
+      
+      // Sort alarms by time efficiently
+      const sortedAlarms = processedAlarms.sort((a, b) => {
+        return (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute);
       });
       
-      setAlarms(
-        storedAlarms.sort((a, b) => {
-          const timeA = a.hour * 60 + a.minute;
-          const timeB = b.hour * 60 + b.minute;
-          return timeA - timeB;
-        })
-      );
+      setAlarms(sortedAlarms);
     } catch (error) {
       console.error("Error loading alarms:", error);
       Alert.alert("Error", "Could not load alarm data");
     } finally {
       setLoading(false);
       setRefreshing(false);
+      loadingRef.current = false;
     }
-  };
+  }, []);
 
   // Initial load
   useEffect(() => {
     loadStoredAlarms();
-  }, []);
+  }, [loadStoredAlarms]);
 
   // Remove header in favor of our custom header
   React.useLayoutEffect(() => {
@@ -114,18 +109,18 @@ const AlarmListScreen = ({ navigation }) => {
   }, [navigation]);
 
   // Handle pull-to-refresh
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadStoredAlarms();
-  };
+  }, [loadStoredAlarms]);
 
-  // Format time with leading zeros
-  const formatTime = (hour, minute) => {
+  // Memoized format functions
+  const formatTime = useCallback((hour, minute) => {
     return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
-  };
+  }, []);
 
-  // Format repeat days text
-  const getDaysText = (days) => {
+  // Memoized days text
+  const getDaysText = useCallback((days) => {
     if (!days || days.length === 0) return "ครั้งเดียว";
     if (days.length === 7) return "ทุกวัน";
 
@@ -142,70 +137,65 @@ const AlarmListScreen = ({ navigation }) => {
     }
     
     return days.sort().map(day => dayNames[day]).join(" ");
-  };
+  }, []);
 
-  // Toggle alarm active/inactive
-  const toggleAlarmActive = async (alarmId, currentStatus) => {
+  // Optimized toggle function
+  const toggleAlarmActive = useCallback(async (alarmId, currentStatus) => {
     try {
-      // Find alarm to toggle
       const targetAlarm = alarms.find(alarm => alarm.id === alarmId);
       if (!targetAlarm) return;
 
-      // Toggle status in storage
       const success = await toggleAlarmInStorage(alarmId);
       if (!success) return;
 
       const newStatus = !currentStatus;
       
-      // Update alarms state
-      const updatedAlarms = alarms.map(alarm => 
-        alarm.id === alarmId ? { ...alarm, isActive: newStatus } : alarm
+      // Update alarms state efficiently
+      setAlarms(prevAlarms => 
+        prevAlarms.map(alarm => 
+          alarm.id === alarmId ? { ...alarm, isActive: newStatus } : alarm
+        )
       );
-      setAlarms(updatedAlarms);
 
       // Handle notification scheduling/cancelling
       if (newStatus) {
-        // Schedule the notification
         try {
           const notificationId = await scheduleAlarmNotification(targetAlarm);
           if (notificationId) {
-            // Update the alarm with the notification ID
-            const alarmsWithNotificationId = updatedAlarms.map(a => 
-              a.id === alarmId ? { ...a, notificationId } : a
-            );
-            setAlarms(alarmsWithNotificationId);
-            await saveAlarms(alarmsWithNotificationId);
+            setAlarms(prevAlarms => {
+              const updated = prevAlarms.map(a => 
+                a.id === alarmId ? { ...a, notificationId } : a
+              );
+              saveAlarms(updated); // เซฟแบบ async ไม่ต้องรอ
+              return updated;
+            });
           }
         } catch (err) {
           console.error("Error scheduling notification:", err);
         }
       } else if (targetAlarm.notificationId) {
-        // Cancel the notification
         await cancelAlarmNotification(targetAlarm.notificationId);
       }
     } catch (error) {
       console.error("Error toggling alarm:", error);
     }
-  };
+  }, [alarms]);
 
-  // Delete an alarm
-  const deleteAlarm = async (alarmId) => {
+  // Optimized delete function
+  const deleteAlarm = useCallback(async (alarmId) => {
     try {
-      // Cancel notification if active
       const alarmToDelete = alarms.find(alarm => alarm.id === alarmId);
       if (alarmToDelete?.notificationId) {
         await cancelAlarmNotification(alarmToDelete.notificationId);
       }
 
-      // Delete from storage
-      const success = await deleteAlarmFromStorage(alarmId);
-      if (success) {
-        setAlarms(alarms.filter(alarm => alarm.id !== alarmId));
-      }
+      await deleteAlarmFromStorage(alarmId);
+      setAlarms(prevAlarms => prevAlarms.filter(alarm => alarm.id !== alarmId));
     } catch (error) {
       console.error("Error deleting alarm:", error);
+      Alert.alert("Error", "Could not delete the alarm");
     }
-  };
+  }, [alarms]);
 
   // Render swipe action (delete)
   const renderRightActions = (progress, dragX, item) => {
