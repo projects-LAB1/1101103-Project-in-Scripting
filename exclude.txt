@@ -1,0 +1,14 @@
+node_modules
+.expo
+.git
+android\build
+ios\build
+coverage
+backup
+Lesson1
+mobile-app
+__tests__
+temp-for-sale
+*.log
+*.tmp
+.DS_Store 

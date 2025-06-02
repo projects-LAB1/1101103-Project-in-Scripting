@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Screenshots</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        
+        .phone {
+            width: 300px;
+            height: 600px;
+            background: #000;
+            border-radius: 30px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .screen {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .alarm-item {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .alarm-time {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4ade80;
+        }
+        
+        .alarm-label {
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        .toggle {
+            width: 50px;
+            height: 25px;
+            background: #4ade80;
+            border-radius: 15px;
+            position: relative;
+        }
+        
+        .toggle::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2.5px;
+            right: 2.5px;
+        }
+        
+        .game-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .game-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .game-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        
+        .game-name {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .add-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: #4ade80;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: white;
+            box-shadow: 0 5px 15px rgba(74, 222, 128, 0.3);
+        }
+        
+        .sound-list {
+            flex: 1;
+        }
+        
+        .sound-item {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .sound-icon {
+            width: 40px;
+            height: 40px;
+            background: #4ade80;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chart {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            height: 200px;
+            position: relative;
+        }
+        
+        .chart-bar {
+            position: absolute;
+            bottom: 20px;
+            background: #4ade80;
+            width: 20px;
+            border-radius: 3px;
+        }
+        
+        .chart-bar:nth-child(1) { left: 30px; height: 60px; }
+        .chart-bar:nth-child(2) { left: 60px; height: 80px; }
+        .chart-bar:nth-child(3) { left: 90px; height: 40px; }
+        .chart-bar:nth-child(4) { left: 120px; height: 100px; }
+        .chart-bar:nth-child(5) { left: 150px; height: 70px; }
+        .chart-bar:nth-child(6) { left: 180px; height: 90px; }
+        .chart-bar:nth-child(7) { left: 210px; height: 50px; }
+    </style>
+</head>
+<body>
+    <!-- Main Screen -->
+    <div class="phone">
+        <div class="screen">
+            <div class="header">
+                <div class="title">Smart Alarm Clock</div>
+                <div class="subtitle">5 active alarms</div>
+            </div>
+            <div class="content">
+                <div class="alarm-item">
+                    <div>
+                        <div class="alarm-time">07:30</div>
+                        <div class="alarm-label">Wake up</div>
+                    </div>
+                    <div class="toggle"></div>
+                </div>
+                <div class="alarm-item">
+                    <div>
+                        <div class="alarm-time">12:00</div>
+                        <div class="alarm-label">Lunch break</div>
+                    </div>
+                    <div class="toggle"></div>
+                </div>
+                <div class="alarm-item">
+                    <div>
+                        <div class="alarm-time">18:00</div>
+                        <div class="alarm-label">Dinner time</div>
+                    </div>
+                    <div class="toggle"></div>
+                </div>
+            </div>
+            <div class="add-btn">+</div>
+        </div>
+    </div>
+
+    <!-- Games Screen -->
+    <div class="phone">
+        <div class="screen">
+            <div class="header">
+                <div class="title">Mini Games</div>
+                <div class="subtitle">Choose a game to dismiss alarm</div>
+            </div>
+            <div class="content">
+                <div class="game-grid">
+                    <div class="game-card">
+                        <div class="game-icon">🧮</div>
+                        <div class="game-name">Math Game</div>
+                    </div>
+                    <div class="game-card">
+                        <div class="game-icon">🧠</div>
+                        <div class="game-name">Memory Game</div>
+                    </div>
+                    <div class="game-card">
+                        <div class="game-icon">📸</div>
+                        <div class="game-name">Photo Game</div>
+                    </div>
+                    <div class="game-card">
+                        <div class="game-icon">🎯</div>
+                        <div class="game-name">Quick Game</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sound Picker -->
+    <div class="phone">
+        <div class="screen">
+            <div class="header">
+                <div class="title">Alarm Sounds</div>
+                <div class="subtitle">Choose your wake up sound</div>
+            </div>
+            <div class="content">
+                <div class="sound-list">
+                    <div class="sound-item">
+                        <div class="sound-icon">🔔</div>
+                        <div>
+                            <div>Classic Bell</div>
+                            <div style="font-size: 12px; color: #888;">Default</div>
+                        </div>
+                    </div>
+                    <div class="sound-item">
+                        <div class="sound-icon">🎵</div>
+                        <div>
+                            <div>Morning Birds</div>
+                            <div style="font-size: 12px; color: #888;">Nature</div>
+                        </div>
+                    </div>
+                    <div class="sound-item">
+                        <div class="sound-icon">⚡</div>
+                        <div>
+                            <div>Electronic Beep</div>
+                            <div style="font-size: 12px; color: #888;">Modern</div>
+                        </div>
+                    </div>
+                    <div class="sound-item">
+                        <div class="sound-icon">🎶</div>
+                        <div>
+                            <div>Gentle Piano</div>
+                            <div style="font-size: 12px; color: #888;">Relaxing</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Screen -->
+    <div class="phone">
+        <div class="screen">
+            <div class="header">
+                <div class="title">Sleep Analytics</div>
+                <div class="subtitle">Your sleep patterns</div>
+            </div>
+            <div class="content">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 36px; color: #4ade80; font-weight: bold;">7h 45m</div>
+                    <div style="color: #888;">Average sleep time</div>
+                </div>
+                <div class="chart">
+                    <div style="position: absolute; top: 10px; left: 20px; font-size: 14px;">Sleep Duration (Hours)</div>
+                    <div class="chart-bar"></div>
+                    <div class="chart-bar"></div>
+                    <div class="chart-bar"></div>
+                    <div class="chart-bar"></div>
+                    <div class="chart-bar"></div>
+                    <div class="chart-bar"></div>
+                    <div class="chart-bar"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('App Screenshots ready for capture');
+        console.log('Capture each phone mockup separately');
+    </script>
+</body>
+</html> 

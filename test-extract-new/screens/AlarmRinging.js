@@ -1,0 +1,463 @@
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  StatusBar,
+  BackHandler,
+  Vibration,
+  Dimensions,
+  Animated,
+} from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { getStatusBarHeight } from "react-native-status-bar-height";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as ScreenOrientation from "expo-screen-orientation";
+import { useAlarmSound } from "../contexts/AlarmSoundContext";
+import { useSleep } from "../contexts/SleepContext";
+
+const AlarmRinging = ({ route, navigation }) => {
+  const { alarm, isFullscreen, actionId, isAppExitAlert } = route.params || {};
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [remainingSnoozes, setRemainingSnoozes] = useState(
+    alarm?.snoozeCount || 3
+  );
+  
+  // ใช้ context สำหรับจัดการเสียงเท่านั้น
+  const { 
+    isPlaying: soundIsPlaying,
+    playAlarmSound, 
+    stopAlarmSound 
+  } = useAlarmSound();
+
+  // ใช้ context สำหรับจัดการประวัติการนอน
+  const { addSleep } = useSleep();
+
+  // Animation values
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Prevent going back with hardware back button
+  useFocusEffect(
+    React.useCallback(() => {
+      // Lock screen orientation to portrait
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP
+      );
+
+      // Disable hardware back button
+      const onBackPress = () => {
+        return true; // Return true to disable back button press
+      };
+
+      // Add back button handler
+      BackHandler.addEventListener("hardwareBackPress", onBackPress);
+
+      // When the screen blurs or component unmounts
+      return () => {
+        // Re-enable orientation changes
+        ScreenOrientation.unlockAsync();
+        // Remove back button handler
+        BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+        // Stop vibration if still happening
+        Vibration.cancel();
+      };
+    }, [])
+  );
+
+  // Set up animation
+  useEffect(() => {
+    const startPulseAnimation = () => {
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        if (soundIsPlaying) {
+          startPulseAnimation();
+        }
+      });
+    };
+
+    startPulseAnimation();
+
+    // Start a timer to update the current time
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timeInterval);
+  }, [soundIsPlaying, pulseAnim]);
+
+  // Start playing sound when component mounts
+  useEffect(() => {
+    const handleAlarmStart = async () => {
+      try {
+        // ตรวจสอบว่าเป็นการทดสอบหรือไม่ เพื่อแสดงข้อความที่เหมาะสม
+        const isTestMode = alarm?.isTest === true;
+        console.log(`เริ่มการปลุก ${isTestMode ? '(โหมดทดสอบ)' : '(ปลุกจริง)'}`);
+        
+        // Start vibration pattern if vibration is enabled
+        if (alarm?.vibrate) {
+          const pattern = [0, 1000, 500, 1000, 500, 1000];
+          Vibration.vibrate(pattern, true);
+        }
+
+        // เล่นเสียงด้วย context
+        await playAlarmSound(alarm);
+      } catch (error) {
+        console.error("Error handling alarm start:", error);
+      }
+    };
+
+    // ถ้ามีการเลือก STOP_ALARM จากการแจ้งเตือน ปิดเสียงทันที
+    if (actionId === "STOP_ALARM") {
+      // ถ้าผู้ใช้เลือกหยุดการปลุกจากการแจ้งเตือน
+      handleStopAlarm();
+    } else if (actionId === "SNOOZE_ALARM") {
+      // ถ้าผู้ใช้เลือกเลื่อนปลุกจากการแจ้งเตือน
+      handleSnooze();
+    } else {
+      // Start playing normally
+      handleAlarmStart();
+    }
+
+    // Clean up
+    return () => {
+      console.log("กำลังออกจากหน้าจอ AlarmRinging - ทำความสะอาดทรัพยากร");
+      // หยุดเสียงด้วย context
+      stopAlarmSound();
+      Vibration.cancel();
+      
+      // ถ้าเป็นการทดสอบ รีเซ็ตตัวแปรป้องกันการกดซ้ำ
+      if (alarm?.isTest && window.isTestingAlarm !== undefined) {
+        window.isTestingAlarm = false;
+      }
+    };
+  }, [alarm, actionId]);
+
+  // ฟังก์ชันสำหรับส่งข้อมูลการนอนจากการปิดปลุก
+  const addSleepRecordFromAlarm = async () => {
+    try {
+      console.log('เริ่มกระบวนการบันทึกข้อมูลการนอนจากปลุก...');
+      
+      if (!alarm || alarm.isTest) {
+        console.log('ไม่บันทึกข้อมูลเพราะ:', !alarm ? 'ไม่มีข้อมูลปลุก' : 'เป็นการทดสอบ');
+        return;
+      }
+
+      if (!addSleep) {
+        console.error('ไม่พบฟังก์ชัน addSleep จาก context');
+        return;
+      }
+
+      const now = new Date();
+      const wakeTime = now;
+      
+      // คำนวณเวลาเข้านอนจากเวลาปลุก (สมมติว่านอน 8 ชั่วโมง)
+      const estimatedSleepDuration = 8 * 60; // 8 ชั่วโมงในนาที
+      const bedTime = new Date(wakeTime.getTime() - (estimatedSleepDuration * 60 * 1000));
+
+      const sleepRecord = {
+        bedTime: bedTime.toISOString(),
+        wakeTime: wakeTime.toISOString(),
+        durationMinutes: estimatedSleepDuration,
+        quality: 'good', // คุณภาพการนอนเริ่มต้น
+        notes: `ตื่นจากการปลุก: ${alarm.label || 'ไม่มีชื่อ'}`,
+        source: 'alarm', // แยกประเภทว่ามาจากการปิดปลุก
+        alarmId: alarm.id,
+        alarmLabel: alarm.label || 'ไม่มีชื่อ',
+        createdAt: now.toISOString(),
+      };
+
+      console.log('กำลังบันทึกข้อมูลการนอน:', sleepRecord);
+      const result = await addSleep(sleepRecord);
+      console.log('บันทึกข้อมูลการนอนจากการปิดปลุกสำเร็จ:', result);
+    } catch (error) {
+      console.error('Error adding sleep record from alarm:', error);
+      // แสดง error ให้ผู้ใช้เห็นสำหรับการ debug
+      console.error('รายละเอียด error:', error.message);
+    }
+  };
+
+  // Handle stopping the alarm
+  const handleStopAlarm = async () => {
+    try {
+      console.log("กำลังหยุดเสียงปลุก - เริ่มต้นกระบวนการ");
+      
+      // หยุดเสียงด้วย context
+      await stopAlarmSound();
+      
+      // 3. หยุดการสั่น
+      Vibration.cancel();
+
+      // บันทึกข้อมูลการนอนจากการปิดปลุก
+      await addSleepRecordFromAlarm();
+
+      // ถ้าเป็นการทดสอบ รีเซ็ตตัวแปรป้องกันการกดซ้ำ
+      if (alarm?.isTest && window.isTestingAlarm !== undefined) {
+        window.isTestingAlarm = false;
+      }
+      
+      console.log("สำเร็จ: หยุดเสียงปลุกแล้ว กำลังไปยังหน้าประวัติการนอน");
+
+      // Navigate to sleep history ถ้าไม่ใช่การทดสอบ
+      setTimeout(() => {
+        if (!alarm?.isTest) {
+          navigation.reset({
+            index: 0,
+            routes: [
+              { name: "Main" },
+              { name: "Sleep", params: { screen: "SleepHistory" } },
+            ],
+          });
+        } else {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "AlarmList" }],
+          });
+        }
+      }, 1000);
+    } catch (error) {
+      console.error("Error stopping alarm:", error);
+      
+      // หยุดทุกเสียงในระบบเมื่อเกิดข้อผิดพลาด
+      try {
+        await stopAlarmSound();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await playAlarmSound(alarm);
+      } catch (e) {
+        console.log("ไม่สามารถรีเซ็ตระบบเสียงได้ในตอนเกิดข้อผิดพลาด:", e);
+      }
+      
+      // Even if there's an error, try to navigate back
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "AlarmList" }],
+      });
+    }
+  };
+
+  // Handle snoozing the alarm
+  const handleSnooze = async () => {
+    try {
+      console.log("กำลังเลื่อนปลุก - เริ่มต้นกระบวนการ");
+      
+      // หยุดเสียงด้วย context
+      await stopAlarmSound();
+      
+      // หยุดการสั่น
+      Vibration.cancel();
+
+      // ถ้าเป็นการทดสอบ รีเซ็ตตัวแปรป้องกันการกดซ้ำ
+      if (alarm?.isTest && window.isTestingAlarm !== undefined) {
+        window.isTestingAlarm = false;
+      }
+
+      if (remainingSnoozes > 0) {
+        // Calculate snooze time
+        const snoozeMinutes = alarm?.snoozeTime || 5;
+        const snoozeTimeMs = snoozeMinutes * 60 * 1000;
+        const snoozeUntil = new Date(Date.now() + snoozeTimeMs);
+
+        // Save snooze info to AsyncStorage
+        await AsyncStorage.setItem(
+          "@last_snooze",
+          JSON.stringify({
+            alarmId: alarm.id,
+            snoozeUntil: snoozeUntil.toISOString(),
+            remainingSnoozes: remainingSnoozes - 1,
+          })
+        );
+
+        // Schedule a new notification for snooze
+        // This would use the scheduleAlarmNotification with modified time
+
+        // รอเล็กน้อยเพื่อให้แน่ใจว่าเสียงหยุดแล้ว
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Navigate back
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "AlarmList" }],
+        });
+      } else {
+        // No more snoozes left
+        handleStopAlarm();
+      }
+    } catch (error) {
+      console.error("Error snoozing alarm:", error);
+      
+      // หากเกิดข้อผิดพลาด ให้พยายามหยุดเสียงอีกครั้ง
+      try {
+        await stopAlarmSound();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await playAlarmSound(alarm);
+        Vibration.cancel();
+      } catch (e) {
+        console.log("ไม่สามารถรีเซ็ตระบบเสียงได้ในตอนเกิดข้อผิดพลาด:", e);
+      }
+      
+      // แม้เกิดข้อผิดพลาดให้กลับไปหน้าหลัก
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "AlarmList" }],
+      });
+    }
+  };
+
+  // Format date and time for display
+  const formatTime = () => {
+    return currentTime.toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const formatDate = () => {
+    return currentTime.toLocaleDateString("th-TH", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar hidden={isFullscreen} />
+      <LinearGradient
+        colors={["#1a1a2e", "#16213e", "#0f3460"]}
+        style={styles.container}
+      >
+        {/* Current Time */}
+        <View style={styles.timeContainer}>
+          <Animated.Text
+            style={[styles.timeText, { transform: [{ scale: pulseAnim }] }]}
+          >
+            {formatTime()}
+          </Animated.Text>
+          <Text style={styles.dateText}>{formatDate()}</Text>
+        </View>
+
+        {/* Alarm label */}
+        <View style={styles.labelContainer}>
+          <MaterialCommunityIcons name="alarm-bell" size={40} color="#ffffff" />
+          <Text style={styles.labelText}>
+            {alarm?.label || "เวลาตื่นแล้ว!"}
+          </Text>
+        </View>
+
+        {/* Controls */}
+        <View style={styles.controlsContainer}>
+          <TouchableOpacity style={styles.controlButton} onPress={handleSnooze}>
+            <View style={styles.buttonContent}>
+              <Ionicons name="md-bed" size={30} color="#ffffff" />
+              <Text style={styles.buttonText}>เลื่อนปลุก</Text>
+              <Text style={styles.buttonSubText}>
+                {alarm?.snoozeTime || 5} นาที ({remainingSnoozes} ครั้ง)
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.controlButton, styles.stopButton]}
+            onPress={handleStopAlarm}
+          >
+            <View style={styles.buttonContent}>
+              <MaterialCommunityIcons
+                name="alarm-off"
+                size={30}
+                color="#ffffff"
+              />
+              <Text style={styles.buttonText}>ปิดเสียงปลุก</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "space-around",
+    padding: 20,
+  },
+  timeContainer: {
+    alignItems: "center",
+  },
+  timeText: {
+    fontSize: 72,
+    fontWeight: "200",
+    color: "#ffffff",
+    marginBottom: 10,
+    fontVariant: ["tabular-nums"],
+  },
+  dateText: {
+    fontSize: 18,
+    color: "#ffffff",
+    opacity: 0.8,
+  },
+  labelContainer: {
+    alignItems: "center",
+    padding: 20,
+  },
+  labelText: {
+    fontSize: 32,
+    fontWeight: "600",
+    color: "#ffffff",
+    marginTop: 20,
+    textAlign: "center",
+  },
+  controlsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+    paddingHorizontal: 20,
+  },
+  controlButton: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 15,
+    padding: 20,
+    width: "45%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stopButton: {
+    backgroundColor: "#E94560",
+  },
+  buttonContent: {
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 10,
+  },
+  buttonSubText: {
+    color: "#ffffff",
+    fontSize: 12,
+    opacity: 0.8,
+    marginTop: 5,
+  },
+});
+
+export default AlarmRinging;

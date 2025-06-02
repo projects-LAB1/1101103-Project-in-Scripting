@@ -1,0 +1,312 @@
+========================================
+    Sleep App Project - โครงสร้างและหน้าที่ไฟล์
+========================================
+
+📁 PROJECT STRUCTURE
+====================
+
+1101103-Project-in-Scripting/
+├── backend/                    # Backend API Server
+│   ├── middleware/            # Middleware functions
+│   ├── data/                  # Database files (auto-generated)
+│   ├── node_modules/          # Dependencies
+│   ├── server.js              # Main API server
+│   ├── firebase-config.js     # Firebase configuration
+│   ├── firebase-config-example.js # Firebase config template
+│   ├── package.json           # Dependencies & scripts
+│   ├── test-api.js           # API testing script
+│   ├── README.md             # Technical documentation
+│   ├── API-USAGE-GUIDE.md    # Complete usage guide
+│   ├── API-COMMANDS.txt      # API commands reference
+│   ├── PROJECT-STRUCTURE.txt # This file
+│   └── .gitignore            # Git ignore rules
+├── components/               # React Native components
+├── screens/                  # App screens
+├── contexts/                 # React contexts
+├── firebase/                 # Firebase client config
+├── models/                   # Data models
+├── navigation/               # Navigation setup
+├── redux/                    # State management
+├── utils/                    # Utility functions
+├── assets/                   # Images, sounds
+├── App.js                    # Main app component
+├── package.json              # React Native dependencies
+└── README.md                 # Project documentation
+
+========================================
+🔧 BACKEND FILES - หน้าที่ของแต่ละไฟล์
+========================================
+
+📄 server.js
+-------------
+หน้าที่: Main API Server
+- Express.js server หลัก
+- กำหนด API routes ทั้งหมด
+- Authentication endpoints (/api/auth/*)
+- Users endpoints (/api/users)
+- Tasks endpoints (/api/tasks)
+- Games endpoints (/api/games)
+- Sleep endpoints (/api/sleep)
+- Error handling middleware
+- CORS configuration
+- JSON parsing middleware
+
+📄 firebase-config.js
+----------------------
+หน้าที่: Firebase Configuration
+- Firebase Admin SDK setup
+- Firebase Client SDK setup
+- Firestore database connection
+- Mock database สำหรับการทดสอบ
+- Authentication configuration
+- Database initialization
+
+📄 firebase-config-example.js
+------------------------------
+หน้าที่: Firebase Config Template
+- ตัวอย่างการตั้งค่า Firebase
+- คำแนะนำการใช้งาน
+- Template สำหรับ Service Account Key
+- คำแนะนำการดาวน์โหลด credentials
+
+📄 middleware/auth.js
+---------------------
+หน้าที่: Authentication Middleware
+- ตรวจสอบ Firebase ID Token
+- Verify token กับ Firebase Admin
+- Mock authentication สำหรับการทดสอบ
+- User data extraction จาก token
+- Optional authentication middleware
+
+📄 package.json
+---------------
+หน้าที่: Dependencies & Scripts
+- Express.js framework
+- Firebase Admin & Client SDKs
+- CORS middleware
+- UUID generator
+- JSON Web Token
+- Nodemon สำหรับ development
+- NPM scripts (start, dev)
+
+📄 test-api.js
+--------------
+หน้าที่: API Testing Script
+- ทดสอบ API endpoints ทั้งหมด
+- Mock data generation
+- Response validation
+- Error testing
+- Performance testing
+- Automated testing workflow
+
+📄 README.md
+------------
+หน้าที่: Technical Documentation
+- Installation instructions
+- Firebase setup guide
+- API endpoints documentation
+- Security features
+- Error handling
+- Development workflow
+
+📄 API-USAGE-GUIDE.md
+---------------------
+หน้าที่: Complete Usage Guide
+- Detailed API documentation
+- Request/Response examples
+- Authentication guide
+- JavaScript/React Native examples
+- cURL commands
+- Error responses guide
+
+📄 API-COMMANDS.txt
+-------------------
+หน้าที่: Quick Reference
+- All API endpoints
+- Request formats
+- Headers required
+- Body examples
+- cURL commands
+- Response examples
+
+📄 .gitignore
+-------------
+หน้าที่: Git Ignore Rules
+- Exclude node_modules
+- Exclude firebase-config.js (sensitive)
+- Exclude data files
+- Exclude logs
+- Exclude environment files
+
+========================================
+📱 REACT NATIVE FILES - หน้าที่ของแต่ละไฟล์
+========================================
+
+📄 App.js
+----------
+หน้าที่: Main App Component
+- App entry point
+- Navigation setup
+- Global providers
+- Firebase initialization
+- Theme configuration
+
+📁 screens/
+-----------
+หน้าที่: App Screens
+- auth/ - Login, Register, Reset screens
+- games/ - Game screens
+- sleep/ - Sleep tracking screens
+- tasks/ - Task management screens
+- Home screen, Profile screen, etc.
+
+📁 components/
+--------------
+หน้าที่: Reusable Components
+- animations/ - Animation components
+- buttons/ - Button components
+- cards/ - Card components
+- headers/ - Header components
+- inputs/ - Input components
+- layout/ - Layout components
+
+📁 contexts/
+------------
+หน้าที่: React Contexts
+- Authentication context
+- User data context
+- App state management
+- Global data sharing
+
+📁 firebase/
+------------
+หน้าที่: Firebase Client Configuration
+- Firebase client setup
+- Authentication methods
+- Firestore client operations
+- Firebase utilities
+
+📁 models/
+----------
+หน้าที่: Data Models
+- User model
+- Task model
+- Sleep data model
+- Game data model
+- API response models
+
+📁 navigation/
+--------------
+หน้าที่: Navigation Setup
+- Stack navigation
+- Tab navigation
+- Navigation helpers
+- Route definitions
+
+📁 redux/
+---------
+หน้าที่: State Management
+- slices/ - Redux slices
+- store/ - Redux store configuration
+- Actions and reducers
+- Global state management
+
+📁 utils/
+---------
+หน้าที่: Utility Functions
+- API helpers
+- Date/time utilities
+- Validation functions
+- Helper functions
+
+📁 assets/
+----------
+หน้าที่: Static Assets
+- images/ - App images
+- sounds/ - Sound files
+- Icons and graphics
+
+========================================
+🔄 DATA FLOW - การไหลของข้อมูล
+========================================
+
+1. USER INTERACTION
+   ↓
+2. REACT NATIVE COMPONENT
+   ↓
+3. API CALL (fetch/axios)
+   ↓
+4. BACKEND SERVER (server.js)
+   ↓
+5. AUTHENTICATION MIDDLEWARE (auth.js)
+   ↓
+6. FIREBASE VERIFICATION
+   ↓
+7. DATABASE OPERATION (Firestore/Mock)
+   ↓
+8. RESPONSE BACK TO CLIENT
+   ↓
+9. UPDATE UI STATE
+
+========================================
+🔐 SECURITY LAYERS - ชั้นความปลอดภัย
+========================================
+
+1. Firebase Authentication
+   - ID Token verification
+   - User identity validation
+
+2. Backend Middleware
+   - Token parsing
+   - Authorization checks
+   - User-specific data access
+
+3. API Validation
+   - Input validation
+   - Data sanitization
+   - Error handling
+
+4. Database Security
+   - User-specific queries
+   - Access control
+   - Data isolation
+
+========================================
+🚀 DEPLOYMENT READY - พร้อมใช้งาน
+========================================
+
+✅ Development Environment
+- Mock database สำหรับการทดสอบ
+- Hot reload with nodemon
+- Comprehensive testing
+
+✅ Production Ready
+- Firebase integration
+- Error handling
+- Security middleware
+- API documentation
+
+✅ Scalable Architecture
+- Modular design
+- Separation of concerns
+- Easy to extend
+- Well documented
+
+========================================
+🎯 PROJECT COMPLETION - ความสมบูรณ์
+========================================
+
+Backend API: 100% Complete
+- All CRUD operations
+- Authentication system
+- Firebase integration
+- Testing & documentation
+
+React Native App: Ready for Integration
+- Component structure ready
+- Screen architecture ready
+- State management ready
+- API integration ready
+
+Total Project Status: READY FOR SUBMISSION
+======================================== 

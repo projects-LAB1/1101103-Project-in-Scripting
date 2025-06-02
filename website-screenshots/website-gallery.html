@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Alarm Clock App - แกลเลอรีภาพ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+            font-size: 1.2em;
+        }
+        
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+        
+        .image-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .image-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        
+        .image-card img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .image-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .image-description {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .features {
+            background: #e8f4fd;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            color: #2980b9;
+        }
+        
+        .features strong {
+            color: #1565c0;
+        }
+        
+        .download-section {
+            text-align: center;
+            margin-top: 40px;
+            padding: 30px;
+            background: #f1f3f4;
+            border-radius: 12px;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            margin: 10px;
+            transition: transform 0.3s ease;
+        }
+        
+        .download-btn:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Smart Alarm Clock App</h1>
+        <p class="subtitle">แอปนาฬิกาปลุกอัจฉริยะพร้อมเกมมินิและระบบติดตามการนอน</p>
+        
+        <div class="gallery">
+            <div class="image-card">
+                <img src="Screenshot 1.png" alt="หน้าจอหลักของแอปนาฬิกาปลุกอัจฉริยะ">
+                <div class="image-title">📱 หน้าจอหลัก</div>
+                <div class="image-description">
+                    หน้าจอหลักของแอปนาฬิกาปลุกอัจฉริยะ แสดงการตั้งเวลาปลุก, การแสดงเวลาปัจจุบัน, และเมนูหลักของแอป
+                </div>
+                <div class="features">
+                    <strong>ฟีเจอร์:</strong> การตั้งเวลาปลุก, UI ที่สวยงาม, การแสดงเวลาแบบดิจิทัล
+                </div>
+            </div>
+            
+            <div class="image-card">
+                <img src="Screenshot 2.png" alt="หน้าจอเกมมินิที่ช่วยให้ผู้ใช้ตื่นขึ้นอย่างสนุกสนาน">
+                <div class="image-title">🎮 เกมมินิ</div>
+                <div class="image-description">
+                    หน้าจอเกมมินิที่ช่วยให้ผู้ใช้ตื่นขึ้นอย่างสนุกสนาน มีเกมหลากหลายประเภทให้เลือกเล่น
+                </div>
+                <div class="features">
+                    <strong>ฟีเจอร์:</strong> เกมคณิตศาสตร์, เกมจับคู่, เกมปริศนา, UI เกมที่น่าสนใจ
+                </div>
+            </div>
+            
+            <div class="image-card">
+                <img src="Screenshot 3.png" alt="หน้าจอการตั้งค่าเสียงปลุกและการปรับแต่งต่างๆ">
+                <div class="image-title">🔊 การตั้งค่าเสียง</div>
+                <div class="image-description">
+                    หน้าจอการตั้งค่าเสียงปลุกและการปรับแต่งต่างๆ แสดงไลบรารีเสียงและตัวเลือกการปรับแต่ง
+                </div>
+                <div class="features">
+                    <strong>ฟีเจอร์:</strong> ไลบรารีเสียงปลุก, การตั้งค่าระดับเสียง, ตัวเลือกการปรับแต่งแอป
+                </div>
+            </div>
+            
+            <div class="image-card">
+                <img src="app-screen-1.png" alt="หน้าจอแดชบอร์ดแสดงสถิติการนอนและการตื่น">
+                <div class="image-title">📊 แดชบอร์ดวิเคราะห์</div>
+                <div class="image-description">
+                    หน้าจอแดชบอร์ดแสดงสถิติการนอนและการตื่น พร้อมกราฟและข้อมูลการวิเคราะห์
+                </div>
+                <div class="features">
+                    <strong>ฟีเจอร์:</strong> กราฟสถิติการนอน, การติดตามรูปแบบการนอน, ข้อมูลการวิเคราะห์
+                </div>
+            </div>
+            
+            <div class="image-card">
+                <img src="app-screen-2.png" alt="หน้าแดชบอร์ดหลักที่แสดงข้อมูลสำคัญทั้งหมด">
+                <div class="image-title">🏠 แดชบอร์ดหลัก</div>
+                <div class="image-description">
+                    หน้าแดชบอร์ดหลักที่แสดงข้อมูลสำคัญทั้งหมด รวมถึงสภาพอากาศและการตั้งค่าด่วน
+                </div>
+                <div class="features">
+                    <strong>ฟีเจอร์:</strong> ข้อมูลสภาพอากาศ, การตั้งค่าด่วน, การแสดงข้อมูลแบบครบถ้วน
+                </div>
+            </div>
+            
+            <div class="image-card">
+                <img src="app-screen-3.png" alt="ไลบรารีเสียงที่ครบครันพร้อมตัวอย่างเสียง">
+                <div class="image-title">🎵 ไลบรารีเสียง</div>
+                <div class="image-description">
+                    ไลบรารีเสียงที่ครบครันพร้อมตัวอย่างเสียงและการจัดหมวดหมู่
+                </div>
+                <div class="features">
+                    <strong>ฟีเจอร์:</strong> เสียงธรรมชาติ, เสียงดนตรี, เสียงคลาสสิก, ตัวอย่างเสียง
+                </div>
+            </div>
+            
+            <div class="image-card">
+                <img src="app-screen-4.png" alt="ระบบติดตามการนอนที่แสดงรูปแบบการนอน">
+                <div class="image-title">📈 ติดตามการนอน</div>
+                <div class="image-description">
+                    ระบบติดตามการนอนที่แสดงรูปแบบการนอนและคำแนะนำสำหรับการนอนที่ดีขึ้น
+                </div>
+                <div class="features">
+                    <strong>ฟีเจอร์:</strong> การติดตามการนอน, กราฟรูปแบบการนอน, คำแนะนำการนอน
+                </div>
+            </div>
+        </div>
+        
+        <div class="download-section">
+            <h2>💾 ดาวน์โหลดซอร์สโค้ด</h2>
+            <p>ซอร์สโค้ดสมบูรณ์ของแอป Smart Alarm Clock พร้อมเอกสารและคู่มือการติดตั้ง</p>
+            <a href="#" class="download-btn">📱 ดาวน์โหลดซอร์สโค้ด</a>
+            <a href="#" class="download-btn">📖 ดูเอกสาร</a>
+        </div>
+    </div>
+</body>
+</html> 
